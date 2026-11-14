@@ -3,7 +3,7 @@ PY      := .venv/bin/python
 BACKEND := backend
 PORT    ?= 8000
 
-.PHONY: help install sample test-backend test dev demo build pm2-start db-init db-health clean
+.PHONY: help install sample fetch ingest test-backend test dev demo build pm2-start db-init db-health clean
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -12,6 +12,12 @@ help:
 install:  ## python + frontend dependencies
 	$(PY) -m pip install -r $(BACKEND)/requirements.txt
 	cd frontend && npm install
+
+fetch:  ## download real FIRMS CSVs (needs FIRMS_MAP_KEY; vars: AOI_BBOX SOURCES DAYS AOI)
+	cd $(BACKEND) && ../$(PY) -m scripts.firms.fetch_firms --bbox "$${AOI_BBOX:-104,10,109,16}" --days $${DAYS:-7} --sources "$${SOURCES:-VIIRS_SNPP_NRT,MODIS_NRT}" --aoi "$${AOI:-custom}"
+
+ingest:  ## ingest a FIRMS CSV server-side (vars: FILE AOI=custom SOURCE=file)
+	curl -fsS -X POST "http://127.0.0.1:$(PORT)/api/firms/ingest?aoi=$${AOI:-custom}&source=$${SOURCE:-file}" -F "file=@$(FILE)"
 
 sample:  ## generate the deterministic FIRMS sample CSV
 	$(PY) backend/scripts/firms/make_sample.py

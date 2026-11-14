@@ -1,0 +1,86 @@
+[
+ {
+  "file": "vietnam_VIIRS_SNPP_NRT_2026-11-09_5d_2b11a44667d05367.csv",
+  "aoi": "vietnam",
+  "source": "VIIRS_SNPP_NRT",
+  "bbox": "104,10,109,16",
+  "days": 5,
+  "sha16": "2b11a44667d05367",
+  "at": "2026-11-09",
+  "rows": 0,
+  "clean": 0,
+  "rejected": 0,
+  "by_instrument": {}
+ },
+ {
+  "file": "vietnam_MODIS_NRT_2026-11-09_5d_c16411907c5082c3.csv",
+  "aoi": "vietnam",
+  "source": "MODIS_NRT",
+  "bbox": "104,10,109,16",
+  "days": 5,
+  "sha16": "c16411907c5082c3",
+  "at": "2026-11-09",
+  "rows": 79,
+  "clean": 5,
+  "rejected": 74,
+  "by_instrument": {
+   "MODIS": 5
+  }
+ },
+ {
+  "file": "vietnam_VIIRS_SNPP_NRT_2019-02-15_5d_2b11a44667d05367.csv",
+  "aoi": "vietnam",
+  "source": "VIIRS_SNPP_NRT",
+  "bbox": "104,10,109,16",
+  "days": 5,
+  "sha16": "2b11a44667d05367",
+  "at": "2026-11-09",
+  "rows": 0,
+  "clean": 0,
+  "rejected": 0,
+  "by_instrument": {}
+ },
+ {
+  "file": "vietnam_MODIS_NRT_2019-02-15_5d_64ed71a444642638.csv",
+  "aoi": "vietnam",
+  "source": "MODIS_NRT",
+  "bbox": "104,10,109,16",
+  "days": 5,
+  "sha16": "64ed71a444642638",
+  "at": "2026-11-09",
+  "rows": 0,
+  "clean": 0,
+  "rejected": 0,
+  "by_instrument": {}
+ },
+ {
+  "file": "vietnam_VIIRS_SNPP_SP_2019-02-15_5d_622a561b96f9c9ee.csv",
+  "aoi": "vietnam",
+  "source": "VIIRS_SNPP_SP",
+  "bbox": "104,10,109,16",
+  "days": 5,
+  "sha16": "622a561b96f9c9ee",
+  "at": "2026-11-09",
+  "rows": 10096,
+  "clean": 10096,
+  "rejected": 0,
+  "by_instrument": {
+   "VIIRS": 10096
+  }
+ },
+ {
+  "file": "vietnam_MODIS_SP_2019-02-15_5d_f63d1f305141ad17.csv",
+  "aoi": "vietnam",
+  "source": "MODIS_SP",
+  "bbox": "104,10,109,16",
+  "days": 5,
+  "sha16": "f63d1f305141ad17",
+  "at": "2026-11-09",
+  "rows": 1303,
+  "clean": 1303,
+  "rejected": 0,
+  "by_instrument": {
+   "MODIS": 1303
+  }
+ }
+]

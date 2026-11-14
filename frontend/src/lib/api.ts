@@ -51,20 +51,31 @@ export interface CalendarResponse {
   ms?: number;
 }
 
+export interface Aoi { id: string; label: string }
+
+export interface AskResponse {
+  answer: string;
+  facts: Record<string, number | string | number[] | null>;
+  suggestions: string[];
+}
+
 export const api = {
   health: () => get<{ status: string; torch: boolean }>("/api/health"),
   schema: () => get<{ fields: string[] }>("/api/firms/schema"),
-  sample: (limit = 200) => get<{ count: number; records: Record<string, unknown>[] }>(`/api/firms/sample?limit=${limit}`),
-  calendar: (limit = 25000, bbox?: string) =>
-    get<CalendarResponse>(`/api/firms/calendar?limit=${limit}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}`),
+  sample: (limit = 200, aoi = "vietnam") => get<{ count: number; records: Record<string, unknown>[] }>(`/api/firms/sample?limit=${limit}&aoi=${aoi}`),
+  aois: () => get<{ aois: Aoi[] }>("/api/firms/aois"),
+  calendar: (limit = 25000, bbox?: string, aoi = "vietnam") =>
+    get<CalendarResponse>(`/api/firms/calendar?limit=${limit}&aoi=${aoi}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}`),
   harmonize: (records: Record<string, unknown>[]) =>
     post<CalendarResponse>("/api/firms/harmonize", { records }),
   validate: (records: Record<string, unknown>[]) =>
     post<{ clean: number; rejected: number; qa_counts: Record<string, number> }>(
       "/api/firms/validate", { records },
     ),
+  ask: (question: string, bbox?: string) =>
+    post<AskResponse>("/api/firms/ask", bbox ? { question, bbox } : { question }),
   dlInfo: () => get<{ has_torch: boolean; models: Array<Record<string, string>> }>("/api/firms/dl-info"),
-  exportUrl: (limit = 25000, bbox?: string) => `${BASE}/api/firms/export?limit=${limit}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}`,
+  exportUrl: (limit = 25000, bbox?: string, aoi = "vietnam") => `${BASE}/api/firms/export?limit=${limit}&aoi=${aoi}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}`,
 };
 
 export function describeError(e: unknown): string {

@@ -1,4 +1,4 @@
-import { CalendarDays, FlaskConical, House, Info } from "lucide-react";
+import { CalendarDays, FlaskConical, House, Info, MessagesSquare } from "lucide-react";
 
 export type NavItem = { to: string; label: string; icon: typeof House; end?: boolean; hint?: string };
 
@@ -8,6 +8,7 @@ export const NAV: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { to: "/", icon: House, end: true, label: "Home", hint: "Upload FIRMS CSV, run harmonization" },
       { to: "/calendar", icon: CalendarDays, label: "Burning calendar", hint: "Month x year matrix + anomalies" },
+    { to: "/ask", icon: MessagesSquare, label: "Hỏi đáp AI", hint: "Chat giải thích thuật toán/data/model" },
     ],
   },
   {
@@ -28,6 +29,7 @@ export function useNav() {
 export const PREFETCH: Record<string, () => Promise<unknown>> = {
   "/": () => import("@/pages/home"),
   "/calendar": () => import("@/pages/calendar"),
+  "/ask": () => import("@/pages/ask"),
   "/method": () => import("@/pages/method"),
   "/about": () => import("@/pages/about"),
 };

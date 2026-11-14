@@ -5,10 +5,11 @@ Docs: https://www.earthdata.nasa.gov/faq/firms-faq (column names below).
 """
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 Instrument = Literal["MODIS", "VIIRS"]
 Satellite = Literal["Terra", "Aqua", "NPP", "NOAA-20", "NOAA-21", "UNKNOWN"]
@@ -28,16 +29,33 @@ class FirmsRecord(BaseModel):
     scan: float = Field(gt=0, lt=50)
     track: float = Field(gt=0, lt=50)
     acq_date: date
-    acq_time: str = Field(pattern=r"^\d{4}$")  # HHMM UTC, e.g. "1330"
+    acq_time: str = Field(pattern=r"^\d{1,4}$")  # HHMM UTC, real FIRMS is not zero-padded ("830")
     satellite: str = "UNKNOWN"
     instrument: Instrument = "MODIS"
-    confidence: str = "n"  # MODIS: l/n/h ; VIIRS: l/n/h (v2) or d/n/u legacy
+    confidence: str = "n"  # normalized to l/n/h; see validators (MODIS C6 NRT ships 0-100 %)
+    confidence_pct: float | None = None  # raw 0-100 value when the source ships percent scale
     version: str = "unknown"
     bright_t31: float = Field(default=0.0, ge=0.0, lt=2000.0)
     frp: float = Field(default=0.0, ge=0.0)  # MW
     daynight: DayNight = "D"
     type: int = Field(default=0, ge=0, le=3)  # 0 presumed veg, 1 volcano, 2 static, 3 offshore
     qa_flag: QAFlag = "keep"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _aliases(cls, data: Any) -> Any:
+        """Accept real FIRMS column variants: VIIRS bright_ti4/ti5, any case."""
+        if isinstance(data, dict):
+            d = {str(k).lower(): v for k, v in data.items()}
+            if d.get("brightness") in (None, "") and d.get("bright_ti4") not in (None, ""):
+                d["brightness"] = d["bright_ti4"]
+            if d.get("bright_t31") in (None, "") and d.get("bright_ti5") not in (None, ""):
+                d["bright_t31"] = d["bright_ti5"]
+            conf = str(d.get("confidence", "")).strip()
+            if re.fullmatch(r"\d{1,3}", conf):
+                d["confidence_pct"] = float(conf)
+            return d
+        return data
 
     @field_validator("satellite", mode="before")
     @classmethod
@@ -56,10 +74,23 @@ class FirmsRecord(BaseModel):
             return "VIIRS"
         return "MODIS"
 
+    @field_validator("acq_time", mode="before")
+    @classmethod
+    def _pad_time(cls, v: object) -> str:
+        return str(v or "0").strip().zfill(4)
+
     @field_validator("confidence", mode="before")
     @classmethod
     def _norm_conf(cls, v: object) -> str:
-        return str(v or "n").strip().lower()
+        s = str(v or "n").strip().lower()
+        if re.fullmatch(r"\d{1,3}", s):
+            pct = int(s)
+            if pct >= 80:
+                return "h"
+            if pct >= 40:
+                return "n"
+            return "l"
+        return s
 
     def qa(self) -> QAFlag:
         """Deterministic QA: geometry + confidence + FRP sanity. No ML here."""

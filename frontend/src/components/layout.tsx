@@ -42,6 +42,12 @@ export function Layout() {
           </Suspense>
         </ErrorBoundary>
       </main>
+      <footer className="border-t">
+        <p className="mx-auto max-w-6xl px-4 py-4 text-xs text-muted-foreground">
+          FIRMS Fire Calendar · NASA Space Apps 2026 · Data: NASA FIRMS (MODIS C6.1 + VIIRS 375 m) ·
+          Sample tổng hợp offline — dữ liệu thật cần MAP_KEY miễn phí.
+        </p>
+      </footer>
     </div>
   );
 }

@@ -10,14 +10,14 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.firms import calendar as cal
-from app.firms import dl, harmonize
+from app.firms import dl, explain as ex, harmonize, store
 from app.firms.schema import FirmsRecord
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper(),
@@ -25,6 +25,12 @@ logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper(),
 logger = logging.getLogger("firms.api")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+AOIS = {
+    "vietnam": "Vietnam — Central Highlands / Mekong, dry Dec–Apr",
+    "amazon": "Amazon — southern basin, dry Jul–Oct (2019 fire season)",
+    "australia": "Australia — southeast, dry Dec–Feb (Black Summer 2019–20)",
+}
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 app = FastAPI(
@@ -47,17 +53,13 @@ app.add_middleware(GZipMiddleware, minimum_size=1024)
 _STARTED = time.time()
 
 
-def _sample_records(limit: int = 500) -> list[dict]:
-    p = PROJECT_ROOT / "data" / "firms" / "samples" / "firms_sample.csv"
-    if not p.exists():
-        return []
-    rows: list[dict] = []
-    with p.open(encoding="utf-8") as f:
-        for r in csv.DictReader(f):
-            rows.append({k.lower(): v for k, v in r.items()})
-            if len(rows) >= limit:
-                break
-    return rows
+def _sample_records(limit: int = 500, aoi: str = "vietnam") -> list[dict]:
+    if aoi not in AOIS:
+        raise HTTPException(400, f"Unknown aoi {aoi!r}; choose from {sorted(AOIS)}")
+    try:
+        return store.load_records(aoi, limit)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @app.get("/api/health")
@@ -65,6 +67,11 @@ def health():
     return {"status": "ok", "service": "firms-calendar",
             "uptime_s": round(time.time() - _STARTED, 1),
             "torch": dl.describe()["has_torch"]}
+
+
+@app.get("/api/firms/aois")
+def firms_aois():
+    return {"aois": [{"id": k, "label": v} for k, v in AOIS.items()]}
 
 
 @app.get("/api/firms/schema")
@@ -75,8 +82,9 @@ def firms_schema():
 
 
 @app.get("/api/firms/sample")
-def firms_sample(limit: int = Query(200, ge=1, le=2000)):
-    rows = _sample_records(limit)
+def firms_sample(limit: int = Query(200, ge=1, le=2000),
+                 aoi: str = Query("vietnam", description="preset region")):
+    rows = _sample_records(limit, aoi)
     return {"count": len(rows), "records": rows}
 
 
@@ -84,8 +92,8 @@ def firms_sample(limit: int = Query(200, ge=1, le=2000)):
 def firms_validate(payload: dict):
     """Validate raw FIRMS rows -> clean records + QA flags."""
     raw = payload.get("records", [])
-    if not isinstance(raw, list) or len(raw) > 5000:
-        raise HTTPException(400, "Provide records: list (max 5000)")
+    if not isinstance(raw, list) or len(raw) > 50000:
+        raise HTTPException(400, "Provide records: list (max 50000)")
     clean, rejected = [], []
     for i, r in enumerate(raw):
         try:
@@ -114,6 +122,15 @@ def _parse_bbox(raw: str | None) -> tuple[float, float, float, float] | None:
     if not (-180 <= x0 < x1 <= 180 and -90 <= y0 < y1 <= 90):
         raise HTTPException(400, "bbox out of range or inverted")
     return (x0, y0, x1, y1)
+
+
+def _resolve_records(aoi: str, data: str, limit: int) -> list[dict]:
+    """Sample CSV (stable demo) or merged real downloads (data=raw)."""
+    if data == "raw":
+        if aoi not in store.AOIS and aoi != "custom":
+            raise HTTPException(400, f"Unknown aoi {aoi!r}")
+        return store.load_raw_merged(aoi, limit)
+    return _sample_records(limit, aoi)
 
 
 def _in_bbox(r: dict, b: tuple[float, float, float, float] | None) -> bool:
@@ -154,7 +171,11 @@ def _harmonize_from_records(records: list[dict], daily_cap: int = 2000) -> dict:
 @app.post("/api/firms/harmonize")
 def firms_harmonize(payload: dict):
     raw = payload.get("records")
-    records = raw if isinstance(raw, list) and raw else _sample_records(25000)
+    aoi = str(payload.get("aoi", "vietnam"))
+    data = str(payload.get("data", "sample"))
+    if data not in ("sample", "raw"):
+        raise HTTPException(400, "data must be sample|raw")
+    records = raw if isinstance(raw, list) and raw else _resolve_records(aoi, data, 25000)
     records = [r for r in records if _in_bbox(r, _parse_bbox(payload.get("bbox")))]
     if not records:
         raise HTTPException(404, "No records in this AOI; widen the bbox or POST records")
@@ -167,19 +188,24 @@ def firms_harmonize(payload: dict):
 
 @app.get("/api/firms/calendar")
 def firms_calendar(limit: int = Query(25000, ge=100, le=30000),
-                   bbox: str | None = Query(None, description="minLon,minLat,maxLon,maxLat")):
-    records = [r for r in _sample_records(limit) if _in_bbox(r, _parse_bbox(bbox))]
+                   bbox: str | None = Query(None, description="minLon,minLat,maxLon,maxLat"),
+                   aoi: str = Query("vietnam", description="preset region"),
+                   data: str = Query("sample", pattern="^(sample|raw)$")):
+    records = [r for r in _resolve_records(aoi, data, limit) if _in_bbox(r, _parse_bbox(bbox))]
     if not records:
-        raise HTTPException(404, "No sample data in this AOI")
+        raise HTTPException(404, f"No {data} data in this AOI")
     out = _harmonize_from_records(records)
     out["bbox"] = bbox
+    out["aoi"] = aoi
     return JSONResponse(out)
 
 
 @app.get("/api/firms/export")
 def firms_export(limit: int = Query(25000, ge=100, le=30000),
-                 bbox: str | None = Query(None, description="minLon,minLat,maxLon,maxLat")):
-    records = [r for r in _sample_records(limit) if _in_bbox(r, _parse_bbox(bbox))]
+                 bbox: str | None = Query(None, description="minLon,minLat,maxLon,maxLat"),
+                 aoi: str = Query("vietnam", description="preset region"),
+                 data: str = Query("sample", pattern="^(sample|raw)$")):
+    records = [r for r in _resolve_records(aoi, data, limit) if _in_bbox(r, _parse_bbox(bbox))]
     out = _harmonize_from_records(records, daily_cap=30000)
     buf = io.StringIO()
     w = csv.DictWriter(buf, fieldnames=["cell_id", "date", "lat", "lon",
@@ -191,12 +217,33 @@ def firms_export(limit: int = Query(25000, ge=100, le=30000),
     for c in out.get("daily", []):
         w.writerow(c)
     return PlainTextResponse(buf.getvalue(), media_type="text/csv; charset=utf-8",
-                             headers={"Content-Disposition": 'attachment; filename="harmonized_hotspots.csv"'})
+                             headers={"Content-Disposition": f'attachment; filename="harmonized_hotspots_{aoi}.csv"'})
 
 
 @app.get("/api/firms/dl-info")
 def firms_dl_info():
     return dl.describe()
+
+
+@app.get("/api/firms/data-status")
+def firms_data_status():
+    """What datasets are on disk (samples + ingested raw + cache stats)."""
+    return store.data_status()
+
+
+@app.post("/api/firms/ingest")
+async def firms_ingest(aoi: str = Query("vietnam"), source: str = Query("upload"),
+                       file: UploadFile = File(...)):
+    """Upload a real FIRMS CSV: validated in chunks, stored, QA report back."""
+    content = await file.read()
+    if len(content) > 50 * 1024 * 1024:
+        raise HTTPException(413, "File too large (max 50 MB)")
+    if not content:
+        raise HTTPException(400, "Empty file")
+    try:
+        return store.ingest_upload(file.filename or "upload.csv", content, aoi, source)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @app.post("/api/firms/train-calibrator")
@@ -205,6 +252,27 @@ def firms_train(payload: dict):
     if not isinstance(pairs, list):
         raise HTTPException(400, "Provide pairs: list")
     return dl.train_calibrator(pairs)
+
+
+@app.post("/api/firms/ask")
+def firms_ask(payload: dict):
+    """Offline assistant: explains algorithm/data/accuracy from live numbers."""
+    q = str(payload.get("question", "")).strip()
+    if not q or len(q) > 1000:
+        raise HTTPException(400, "Provide question (1-1000 chars)")
+    bbox = _parse_bbox(payload.get("bbox"))
+    aoi = str(payload.get("aoi", "vietnam"))
+    data = str(payload.get("data", "sample"))
+    if data not in ("sample", "raw"):
+        raise HTTPException(400, "data must be sample|raw")
+    records = [r for r in _resolve_records(aoi, data, 100000) if _in_bbox(r, bbox)]
+    if not records:
+        raise HTTPException(404, "No sample data in this AOI")
+    out = _harmonize_from_records(records)
+    facts = ex.gather_facts(out["calendar"], out["daily_cells"],
+                            out["ratios"], len(records), payload.get("bbox"))
+    return JSONResponse(ex.answer(q, facts, out["critical_periods"],
+                                  out["latest"], dl.describe()))
 
 
 @app.middleware("http")
