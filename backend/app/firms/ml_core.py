@@ -189,6 +189,12 @@ def apply_monthly_targets(
                 c["harmonized_count_low"] = round(max(lo, 0.0) * share, 3)
                 c["harmonized_count_high"] = round(hi * share, 3)
                 c["uncertainty_status"] = band_status
+                # P2-11: the status is relabelled to the model band, so the
+                # human-readable label must follow — otherwise the card shows
+                # a stale statistical label next to a model-band status.
+                c["uncertainty_label"] = (
+                    f"estimated — model predictive band ({mid} monthly target; "
+                    "VIIRS-observed part untouched)")
         else:
             c["effective_method"] = untouched_method
     conservation = []

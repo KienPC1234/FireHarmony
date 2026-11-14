@@ -21,8 +21,129 @@ SAMPLE_DIR = DATA_DIR / "samples"
 RAW_DIR = DATA_DIR / "raw"
 UPLOAD_DIR = DATA_DIR / "uploads"
 MANIFEST = DATA_DIR / "ingest_manifest.json"
+AOIS_JSON = DATA_DIR / "aois.json"
 
 AOIS = ("vietnam", "amazon", "australia")
+
+# Preset bbox/label are the contract (see docs/SELF_REVIEW.md section 4 and
+# AGENT_CLAIMS.md CLAIM-020): the registry file may add custom AOIs but can
+# never change these three entries.
+PRESET_AOIS = {
+    "vietnam": {"label": "Vietnam (Central Highlands / Mekong, dry Dec-Apr)",
+                "bbox": "104,10,109,16"},
+    "amazon": {"label": "Amazon (Southern Basin, dry Jul-Oct 2019)",
+               "bbox": "-70,-12,-50,3"},
+    "australia": {"label": "Australia (Southeast, dry Dec-Feb Black Summer)",
+                  "bbox": "113,-39,153,-12"},
+}
+
+
+@lru_cache(maxsize=8)
+def _registry_cached(mtime_ns: int, size: int) -> tuple:
+    """Parsed aois.json payload keyed by file marker (cheap re-read)."""
+    try:
+        doc = json.loads(AOIS_JSON.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ()
+    if isinstance(doc, dict):
+        return (("presets", doc.get("presets") or {}),
+                ("custom", doc.get("custom") or {}),
+                ("flat", {k: v for k, v in doc.items()
+                           if k not in ("presets", "custom", "_note")}))
+    if isinstance(doc, list):
+        return (("list", doc),)
+    return ()
+
+
+def aoi_registry() -> dict[str, dict]:
+    """Preset AOIs plus custom AOIs from aois.json (presets win on bbox/label).
+
+    Custom entries need {"label": str, "bbox": "minLon,minLat,maxLon,maxLat"}.
+    """
+    reg = {k: dict(v) for k, v in PRESET_AOIS.items()}
+    try:
+        st = AOIS_JSON.stat()
+    except OSError:
+        return reg
+    for kind, payload in _registry_cached(st.st_mtime_ns, st.st_size):
+        if kind == "presets" and isinstance(payload, dict):
+            for k, v in payload.items():
+                if k in reg or not isinstance(v, dict):
+                    continue
+                reg[str(k)] = {"label": str(v.get("label", k)),
+                               "bbox": str(v.get("bbox", ""))}
+        elif kind == "custom" and isinstance(payload, dict):
+            for k, v in payload.items():
+                if k in reg or not isinstance(v, dict):
+                    continue
+                reg[str(k)] = {"label": str(v.get("label", k)),
+                               "bbox": str(v.get("bbox", ""))}
+        elif kind == "flat" and isinstance(payload, dict):
+            for k, v in payload.items():
+                if k in reg or not isinstance(v, dict):
+                    continue
+                reg[str(k)] = {"label": str(v.get("label", k)),
+                               "bbox": str(v.get("bbox", ""))}
+        elif kind == "list" and isinstance(payload, list):
+            for v in payload:
+                if not isinstance(v, dict) or not v.get("id"):
+                    continue
+                k = str(v["id"])
+                if k in reg:
+                    continue
+                reg[k] = {"label": str(v.get("label", k)),
+                          "bbox": str(v.get("bbox", ""))}
+    return reg
+
+
+def aoi_bbox(aoi: str) -> str | None:
+    """Registered bbox for an AOI (fetch-script default), None if unknown."""
+    entry = aoi_registry().get(str(aoi))
+    bbox = (entry or {}).get("bbox")
+    return str(bbox) if bbox else None
+
+
+@lru_cache(maxsize=8)
+def _manifest_aois_cached(path_str: str, mtime_ns: int, size: int,
+                           inode: int = 0) -> frozenset:
+    try:
+        doc = json.loads(Path(path_str).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return frozenset()
+    if not isinstance(doc, list):
+        return frozenset()
+    return frozenset(str(e.get("aoi")) for e in doc
+                     if isinstance(e, dict) and e.get("aoi"))
+
+
+def manifest_aois() -> set[str]:
+    """AOI ids with at least one ingest-manifest entry (custom pulls)."""
+    if not MANIFEST.exists():
+        return set()
+    try:
+        st = MANIFEST.stat()
+    except OSError:
+        return set()
+    return set(_manifest_aois_cached(str(MANIFEST), st.st_mtime_ns,
+                                    st.st_size, st.st_ino))
+
+
+def is_known_aoi(aoi: str) -> bool:
+    """Registry AOI, or manifest-backed / on-disk custom AOI.
+
+    Unknown ids with no manifest entries and no raw files are not known:
+    callers must answer those with 404 no_raw_data, never invented numbers.
+    """
+    a = str(aoi)
+    if a in aoi_registry():
+        return True
+    if a in manifest_aois():
+        return True
+    try:
+        return bool(RAW_DIR.exists()
+                    and any(RAW_DIR.glob(f"{a}_*.csv")))
+    except OSError:
+        return False
 
 
 def sample_path(aoi: str) -> Path:
@@ -41,9 +162,117 @@ def _load_cached(key: tuple[str, float, int]) -> list[dict]:
     return _read_all_rows(path)
 
 
+def _parse_bbox_str(bbox: str | None) -> tuple[float, float, float, float] | None:
+    """Parse a stored 'minLon,minLat,maxLon,maxLat' registry bbox."""
+    if not bbox:
+        return None
+    try:
+        x0, y0, x1, y1 = (float(v) for v in str(bbox).split(","))
+    except ValueError:
+        return None
+    if not (-180 <= x0 < x1 <= 180 and -90 <= y0 < y1 <= 90):
+        return None
+    return (x0, y0, x1, y1)
+
+
+def _slugify_aoi_id(raw: str) -> str:
+    """Lowercase slug for registry ids: [a-z0-9_], collapsed, max 64 chars."""
+    s = re.sub(r"[^a-z0-9]+", "_", str(raw or "").strip().lower())
+    s = re.sub(r"_+", "_", s).strip("_")[:64]
+    return s
+
+
+def register_custom_aoi(aoi_id: str | None, label: str,
+                        bbox: list | tuple | str) -> dict:
+    """Validate + persist a custom AOI into aois.json 'custom' (atomic write).
+
+    bbox accepts [minLon,minLat,maxLon,maxLat] or the equivalent CSV string.
+    Preset ids/bbox-labels are never overwritten. Returns {id,label,bbox}.
+    """
+    if not isinstance(label, str) or not label.strip():
+        raise ValueError("label is required (non-empty string)")
+    clean_label = label.strip()[:200]
+    if isinstance(bbox, str):
+        parts = [p.strip() for p in bbox.split(",")]
+        if len(parts) != 4:
+            raise ValueError("bbox must be [minLon,minLat,maxLon,maxLat]")
+        try:
+            vals = [float(p) for p in parts]
+        except ValueError:
+            raise ValueError("bbox must be [minLon,minLat,maxLon,maxLat]")
+    elif isinstance(bbox, (list, tuple)):
+        if len(bbox) != 4:
+            raise ValueError("bbox must be [minLon,minLat,maxLon,maxLat]")
+        try:
+            vals = [float(v) for v in bbox]
+        except (TypeError, ValueError):
+            raise ValueError("bbox must be [minLon,minLat,maxLon,maxLat]")
+    else:
+        raise ValueError("bbox must be [minLon,minLat,maxLon,maxLat]")
+    x0, y0, x1, y1 = vals
+    if not (-180 <= x0 < x1 <= 180 and -90 <= y0 < y1 <= 90):
+        raise ValueError("bbox out of range or inverted")
+    base = str(aoi_id or clean_label)
+    slug = _slugify_aoi_id(base)
+    if not slug:
+        raise ValueError("id could not be slugified (use [a-z0-9_])")
+    if slug in PRESET_AOIS or slug in AOIS:
+        raise ValueError(f"aoi id {slug!r} is a preset and cannot be overwritten")
+    try:
+        doc = json.loads(AOIS_JSON.read_text(encoding="utf-8")) if AOIS_JSON.exists() else {}
+    except (OSError, ValueError):
+        doc = {}
+    if not isinstance(doc, dict):
+        doc = {}
+    custom = doc.get("custom")
+    if not isinstance(custom, dict):
+        custom = {}
+        doc["custom"] = custom
+    if slug in custom or slug in (doc.get("presets") or {} if isinstance(doc.get("presets"), dict) else {}):
+        raise ValueError(f"aoi id {slug!r} already exists")
+    bbox_str = f"{x0},{y0},{x1},{y1}"
+    custom[slug] = {"label": clean_label, "bbox": bbox_str}
+    if "_note" not in doc:
+        doc["_note"] = ("AOI registry: presets keep their bbox/label (code enforces "
+                        "the preset values even if edited here); add new AOIs under "
+                        "'custom' with label+bbox so fetch scripts and "
+                        "GET /api/firms/aois pick them up without code changes.")
+    _atomic_write_json(AOIS_JSON, doc)
+    return {"id": slug, "label": clean_label, "bbox": bbox_str}
+
+
 def load_records(aoi: str, limit: int = 25000) -> list[dict]:
     """Validated-AOI sample loader with mtime-keyed cache (no re-parse/hit)."""
     if aoi not in AOIS:
+        reg = aoi_registry()
+        if aoi in reg:
+            # Custom registry AOI: no dedicated sample file; serve the honest
+            # spatial subset of the preset samples inside its bbox (sample =
+            # synthetic demo, never invented). Empty when nothing overlaps.
+            box = _parse_bbox_str(reg[aoi].get("bbox"))
+            if box is None:
+                return []
+            rows: list[dict] = []
+            for preset in AOIS:
+                p = sample_path(preset)
+                if not p.exists():
+                    continue
+                try:
+                    st = p.stat()
+                    cached = _load_cached((str(p), st.st_mtime, st.st_size))
+                except OSError:
+                    continue
+                for r in cached:
+                    try:
+                        lon = float(r.get("longitude", ""))
+                        lat = float(r.get("latitude", ""))
+                    except (TypeError, ValueError):
+                        continue
+                    if box[0] <= lon <= box[2] and box[1] <= lat <= box[3]:
+                        rows.append(r)
+                        if len(rows) >= limit:
+                            return rows
+            return rows
         raise ValueError(f"Unknown aoi {aoi!r}; choose from {list(AOIS)}")
     p = sample_path(aoi)
     if not p.exists():
@@ -377,6 +606,24 @@ def cache_put(key: str, value) -> None:
         old.unlink(missing_ok=True)
 
 
+def _manifest_files_for_aoi(aoi: str) -> set[str]:
+    """Filenames the ingest manifest attributes to an aoi.
+
+    Fetch pulls follow the `{aoi}_{src}_{YYYY-MM-DD}_...` window naming, so a
+    year/month fast-path can select them by name. Ingested uploads
+    (`POST /api/firms/ingest`, `{aoi}_{src}_{stamp}_{digest}.csv`) do not, so
+    they are found here and filtered by row date instead of filename.
+    """
+    if not MANIFEST.exists():
+        return set()
+    try:
+        entries = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    return {str(e.get("file")) for e in entries
+            if isinstance(e, dict) and e.get("aoi") == aoi and e.get("file")}
+
+
 def iter_raw_rows(aoi: str, raw_dir: Path | None = None, limit: int | None = None,
                   year: int | None = None, ym: str | None = None):
     """Stream deduped raw rows for an aoi without materialising them.
@@ -384,21 +631,36 @@ def iter_raw_rows(aoi: str, raw_dir: Path | None = None, limit: int | None = Non
     Same dedup signature and SP-first ordering as load_raw_merged, but yields
     dicts so a 1.4M-row AOI never becomes a 1.4M-element Python list in RAM.
     Supports year/ym fast-path filtering to avoid parsing years of unneeded CSVs.
+    Files that predate the window naming (ingested uploads, found via the
+    manifest) are still scanned, with rows filtered by acq_date.
     """
-    if aoi not in AOIS and aoi != "custom":
+    if aoi != "custom" and not is_known_aoi(aoi):
         raise ValueError(f"Unknown aoi {aoi!r}")
     raw_dir = raw_dir or RAW_DIR
     if not raw_dir.exists():
         return
     files = sorted(raw_dir.glob(f"{aoi}_*.csv"),
                    key=lambda p: (0 if "_SP_" in p.name else 1, p.name))
+    # (path, filter_rows_by_date): window-named files are trusted by name;
+    # manifest-listed uploads carry no window tag, so their rows are dated.
+    wanted: list[tuple] = [(f, False) for f in files]
     if ym is not None:
-        files = [f for f in files if f"_{ym}-" in f.name or f"_{ym}_" in f.name]
+        names = _manifest_files_for_aoi(aoi)
+        wanted = [(f, False) if (f"_{ym}-" in f.name or f"_{ym}_" in f.name)
+                  else (f, True)
+                  for f in files
+                  if (f"_{ym}-" in f.name or f"_{ym}_" in f.name
+                      or f.name in names)]
     elif year is not None:
-        files = [f for f in files if f"_{year}-" in f.name]
+        names = _manifest_files_for_aoi(aoi)
+        wanted = [(f, False) if f"_{year}-" in f.name else (f, True)
+                  for f in files
+                  if f"_{year}-" in f.name or f.name in names]
+    want_ym = str(ym) if ym is not None else None
+    want_year = str(year) if year is not None else None
     seen: set[tuple] = set()
     n = 0
-    for f in files:
+    for f, by_date in wanted:
         try:
             with f.open(encoding="utf-8", newline="") as fh:
                 reader = csv.reader(fh)
@@ -432,6 +694,12 @@ def iter_raw_rows(aoi: str, raw_dir: Path | None = None, limit: int | None = Non
                     if sig in seen:
                         continue
                     seen.add(sig)
+                    if by_date:
+                        day = sig[2]
+                        if want_ym is not None and day[:7] != want_ym:
+                            continue
+                        if want_year is not None and day[:4] != want_year:
+                            continue
                     yield dict(zip(header, row))
                     n += 1
                     if limit is not None and n >= limit:
@@ -450,7 +718,7 @@ def load_raw_merged(aoi: str, limit: int = 2000000,
     is raised and the pass repeated. Full-data consumers (training, evaluation,
     calendar) use `iter_raw_rows`/`PairBuilder` instead.
     """
-    if aoi not in AOIS and aoi != "custom":
+    if aoi != "custom" and not is_known_aoi(aoi):
         raise ValueError(f"Unknown aoi {aoi!r}")
     raw_dir = raw_dir or RAW_DIR
     if not raw_dir.exists():
@@ -562,9 +830,13 @@ def model_artifacts_ready(aoi: str) -> bool:
 
 
 def data_status() -> dict:
-    """What data is on disk: samples + ingested raw files + manifest."""
+    """What data is on disk: samples + ingested raw files + manifest.
+
+    Covers registry presets plus manifest-backed custom AOIs, so a new AOI
+    with raw pulls reports dataset_ready instead of vanishing from the list.
+    """
     datasets = []
-    for aoi in AOIS:
+    for aoi in sorted(set(aoi_registry()) | manifest_aois()):
         p = sample_path(aoi)
         n = sum(1 for _ in p.open(encoding="utf-8")) - 1 if p.exists() else 0
         rs = raw_stats(aoi)

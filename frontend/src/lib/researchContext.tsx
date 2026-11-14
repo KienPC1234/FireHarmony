@@ -38,17 +38,22 @@ export function ResearchContextProvider({ children }: { children: React.ReactNod
   const yearMonth = searchParams.get("ym");
   const method = (searchParams.get("method") as CalibMethod) || "stan";
 
+  // Functional update with a fixed identity: closing over `searchParams` would
+  // recreate this callback (and every setX wrapper) on each URL sync, and any
+  // effect listing those setters would refetch in a loop.
   const updateParams = React.useCallback((updates: Record<string, string | null>) => {
-    const next = new URLSearchParams(searchParams);
-    for (const [key, val] of Object.entries(updates)) {
-      if (val === null || val === undefined || val === "") {
-        next.delete(key);
-      } else {
-        next.set(key, val);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      for (const [key, val] of Object.entries(updates)) {
+        if (val === null || val === undefined || val === "") {
+          next.delete(key);
+        } else {
+          next.set(key, val);
+        }
       }
-    }
-    setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams]);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   const value = useMemo<ResearchContextValue>(() => ({
     aoi,

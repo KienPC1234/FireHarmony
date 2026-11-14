@@ -113,7 +113,8 @@ def _ensure_manifest_entry(fname: str, aoi: str, source: str, bbox: str,
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--aoi", required=True)
-    ap.add_argument("--bbox", required=True)
+    ap.add_argument("--bbox", default=None,
+                    help="minLon,minLat,maxLon,maxLat; defaults to the aois.json registry entry")
     ap.add_argument("--start-year", type=int, required=True)
     ap.add_argument("--end-year", type=int, required=True)
     ap.add_argument("--sources", default="MODIS_SP,VIIRS_SNPP_SP")
@@ -125,6 +126,11 @@ def main() -> int:
     if not key:
         print("FIRMS_MAP_KEY missing", file=sys.stderr)
         return 2
+    bbox = a.bbox or store.aoi_bbox(a.aoi)
+    if not bbox:
+        print(f"no bbox for aoi {a.aoi!r}: pass --bbox or register it in "
+              f"{store.AOIS_JSON}", file=sys.stderr)
+        return 2
     store.RAW_DIR.mkdir(parents=True, exist_ok=True)
     sources = [s.strip() for s in a.sources.split(",") if s.strip()]
     jobs = []
@@ -133,7 +139,7 @@ def main() -> int:
             for start, ndays in windows_for_month(y, m):
                 day = f"{y}-{m:02d}-{start:02d}"
                 for s in sources:
-                    jobs.append((key, s, a.bbox, day, ndays, a.aoi))
+                    jobs.append((key, s, bbox, day, ndays, a.aoi))
     print(f"{len(jobs)} requests, {a.workers} workers")
     saved = rows = failed = 0
     with ThreadPoolExecutor(max_workers=a.workers) as ex:

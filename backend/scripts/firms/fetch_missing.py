@@ -43,6 +43,11 @@ AOI_BBOX = {
 SOURCES = ("MODIS_SP", "VIIRS_SNPP_SP")
 
 
+def default_bbox(aoi: str) -> str | None:
+    """Registry (aois.json) first, legacy hardcoded map as fallback."""
+    return store.aoi_bbox(aoi) or AOI_BBOX.get(aoi)
+
+
 def intervals(missing: list[int], max_days: int = 5) -> list[tuple[int, int]]:
     """Group sorted day numbers into [(start, length), ...]."""
     out: list[tuple[int, int]] = []
@@ -149,12 +154,14 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
     sources = [s.strip() for s in a.sources.split(",") if s.strip()]
-    aois = list(AOI_BBOX) if a.aoi == "all" else [a.aoi]
+    aois = sorted(set(store.aoi_registry()) | coverage.manifest_aois()) \
+        if a.aoi == "all" else [a.aoi]
     all_jobs = []
     for aoi in aois:
-        bbox = a.bbox or AOI_BBOX.get(aoi)
+        bbox = a.bbox or default_bbox(aoi)
         if not bbox:
-            print(f"need --bbox for {aoi}", file=sys.stderr)
+            print(f"need --bbox for {aoi} (not in aois.json registry)",
+                  file=sys.stderr)
             return 2
         jobs = plan(aoi, a.start_year, a.end_year, sources)
         print(f"{aoi}: {len(jobs)} missing intervals")

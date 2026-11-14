@@ -25,6 +25,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
+from functools import lru_cache
 import math
 
 import numpy as np
@@ -34,6 +35,26 @@ RES_DEG = 0.05  # ~5 km cells: fine enough for districts, coarse enough for MODI
 
 ALGORITHM_VERSION = "harmonize-v4"  # sensor-adjusted activity index, not fire counts
 FEATURE_VERSION = "harmonize-features-v1"
+
+
+@lru_cache(maxsize=1)
+def cache_behavior() -> str:
+    """Short hash of the harmonization behavior for disk-cache keys.
+
+    A behavior change (new output fields, new fallback text, new fusion
+    logic) must never serve a stale cached payload. The key rotates
+    automatically with the function sources, so there is no manual version
+    string to forget after a behavior edit.
+    """
+    try:
+        import hashlib
+        import inspect
+        blob = "".join(inspect.getsource(f) for f in (
+            estimate_efficiency_ratio, fuse_cell_day, daily_row,
+            _provenance, aggregate_iter))
+        return "beh-" + hashlib.sha256(blob.encode("utf-8")).hexdigest()[:10]
+    except (OSError, TypeError):
+        return "beh-" + ALGORITHM_VERSION
 
 
 @dataclass
@@ -129,7 +150,7 @@ def aggregate_iter(records, res_deg: float = RES_DEG, keep_clean=None,
     from app.firms.schema import FirmsRecord
 
     out: dict[tuple[str, str, str], DailyAgg] = defaultdict(DailyAgg)
-    seen: set[int] = set()
+    seen: set[tuple] = set()
     stats = {"clean": 0, "rejected": 0, "qa_counts": {},
              "filtered_low_confidence": 0, "filtered_confidence": 0,
              "filtered_platform": 0, "filtered_source_type": 0,
@@ -166,7 +187,7 @@ def aggregate_iter(records, res_deg: float = RES_DEG, keep_clean=None,
             stats["filtered_source_type"] += 1
             continue
         stats["clean"] += 1
-        sig = hash(_dedup_key_rec(rec))
+        sig = _dedup_key_rec(rec)
         if sig in seen:
             continue
         seen.add(sig)
@@ -242,11 +263,27 @@ def estimate_efficiency_ratio(
         rel_iqr = 0.0
     clipped = [m for m in used_months if not (0.05 <= ratios[m] <= 1.5)]
     calibrated = len(all_r) >= min_months
+    if calibrated:
+        calibration_note = (
+            f"calibrated on {len(all_r)} co-observed months "
+            f"({used_months[0]}..{used_months[-1]}); "
+            f"k is a measured MODIS/VIIRS ratio")
+    else:
+        # Truth label: the 0.35 number is kept for continuity but it is NOT
+        # a measured ratio — fewer than min_months co-observed months exist.
+        # Callers must read uncertainty_status=not_calibrated, never the
+        # bare number.
+        calibration_note = (
+            f"insufficient_overlap (<{min_months} co-observed months, "
+            f"n={len(all_r)}): k={fallback} "
+            f"is a fallback, not a measured ratio; "
+            f"uncertainty_status=not_calibrated, no interval emitted")
     out = {
         "_fallback": fallback,
         "_fallback_rel_iqr": round(float(np.clip(rel_iqr, 0.0, 1.0)), 4),
         "_n_months": len(all_r),
         "_calibration_status": "calibrated" if calibrated else "insufficient_overlap",
+        "_calibration_note": calibration_note,
         "_calibration_min_months": min_months,
         "_clipped_months": clipped,
         "_clipped_fraction": round(len(clipped) / len(all_r), 4) if all_r else None,
@@ -270,6 +307,7 @@ def _provenance(ratios: dict) -> dict:
         "calibration_version": ratios.get("_data_version", ALGORITHM_VERSION),
         "calibration_months": ratios.get("_n_months", 0),
         "calibration_status": ratios.get("_calibration_status", "calibrated"),
+        "calibration_note": ratios.get("_calibration_note"),
         "calibration_min_months": ratios.get("_calibration_min_months", 3),
         "calibration_clipped_fraction": ratios.get("_clipped_fraction"),
     }
@@ -344,6 +382,21 @@ def daily_row(cell: str, day: str, mo: DailyAgg, vi: DailyAgg,
     # P1-16: physical cell area shrinks with latitude (0.05 deg is not equal-area).
     import math as _math
     cell_km2 = round((111.32 * RES_DEG) ** 2 * max(_math.cos(_math.radians(clat)), 0.2), 3)
+    _ustatus = ("observed_no_estimate" if est == "viirs_observed"
+                else ("ratio_iqr_band" if h_low is not None
+                      else "not_calibrated"))
+    # Truth label (TRUTH_CONTRACT.md): the number exists but its meaning
+    # differs; never show the bare fallback k as if measured.
+    if _ustatus == "observed_no_estimate":
+        _ulabel = "observed — VIIRS recorded a detection here (no upscale)"
+    elif _ustatus == "ratio_iqr_band":
+        _ulabel = ("estimated — MODIS-only cell upscaled by 1/k with "
+                   "month-to-month IQR band (same-month VIIRS absent)")
+    else:
+        _ulabel = (f"not calibrated — insufficient_overlap "
+                   f"(<{provenance.get('calibration_min_months', 3)} co-observed months); "
+                   f"k={round(float(k), 4)} is a fallback, not a measured ratio; "
+                   f"no interval emitted")
     return {
         "cell_id": cell,
         "date": day,
@@ -358,9 +411,8 @@ def daily_row(cell: str, day: str, mo: DailyAgg, vi: DailyAgg,
         "harmonized_count": round(float(h_count), 3),
         "harmonized_count_low": None if h_low is None else round(float(h_low), 3),
         "harmonized_count_high": None if h_high is None else round(float(h_high), 3),
-        "uncertainty_status": ("observed_no_estimate" if est == "viirs_observed"
-                               else ("ratio_iqr_band" if h_low is not None
-                                     else "not_calibrated")),
+        "uncertainty_status": _ustatus,
+        "uncertainty_label": _ulabel,
         "harmonized_per_km2": round(float(h_count) / cell_km2, 4),
         "harmonized_frp": None if h_frp is None else round(h_frp, 3),
         "method": "sensor_adjusted_index_v3",

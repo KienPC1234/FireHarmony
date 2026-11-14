@@ -608,19 +608,29 @@
    Preserve source-mode semantics; the explicit badge stays visible on mobile. */
 [data-fh-main][data-fh-page="calendar"] > div > header {
   height: auto;
-  min-height: 74px;
+  min-height: 44px;
   flex-wrap: wrap !important;
   align-content: center;
-  gap: 8px 12px;
+  gap: 6px 10px;
 }
 [data-fh-main][data-fh-page="calendar"] > div > header > div {
   min-width: 0;
   max-width: 100%;
   flex-wrap: wrap !important;
-  gap: 7px;
+  gap: 6px;
 }
-[data-fh-main][data-fh-page="calendar"] > div > header > div:first-child {
-  flex: 1 1 100%;
+@media (min-width: 1024px) {
+  [data-fh-main][data-fh-page="calendar"] > div > header {
+    flex-wrap: nowrap !important;
+  }
+  [data-fh-main][data-fh-page="calendar"] > div > header > div {
+    flex-wrap: nowrap !important;
+  }
+}
+@media (max-width: 1023px) {
+  [data-fh-main][data-fh-page="calendar"] > div > header > div:first-child {
+    flex: 1 1 100%;
+  }
 }
 [data-fh-main][data-fh-page="calendar"] > div > header select {
   max-width: min(205px, 42vw);
@@ -705,14 +715,32 @@
    The desktop feed badge was hidden below xl, leaving small-screen visitors
    unable to distinguish synthetic data from observed NASA FIRMS. Reuse the
    localized full label in a short second header row, not an ambiguous dot. */
-@media (max-width: 1279px) {
+@media (min-width: 768px) and (max-width: 1279px) {
+  [data-fh-header] {
+    height: 52px;
+    min-height: 52px;
+  }
+
+  [data-fh-header] [data-fh-feed] {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    height: 24px;
+    padding: 1px 8px;
+    gap: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 767px) {
   [data-fh-header] {
     position: relative;
-    height: 78px;
-    min-height: 78px;
+    height: 74px;
+    min-height: 74px;
     align-items: flex-start;
-    padding-top: 10px;
-    padding-bottom: 24px;
+    padding-top: 8px;
+    padding-bottom: 22px;
   }
 
   [data-fh-header] [data-fh-feed] {
@@ -739,11 +767,10 @@
   }
 }
 
-/* Calendar has another long SYNTHETIC DEMO stamp in its toolbar. Once the
-   global localized feed label is shown at every viewport, the duplicate
-   may be hidden without concealing dataset provenance. USER UPLOAD
-   (UNVERIFIED) remains visible because it carries different semantics. */
-[data-fh-main][data-fh-page="calendar"] > div > header span[class*="bg-sky-950"] {
+/* Calendar has duplicate SYNTHETIC DEMO / NASA OBSERVED stamps in its toolbar.
+   Once the global localized feed label is shown at every viewport, hide the duplicate. */
+[data-fh-main][data-fh-page="calendar"] > div > header span[class*="bg-sky-950"],
+[data-fh-main][data-fh-page="calendar"] > div > header span[class*="bg-emerald-950"] {
   display: none;
 }
 

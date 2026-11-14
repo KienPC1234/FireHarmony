@@ -1,12 +1,114 @@
 import { AlertTriangle, Inbox, Loader2 } from "lucide-react"
-import type { HTMLAttributes } from "react"
+import { useEffect, useState, type HTMLAttributes } from "react"
 
-import { describeError } from "@/lib/api"
+import { api, describeError } from "@/lib/api"
+import { useLang } from "@/lib/i18n"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 
-export function Loading({ label }: { label?: string }) {
+export function BackendProgressCard({
+  aoi,
+  data = "raw",
+  label,
+  hint,
+  unit = "s",
+}: {
+  aoi: string
+  data?: string
+  label: string
+  hint?: string
+  unit?: string
+}) {
+  const [elapsed, setElapsed] = useState(0)
+  const [progress, setProgress] = useState<{ stage: string; percent: number; detail: string } | null>(null)
+
+  useEffect(() => {
+    let active = true
+    let stopPolling = false
+    const poll = () => {
+      if (stopPolling) return
+      api
+        .progress(aoi, data === "raw" ? "raw" : "sample")
+        .then((p) => {
+          if (active) setProgress(p)
+        })
+        .catch((err) => {
+          const status = (err as { status?: number } | null)?.status
+          if (status === 403 || status === 404) {
+            stopPolling = true
+          }
+        })
+    }
+    poll()
+    const timerId = window.setInterval(() => setElapsed((s) => s + 1), 1000)
+    const pollId = window.setInterval(poll, 800)
+    return () => {
+      active = false
+      window.clearInterval(timerId)
+      window.clearInterval(pollId)
+    }
+  }, [aoi, data])
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="w-full max-w-sm rounded-2xl border border-cyan-500/30 bg-[#0B1220]/95 p-5 shadow-2xl space-y-3"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Loader2 className="h-4 w-4 animate-spin text-cyan-400 shrink-0" aria-hidden="true" />
+          <span className="text-sm font-semibold text-white truncate">{label}</span>
+        </div>
+        <span className="font-mono text-xs text-cyan-300 shrink-0">
+          {progress && progress.percent > 0 ? `${progress.percent}% · ` : ""}
+          {elapsed} {unit}
+        </span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+        {progress && progress.percent > 0 ? (
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-all duration-500"
+            style={{ width: `${progress.percent}%` }}
+          />
+        ) : (
+          <div className="h-full w-full rounded-full bg-gradient-to-r from-cyan-500/40 via-emerald-400/70 to-cyan-500/40 animate-pulse" />
+        )}
+      </div>
+      {(progress?.detail || hint) && (
+        <p className="text-xs text-slate-400 leading-relaxed">{progress?.detail || hint}</p>
+      )}
+    </div>
+  )
+}
+
+export function Loading({
+  label,
+  aoi,
+  data,
+  hint,
+  unit,
+}: {
+  label?: string
+  aoi?: string
+  data?: string
+  hint?: string
+  unit?: string
+}) {
+  if (aoi) {
+    return (
+      <div className="flex items-center justify-center py-12 px-4">
+        <BackendProgressCard
+          aoi={aoi}
+          data={data}
+          label={label ?? "Loading…"}
+          hint={hint}
+          unit={unit}
+        />
+      </div>
+    )
+  }
   // role="status" tells a screen reader that something is loading. Without it
   // the route appears with no content and no announcement, which reads as a
   // blank page rather than as work in progress.
@@ -23,6 +125,7 @@ export function Loading({ label }: { label?: string }) {
 }
 
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
+  const { t } = useLang()
   return (
     <Card className="border-destructive/50">
       {/* role="alert" makes a failed request announce itself. A silent
@@ -36,7 +139,7 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
           aria-hidden="true"
         />
         <div className="space-y-2">
-          <p className="font-medium">{"Something went wrong"}</p>
+          <p className="font-medium">{t("common.error_title")}</p>
           <p className="text-sm text-muted-foreground">{describeError(error)}</p>
           {onRetry && (
             <Button
@@ -46,7 +149,7 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
               onClick={onRetry}
               className="h-auto p-0 text-sm"
             >
-              {"Try again"}
+              {t("common.retry")}
             </Button>
           )}
         </div>

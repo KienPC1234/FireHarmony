@@ -5,16 +5,38 @@ returns a `gaps` ledger (`missing_months`, `missing_by_year`,
 `missing_examples`) derived from the request manifest. The calendar UI shows
 the same warning.
 
-## Current gaps (2026-11-10)
+## Current gaps (2026-11-13, post-Australia backfill)
 
-| AOI | Expected range | Fetched months | Missing | Where |
+| AOI | Expected range | Fetched months | Full months (>=90% paired) | Missing |
 |---|---|---:|---:|---|
-| vietnam | 2012-01 … 2026-12 | 169 | 11 | 2026-01…10 + future 2026-12 (NRT partial) |
-| amazon | 2012-01 … 2026-12 | 85 | 95 | 2012-01…2018-12 (84), 2026-01…10 (11) |
-| australia | 2012-01 … 2026-12 | 85 | 95 | 2012-01…2018-12 (84), 2026-01…10 (11) |
+| vietnam | 2012-01 … 2026-12 | 169 | 168 | 2026-11..12 (NRT partial / future) |
+| amazon | 2012-01 … 2026-12 | 85 | 84 | 2012-01…2018-12 (84), 2026-11..12 |
+| australia | 2012-01 … 2026-12 | 85 | 84 | 2012-01…2018-12 (84), 2026-11..12 |
 
-Australia also has **0/85 months with ≥90% paired MODIS/VIIRS days**; its rows
-are 5-day windows, so it is a sparse stress test, not a monthly series.
+All three AOIs now meet the `full_month` coverage rule; earlier pre-backfill snapshots had Australia at 0/85 full months (5-day windows).
+
+Fallback `k=0.35` (`insufficient_overlap`, <3 co-observed months) keeps its number
+but always ships with `uncertainty_status=not_calibrated` + `calibration_note`
+(no interval emitted); per `docs/TRUTH_CONTRACT.md` the bare number is never shown alone.
+
+## Custom / new regions (stat-only, transfer not established)
+
+A custom bbox/geometry (or any region outside vietnam/amazon/australia) is
+served only with `method=stat` + `uncertainty_status=not_calibrated`.
+`hts`/`stan` return 409 (`model_requires_full_aoi` /
+`geometry_requires_stat_method`) because AOI-level monthly targets cannot be
+reallocated to an arbitrary polygon. Transfer to new regions is
+**not established**: evaluation covers only the 3 preset AOIs.
+
+## Ops caps and cold start
+
+Request caps (enforced in `backend/app/main.py`): daily slice 5000,
+map-cells `max_cells` ≤ 200k, `/validate` ≤ 50k rows, ingest ≤ 50MB,
+session dataset ≤ 10MB, geometry ≤ 200kB / 5k vertices.
+Every response carries `X-Elapsed-Ms`; cold `/calendar` on the full Vietnam
+pull is ~153.7s (stat) / ~215.3s (STAN), warm 91–118ms. Raw (~1.4 GB) stays
+gitignored; the submission ships only the 24-month demo pack (459,832 rows,
+SHA-256 pinned).
 
 ## Resume
 

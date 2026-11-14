@@ -61,10 +61,19 @@ def build_calendar(daily_cells: list[dict], coverage: dict | None = None,
             for sat, n in (c.get("platform_counts") or {}).items():
                 plat_year[y][str(sat)] += float(n or 0)
     if not ym:
+        # P2-14: empty shape must mirror the non-empty return so callers can
+        # read eligible_mask/anomaly_reason/etc. without branching on emptiness.
+        rule = ("coverage.partial is not true and paired_coverage_ratio >= 0.9; "
+                "unknown coverage allowed but reported")
         return {"years": [], "months": list(range(1, 13)), "matrix": [],
                 "anomalies": [], "anomaly_reason": [], "row_totals": [],
                 "col_medians": [None] * 12, "coverage": [],
-                "completeness": {}, "platform_mix": {}}
+                "eligible_mask": [],
+                "completeness": {}, "platform_mix": {},
+                "anomaly_n_years": [],
+                "anomaly_eligibility": {"rule": rule, "excluded_months": []},
+                "anomaly_baseline": "leave-one-year-out (falls back to column median with <3 other years)",
+                "z_unit": "robust MAD units (1.4826*MAD)"}
     years = sorted({y for y, _ in ym})
     matrix: list[list[float | None]] = [
         [round(ym[(y, m)], 2) if (y, m) in seen else None for m in range(1, 13)]

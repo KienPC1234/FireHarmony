@@ -26,24 +26,51 @@ export function HomePage() {
 
   const [dataStats, setDataStats] = useState<{
     raw_count: number;
-    datasets: Array<{ aoi: string; sample_rows: number; sample_bytes: number; raw_ready?: boolean; dataset_ready?: boolean }>;
+    datasets: Array<{ aoi: string; sample_rows: number; sample_bytes: number; raw_ready?: boolean; dataset_ready?: boolean; date_range?: [string, string] | null }>;
   } | null>(null);
-  const [sampleRange, setSampleRange] = useState<string>("-");
+  const [sampleRange, setSampleRange] = useState<string | null>(null);
+  const [rangeError, setRangeError] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [interactiveMode, setInteractiveMode] = useState<"naive" | "harmonized">("naive");
 
   useEffect(() => {
-    api.dataStatus().then(setDataStats).catch(setError);
-    // P1-04: the range badge comes from the served series, not a hardcode.
-    api.calendar(1, undefined, "vietnam", "sample", "stat")
-      .then((d) => {
-        const p = d.summary?.period;
-        if (p?.from && p?.to) setSampleRange(`${p.from.slice(0, 4)} - ${p.to.slice(0, 4)}`);
-      })
-      .catch(() => {});
+    let alive = true;
+    api.dataStatus().then((st) => {
+      if (!alive) return;
+      setDataStats(st);
+      // P2-08: the badge range comes from the data-status manifest
+      // (`date_range` per AOI), never from a full raw /calendar scan and
+      // never from a hardcoded "2001-2025". Only when no manifest range
+      // exists do we fall back to the cheap sample calendar (<1s); the raw
+      // feed is never scanned just for a badge.
+      const ranges = (st.datasets ?? [])
+        .filter((d) => (d.dataset_ready ?? d.raw_ready) && d.date_range?.[0] && d.date_range?.[1])
+        .map((d) => d.date_range as [string, string]);
+      if (ranges.length > 0) {
+        const lo = ranges.map((r) => r[0]).sort()[0].slice(0, 4);
+        const hi = ranges.map((r) => r[1]).sort().reverse()[0].slice(0, 4);
+        setSampleRange(`${lo} - ${hi}`);
+        return;
+      }
+      api.calendar(1, undefined, "vietnam", "sample", "stat")
+        .then((d) => {
+          if (!alive) return;
+          const p = d.summary?.period;
+          if (p?.from && p?.to) setSampleRange(`${p.from.slice(0, 4)} - ${p.to.slice(0, 4)}`);
+          else setRangeError(true);
+        })
+        .catch(() => {
+          if (alive) setRangeError(true);
+        });
+    }).catch((e) => {
+      if (alive) setError(e);
+    });
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  if (error) return <ErrorState error={error} />;
+  if (error && !dataStats) return <ErrorState error={error} onRetry={() => window.location.reload()} />;
 
   const readyCount = (dataStats?.datasets ?? []).filter((d) => d.dataset_ready ?? d.raw_ready).length;
   const hasRawData = readyCount > 0 || (dataStats?.raw_count ?? 0) > 0;
@@ -100,7 +127,7 @@ export function HomePage() {
         <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4.5 space-y-1">
           <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono font-bold uppercase">
             <CalendarDays className="h-4 w-4" />
-            <span>{sampleRange}</span>
+            <span>{rangeError ? t("common.no_data") : (sampleRange ?? t("common.loading"))}</span>
           </div>
           <div className="text-xl font-extrabold text-white">{t("home.kpi_years_label")}</div>
           <p className="text-xs text-slate-400 leading-snug">{t("home.kpi_years_sub")}</p>
@@ -109,7 +136,7 @@ export function HomePage() {
         <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4.5 space-y-1">
           <div className="flex items-center gap-2 text-orange-400 text-xs font-mono font-bold uppercase">
             <Globe2 className="h-4 w-4" />
-            <span>3 SAMPLE AOIs · RAW {readyCount}/3</span>
+            <span>{t("home.kpi_sample_aois", { count: readyCount })}</span>
           </div>
           <div className="text-xl font-extrabold text-white">{t("home.kpi_biomes_label")}</div>
           <p className="text-xs text-slate-400 leading-snug">{t("home.kpi_biomes_sub")}</p>
@@ -118,7 +145,7 @@ export function HomePage() {
         <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4.5 space-y-1">
           <div className="flex items-center gap-2 text-sky-400 text-xs font-mono font-bold uppercase">
             <Layers className="h-4 w-4" />
-            <span>MODIS + VIIRS</span>
+            <span>{t("home.kpi_modis_viirs")}</span>
           </div>
           <div className="text-xl font-extrabold text-white">{t("home.kpi_satellites_label")}</div>
           <p className="text-xs text-slate-400 leading-snug">{t("home.kpi_satellites_sub")}</p>
@@ -127,7 +154,7 @@ export function HomePage() {
         <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4.5 space-y-1">
           <div className="flex items-center gap-2 text-emerald-400 text-xs font-mono font-bold uppercase">
             <Sparkles className="h-4 w-4" />
-            <span>EVIDENCE-LINKED</span>
+            <span>{t("home.kpi_evidence")}</span>
           </div>
           <div className="text-xl font-extrabold text-white">{t("home.kpi_grounding_label")}</div>
           <p className="text-xs text-slate-400 leading-snug">{t("home.kpi_grounding_sub")}</p>
@@ -397,7 +424,7 @@ export function HomePage() {
               {t("home.study_areas_sub")}
             </p>
           </div>
-          <span className="font-mono text-xs text-cyan-400">3 Calibrated AOIs</span>
+          <span className="font-mono text-xs text-cyan-400">{t("home.aoi_count_badge")}</span>
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
@@ -406,14 +433,14 @@ export function HomePage() {
             <div className="flex items-center justify-between">
               <span className="font-bold text-slate-200">{t("home.aoi_vn_name")}</span>
               <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-mono text-emerald-300">
-                Full Record
+                {t("home.badge_full_record")}
               </span>
             </div>
             <p className="text-xs text-slate-300">
               {t("home.aoi_vn_desc")}
             </p>
             <div className="space-y-1 font-mono text-xs text-slate-400 pt-1">
-              <div>BBox: 104°E - 109°E, 10°N - 16°N</div>
+              <div>{t("home.bbox_vn")}</div>
             </div>
             <Link
               to="/calendar?aoi=vietnam"
@@ -429,14 +456,14 @@ export function HomePage() {
             <div className="flex items-center justify-between">
               <span className="font-bold text-slate-200">{t("home.aoi_amz_name")}</span>
               <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-mono text-emerald-300">
-                Peak 2019
+                {t("home.badge_peak_2019")}
               </span>
             </div>
             <p className="text-xs text-slate-300">
               {t("home.aoi_amz_desc")}
             </p>
             <div className="space-y-1 font-mono text-xs text-slate-400 pt-1">
-              <div>BBox: 70°W - 50°W, 12°S - 3°N</div>
+              <div>{t("home.bbox_amz")}</div>
             </div>
             <Link
               to="/calendar?aoi=amazon"
@@ -452,14 +479,14 @@ export function HomePage() {
             <div className="flex items-center justify-between">
               <span className="font-bold text-slate-200">{t("home.aoi_aus_name")}</span>
               <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs font-mono text-amber-300">
-                Black Summer
+                {t("home.badge_black_summer")}
               </span>
             </div>
             <p className="text-xs text-slate-300">
               {t("home.aoi_aus_desc")}
             </p>
             <div className="space-y-1 font-mono text-xs text-slate-400 pt-1">
-              <div>BBox: 113°E - 153°E, 39°S - 12°S</div>
+              <div>{t("home.bbox_aus")}</div>
             </div>
             <Link
               to="/calendar?aoi=australia"

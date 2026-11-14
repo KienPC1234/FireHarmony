@@ -52,6 +52,17 @@ def load_manifest(path: Path | None = None) -> list[dict]:
     return list(_manifest_cached(str(path), st.st_mtime_ns, st.st_size, st.st_ino))
 
 
+def manifest_aois(manifest: list[dict] | None = None) -> set[str]:
+    """AOI ids present in the ingest manifest (preset + custom pulls).
+
+    The manifest is the source of truth for "was this AOI ever fetched",
+    backing GET /api/firms/aois and the custom-AOI 200-vs-404 decision.
+    """
+    entries = manifest if manifest is not None else load_manifest()
+    return {str(e.get("aoi")) for e in entries
+            if isinstance(e, dict) and e.get("aoi")}
+
+
 def ledger_status(aoi: str, limit: int = 50) -> dict:
     """Recent request outcomes for an AOI (failed/empty hidden before).
 

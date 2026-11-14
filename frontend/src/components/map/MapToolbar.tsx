@@ -15,6 +15,7 @@ interface MapToolbarProps {
   drawMode: DrawMode;
   setDrawMode: (d: DrawMode) => void;
   bbox: string | null;
+  hasCustomFilter?: boolean;
   onClearBbox?: () => void;
   onSetBbox?: (b: string) => void;
   zoneCount: number;
@@ -30,6 +31,7 @@ export function MapToolbar({
   drawMode,
   setDrawMode,
   bbox,
+  hasCustomFilter = false,
   onClearBbox,
   onSetBbox,
   zoneCount,
@@ -66,15 +68,15 @@ export function MapToolbar({
     const n = parseFloat(maxLat);
 
     if (isNaN(w) || isNaN(s) || isNaN(eLon) || isNaN(n)) {
-      setCoordError("Toạ độ không hợp lệ");
+      setCoordError(t("map.invalid_coords"));
       return;
     }
     if (w < -180 || eLon > 180 || w >= eLon) {
-      setCoordError("-180 <= Min Lon < Max Lon <= 180");
+      setCoordError(t("calendar.coord_lon_range"));
       return;
     }
     if (s < -90 || n > 90 || s >= n) {
-      setCoordError("-90 <= Min Lat < Max Lat <= 90");
+      setCoordError(t("calendar.coord_lat_range"));
       return;
     }
 
@@ -85,10 +87,10 @@ export function MapToolbar({
   };
 
   return (
-    <div className="relative border-b border-slate-800 bg-[#0B1220]/95 px-3 py-1.5 text-xs">
-      <div className="flex items-center justify-between gap-2">
+    <div className="relative border-b border-slate-800 bg-[#0B1220]/95 px-2.5 py-1 text-[11px]">
+      <div className="flex items-center justify-between gap-1.5 overflow-x-auto">
         {/* Cụm trái: Chế độ nền (Basemap) & Lớp dữ liệu */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {/* Basemap Switcher */}
           <div className="flex items-center rounded-lg border border-slate-800 bg-slate-900/90 p-0.5 shrink-0">
             {(Object.keys(basemaps) as BasemapKey[]).map((key) => {
@@ -104,7 +106,7 @@ export function MapToolbar({
                   type="button"
                   onClick={() => setBasemap(key)}
                   className={cn(
-                    "rounded px-2 sm:px-2.5 py-1 text-xs font-medium transition min-h-[26px]",
+                    "rounded px-2 py-0.5 text-[11px] font-medium transition min-h-[24px]",
                     basemap === key
                       ? "bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30 shadow-sm"
                       : "text-slate-400 hover:text-white",
@@ -122,7 +124,7 @@ export function MapToolbar({
               type="button"
               onClick={() => setLayerMode(layerMode === "all" ? "points" : "all")}
               className={cn(
-                "inline-flex items-center gap-1 rounded px-2 sm:px-2.5 py-1 text-xs font-semibold transition min-h-[26px]",
+                "inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-semibold transition min-h-[24px]",
                 layerMode === "all"
                   ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
                   : "text-slate-400 hover:text-white",
@@ -140,7 +142,7 @@ export function MapToolbar({
               type="button"
               onClick={() => setDrawMode(drawMode === "polygon" ? "none" : "polygon")}
               className={cn(
-                "inline-flex items-center gap-1 rounded px-2 sm:px-2.5 py-1 text-xs font-medium transition min-h-[26px]",
+                "inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-medium transition min-h-[24px]",
                 drawMode === "polygon"
                   ? "bg-amber-500/25 text-amber-300 font-bold border border-amber-500/30"
                   : "text-slate-400 hover:text-white",
@@ -154,7 +156,7 @@ export function MapToolbar({
               type="button"
               onClick={() => setDrawMode(drawMode === "box" ? "none" : "box")}
               className={cn(
-                "inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition min-h-[26px]",
+                "inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-medium transition min-h-[24px]",
                 drawMode === "box"
                   ? "bg-cyan-500/25 text-cyan-300 font-bold border border-cyan-500/30"
                   : "text-slate-400 hover:text-white",
@@ -162,13 +164,14 @@ export function MapToolbar({
               title={t("calendar.draw_box")}
             >
               <Crosshair className="h-3 w-3" />
+              <span className="hidden md:inline">Box</span>
             </button>
             {onSetBbox && (
               <button
                 type="button"
                 onClick={handleOpenCoordDialog}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition min-h-[26px]",
+                  "inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-medium transition min-h-[24px]",
                   showCoordDialog
                     ? "bg-purple-500/25 text-purple-300 font-bold border border-purple-500/30"
                     : "text-slate-400 hover:text-white",
@@ -176,23 +179,38 @@ export function MapToolbar({
                 title={t("calendar.enter_lat_lon")}
               >
                 <MapPin className="h-3 w-3" />
-                <span className="hidden sm:inline font-mono">{t("calendar.enter_lat_lon")}</span>
+                <span className="hidden md:inline font-mono">{t("calendar.enter_lat_lon")}</span>
+              </button>
+            )}
+            {hasCustomFilter && onClearBbox && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDrawMode("none");
+                  setShowCoordDialog(false);
+                  onClearBbox();
+                }}
+                className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-semibold text-rose-300 bg-rose-950/60 border border-rose-500/40 hover:bg-rose-900/70 transition min-h-[24px]"
+                title={t("calendar.clear_filter")}
+              >
+                <RotateCcw className="h-3 w-3" />
+                <span>{t("calendar.clear_filter")}</span>
               </button>
             )}
           </div>
         </div>
 
         {/* Cụm phải: Điểm nhiệt & BBox */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {bbox && (
-            <div className="hidden lg:inline-flex items-center gap-1 rounded-md border border-cyan-500/40 bg-cyan-950/40 px-2 py-0.5 text-xs font-mono text-cyan-300">
+            <div className="hidden 2xl:inline-flex items-center gap-1 rounded-md border border-cyan-500/40 bg-cyan-950/40 px-1.5 py-0.5 text-[11px] font-mono text-cyan-300">
               <MapPin className="h-3 w-3 text-cyan-400 shrink-0" />
               <span className="truncate max-w-[100px]">{bbox}</span>
               {onClearBbox && (
                 <button
                   type="button"
                   onClick={onClearBbox}
-                  className="ml-1 text-slate-400 hover:text-rose-400 p-0.5"
+                  className="ml-0.5 text-slate-400 hover:text-rose-400 p-0.5"
                   title={t("calendar.clear_filter")}
                 >
                   <RotateCcw className="h-2.5 w-2.5" />
@@ -201,7 +219,7 @@ export function MapToolbar({
             </div>
           )}
 
-          <span className="text-xs font-mono text-slate-400">
+          <span className="text-[11px] font-mono text-slate-400 whitespace-nowrap">
             <span className="text-cyan-300 font-bold">{totalPoints.toLocaleString()}</span> {t("common.hotspots")}
           </span>
         </div>

@@ -23,6 +23,7 @@ export function XrayPage() {
   const [bt, setBt] = useState<Awaited<ReturnType<typeof api.backtest>> | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -45,7 +46,7 @@ export function XrayPage() {
     return () => {
       active = false;
     };
-  }, [aoi, data]);
+  }, [aoi, data, reloadNonce]);
 
   const handleSetAoi = (newAoi: string) => {
     setSp((prev) => {
@@ -135,12 +136,20 @@ export function XrayPage() {
       <GlobalContextBar />
 
       {/* 3. Main Cockpit Grid */}
-      {error ? (
-        <ErrorState error={error} />
-      ) : loading || !xr ? (
-        <Loading label={t("xray.loading")} />
+      {error && !xr ? (
+        <ErrorState error={error} onRetry={() => setReloadNonce((n) => n + 1)} />
+      ) : !xr ? (
+        <Loading label={t("xray.loading")} aoi={aoi} data={data} />
       ) : (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-4 items-start">
+        <div className="space-y-4">
+          {Boolean(error) && <ErrorState error={error} onRetry={() => setReloadNonce((n) => n + 1)} />}
+          {loading && (
+            <div className="flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-950/30 px-3 py-1.5 text-xs text-cyan-200">
+              <div className="h-3 w-3 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
+              <span>{t("xray.loading")}</span>
+            </div>
+          )}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-4 items-start">
           {/* Left Control Sidebar */}
           <div className="lg:col-span-1">
             <XraySidebar
@@ -174,6 +183,7 @@ export function XrayPage() {
                 backtest={bt}
               />
             )}
+          </div>
           </div>
         </div>
       )}

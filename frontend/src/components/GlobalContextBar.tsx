@@ -24,7 +24,7 @@ export function GlobalContextBar({
 }: GlobalContextBarProps) {
   const { t } = useLang();
   const [searchParams] = useSearchParams();
-  const { aoi, setAoi, dataFeed, setDataFeed, method, setMethod } = useResearchContext();
+  const { aoi, setAoi, dataFeed, setDataFeed, method, setMethod, updateParams } = useResearchContext();
 
   const [copied, setCopied] = useState(false);
 
@@ -121,10 +121,7 @@ export function GlobalContextBar({
             </button>
             <button
               type="button"
-              onClick={() => {
-                if (!isRaw) setDataFeed("raw");
-                setMethod("stan");
-              }}
+              onClick={() => updateParams({ data: "raw", method: "stan" })}
               title={t("calendar.stan_tooltip")}
               className={cn(
                 "px-2 py-0.5 rounded text-[11px] font-semibold transition min-h-[26px]",
@@ -137,10 +134,7 @@ export function GlobalContextBar({
             </button>
             <button
               type="button"
-              onClick={() => {
-                if (!isRaw) setDataFeed("raw");
-                setMethod("hts_anchor");
-              }}
+              onClick={() => updateParams({ data: "raw", method: "hts_anchor" })}
               title={t("calendar.hts_tooltip")}
               className={cn(
                 "px-2 py-0.5 rounded text-[11px] font-semibold transition min-h-[26px]",

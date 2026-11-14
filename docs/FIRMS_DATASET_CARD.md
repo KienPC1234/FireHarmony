@@ -21,20 +21,22 @@ from `calendar.monthrange`, so days 1,6,11,16,21,26 **plus 31 when it exists**
 every outcome to `backend/data/firms/request_ledger.jsonl`
 (`success_rows` / `success_empty` / `failed`).
 
-The first backfill used the old fixed starts, so it never requested day 31:
+The first backfill used the old fixed starts, so it never requested day 31.
+The current state after the `fetch_missing.py` repair is:
 
 | AOI | raw rows | manifest months | months ≥90% **paired** days | missing day 31 | coverage class |
 |---|---|---|---|---|---|
 | vietnam | 3,411,143 | 169 (2012-01 … 2026-11) | 168 | 0 | full-month |
 | amazon | 4,653,546 | 85 | 84 | 0 | full-month |
-| australia | 1,700,959 | 85 | 0 | 48 | **5-day window only** |
+| australia | 1,700,959 | 85 | 84 | 0 | full-month (backfilled 2026-11-13) |
 
 `GET /api/firms/coverage?aoi=…&data=raw` returns the per-month
 `paired_days`, `coverage_by_sensor`, `coverage_ratio`, `missing_days`, per-source counts and the
 request ledger. A month is only `partial=true` when <90% of its days have **paired MODIS+VIIRS**
-requests; union coverage is reported separately. **Detection days are a separate field**. Australia's every month
-is partial because each has only one 5-day window; its numbers must not be
-compared to full-month totals.
+requests; union coverage is reported separately. **Detection days are a separate field**.
+Before the 2026-11-13 backfill, Australia had only one 5-day window per month,
+so those older numbers are not comparable to full-month totals; the backfill
+closed that gap for 84/85 months.
 
 Re-fetch with a fresh key to close the day-31 gap:
 
@@ -51,12 +53,11 @@ cd backend
 
 `fetch_missing.py` is the repair path: it diffs the manifest against every
 calendar day and fetches **only** the missing intervals (max 5 days/request).
-A full backfill raised vietnam from 73 to **168/169 full months** (2012–2025)
-and amazon to **84/85**, removing the day-31 gap; the remaining amazon month is
-the partial 2026-11 NRT. Early 2013+ months are excluded from training/eval
-until their paired coverage reaches 90%.
-Australia remains sparse because its VIIRS responses are large and the run was
-stopped deliberately; the same command resumes it.
+A full backfill raised vietnam from 73 to **168/169 full months** (2012–2025),
+amazon to **84/85**, and Australia from **0/85 to 84/85** (2026-11-13),
+removing the day-31 gap; the remaining month in each AOI is the partial
+2026-11 NRT. Early 2013+ months are excluded from training/eval until their
+paired coverage reaches 90%.
 
 ```bash
 cd backend
@@ -83,7 +84,7 @@ cd backend
 ## Real pulls and provenance
 
 - Each file is `{aoi}_{source}_{start}_{days}d_{sha16}.csv` in
-  `backend/data/firms/raw/` (gitignored, ~820 MB, excluded from the source zip).
+  `backend/data/firms/raw/` (gitignored, ~1.4 GB, excluded from the source zip).
   A checksum-pinned 16-file slice (`backend/data/firms/raw_subset/vietnam_2025-01`,
   4.3 MB) is included so `python -m scripts.firms.rebuild_subset` can rerun the
   pixel→calendar path on real NASA rows without the full pull.
@@ -113,7 +114,7 @@ cd backend
 
 `python -m scripts.firms.make_benchmark --check` recomputes pooled and
 per-AOI MAE/WAPE/bias from `evaluation_samples_*.csv` and fails if any differs
-from `BENCHMARK.json` by more than 1e-6. It does not need the raw ~820 MB.
+from `BENCHMARK.json` by more than 1e-6. It does not need the raw ~1.4 GB.
 
 ## Sample (offline demo)
 
@@ -128,6 +129,17 @@ planted 2019 anomalies (pipeline test only). Regenerate with
 
 - 0.05° grid hides sub-village detail; overpass-time and cloud/smoke biases are
   reduced, not removed.
+- Custom / new regions are stat-only: bbox/geometry outside the 3 preset AOIs
+  is served with `method=stat` + `uncertainty_status=not_calibrated`;
+  `hts`/`stan` return 409 (`model_requires_full_aoi` /
+  `geometry_requires_stat_method`). Transfer to new regions is
+  **not established** — evaluation covers only vietnam/amazon/australia.
+- Request caps: daily slice 5000, map-cells `max_cells` ≤ 200k,
+  `/validate` ≤ 50k rows, ingest ≤ 50MB, session dataset ≤ 10MB,
+  geometry ≤ 200kB / 5k vertices. Every response carries `X-Elapsed-Ms`:
+  cold `/calendar` ~153.7s (stat) / ~215.3s (STAN), warm 91–118ms.
+- Raw (~1.4 GB) is gitignored; the submission ships only the 24-month demo
+  pack (362 CSV, 459,832 rows, SHA-256 pinned).
 - Hotspot detections ≠ confirmed fires; upscaled MODIS-only cells are
   estimates with an uncertainty interval and null FRP.
 - Dedup uses rounded coordinates + time + satellite; granule/pixel IDs are not

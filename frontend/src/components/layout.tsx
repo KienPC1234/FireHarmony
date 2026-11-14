@@ -160,7 +160,9 @@ export function Layout() {
 
   // Compact navigation items preventing collision
   const primaryNav = [
+    { to: "/", label: t("nav.overview"), icon: House, end: true },
     { to: "/calendar", label: t("nav.calendar"), icon: CalendarDays },
+    { to: "/xray", label: t("nav.xray"), icon: ScanEye },
     { to: "/lab", label: t("nav.lab"), icon: Satellite },
     { to: "/evidence", label: t("nav.evidence"), icon: FileCheck2 },
     { to: "/investigator", label: t("nav.investigator"), icon: MessagesSquare },
@@ -169,12 +171,7 @@ export function Layout() {
 
   // Left-side mission workspace follows the approved dashboard design.
   // Reuse the existing labels/routes and preserve the current research query.
-  const workspaceNav = [
-    { to: "/", label: t("nav.overview"), icon: House },
-    primaryNav[0],
-    { to: "/xray", label: "X-Ray / Trends", icon: ScanEye },
-    ...primaryNav.slice(1),
-  ];
+  const workspaceNav = primaryNav;
 
   const mobileNav = [
     {
@@ -192,7 +189,7 @@ export function Layout() {
     },
     {
       to: "/xray",
-      label: "X-Ray / Trends",
+      label: t("nav.xray"),
       hint: t("nav.lab_hint"),
       icon: ScanEye,
     },
@@ -256,10 +253,11 @@ export function Layout() {
             className="flex items-center gap-0.5 lg:gap-1 rounded-xl border border-slate-800 bg-slate-900/80 p-0.5 shrink-0"
             aria-label="Primary Navigation"
           >
-            {primaryNav.map(({ to, label, icon: Icon }) => (
+            {primaryNav.map(({ to, label, icon: Icon, end }) => (
               <NavLink
                 key={to}
                 to={`${to}${location.search}`}
+                end={end}
                 className={({ isActive }) =>
                   cn(
                     "flex items-center gap-1.5 rounded-lg px-2 lg:px-2.5 py-1 text-xs font-semibold transition-colors duration-150 shrink-0 min-h-[28px]",

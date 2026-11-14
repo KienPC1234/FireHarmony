@@ -16,4 +16,4 @@ an agent. Do not re-open closed P0s without a failing test.
 ## Closed (do not re-litigate)
 
 - 14 P0 truth items in `docs/AUDIT_UIUX_RESPONSE.md` and the model card.
-- Leakage, artifact hashing, and gate-off serving in `docs/SENSORFORMER.md`.
+- Leakage, artifact hashing, and gate-off serving (historical notes in the git log).
