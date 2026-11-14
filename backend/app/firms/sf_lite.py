@@ -498,14 +498,20 @@ def artifact_status(data: str = "raw", model_dir: Path | None = None) -> dict:
     got = _sha256(mp)
     out["hash_ok"] = bool(want and got == want)
     out["weights_sha256"] = got
+    integrity = True
     if out["feature_version"] != FEATURE_VERSION:
         out["reason"] = "feature_version_mismatch"
+        integrity = False
     elif not out["hash_ok"]:
         out["reason"] = "weights_sha256_mismatch"
+        integrity = False
     elif not _HAS_TORCH:
         out["reason"] = "torch_missing"
-    else:
-        out["available"] = True
+    # `available` = the artifact is present and intact. Whether it can run is a
+    # separate flag, so a serving-only (no-torch) host reports the artifact
+    # honestly instead of calling it missing.
+    out["available"] = integrity
+    out["runtime_available"] = bool(integrity and _HAS_TORCH)
     return out
 
 

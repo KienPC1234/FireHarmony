@@ -262,7 +262,12 @@ def train_holdout(pairs: list[dict], test_years: int = 2, tune: bool = True,
     if len(train) < 24 or not test:
         return {**base, "reason": "small_data_need_24_train_pairs"}
     cv = blocked_cv(train) if tune else {"best": None, "cv_mae": {}, "folds": [], "n_configs": 0}
-    params = eval(cv["best"]) if cv.get("best") else {
+    import ast as _ast
+    try:
+        best = _ast.literal_eval(cv["best"]) if cv.get("best") else None
+    except (ValueError, SyntaxError):
+        best = None
+    params = best if isinstance(best, dict) else {
         "max_depth": 1, "min_samples_leaf": 20, "l2_regularization": 50.0}
     gate = blocked_cv_compare(train)
     model = _fit(train, params)

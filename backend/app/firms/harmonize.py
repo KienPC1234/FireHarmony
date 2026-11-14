@@ -25,6 +25,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
+import math
 
 import numpy as np
 
@@ -88,8 +89,8 @@ def aggregate(records: list[dict], res_deg: float = RES_DEG) -> dict[tuple[str, 
         elif inst != "MODIS":
             continue
         d = str(r.get("acq_date", ""))[:10]
-        la = np.floor(lat / res_deg) * res_deg
-        lo = np.floor(lon / res_deg) * res_deg
+        la = math.floor(lat / res_deg) * res_deg
+        lo = math.floor(lon / res_deg) * res_deg
         key = (f"{la:.2f}_{lo:.2f}", d, inst)
         agg = out[key]
         agg.count += 1
@@ -114,7 +115,7 @@ def _dedup_key_rec(rec) -> tuple:
 
 def aggregate_iter(records, res_deg: float = RES_DEG, keep_clean=None,
                    qa_min: str = "all", platform_set: str = "all",
-                   keys_lower: bool = True):
+                   source_type: str = "all", keys_lower: bool = True):
     """Streaming aggregate used for large raw pulls (never builds a row list).
 
     `keep_clean` is an optional callable receiving each validated dict (used by
@@ -123,6 +124,7 @@ def aggregate_iter(records, res_deg: float = RES_DEG, keep_clean=None,
 
     `qa_min`: all | nominal | high. `platform_set`: all | snpp (keep MODIS +
     SNPP VIIRS, drop NOAA-20/21 so a platform change is not read as more fire).
+    `source_type`: all | land (exclude type=3 offshore) | vegetation (type=0/None).
     """
     from app.firms.schema import FirmsRecord
 
@@ -130,8 +132,9 @@ def aggregate_iter(records, res_deg: float = RES_DEG, keep_clean=None,
     seen: set[int] = set()
     stats = {"clean": 0, "rejected": 0, "qa_counts": {},
              "filtered_low_confidence": 0, "filtered_confidence": 0,
-             "filtered_platform": 0,
-             "filters": {"qa_min": qa_min, "platform_set": platform_set}}
+             "filtered_platform": 0, "filtered_source_type": 0,
+             "filters": {"qa_min": qa_min, "platform_set": platform_set,
+                         **({"source_type": source_type} if source_type != "all" else {})}}
     for r in records:
         # `iter_raw_rows` and sample loaders already lowercase keys; avoid a
         # second dict+lower pass on the 2M-row hot path.
@@ -156,6 +159,12 @@ def aggregate_iter(records, res_deg: float = RES_DEG, keep_clean=None,
                 and rec.satellite != "NPP"):
             stats["filtered_platform"] += 1
             continue
+        if source_type == "land" and rec.type == 3:
+            stats["filtered_source_type"] += 1
+            continue
+        if source_type == "vegetation" and rec.type in (1, 2, 3):
+            stats["filtered_source_type"] += 1
+            continue
         stats["clean"] += 1
         sig = hash(_dedup_key_rec(rec))
         if sig in seen:
@@ -168,8 +177,8 @@ def aggregate_iter(records, res_deg: float = RES_DEG, keep_clean=None,
         lat, lon = rec.latitude, rec.longitude
         inst = "VIIRS" if str(rec.instrument).upper().startswith("VIIRS") else "MODIS"
         day = str(rec.acq_date)[:10]
-        la = np.floor(lat / res_deg) * res_deg
-        lo = np.floor(lon / res_deg) * res_deg
+        la = math.floor(lat / res_deg) * res_deg
+        lo = math.floor(lon / res_deg) * res_deg
         key = (f"{la:.2f}_{lo:.2f}", day, inst)
         agg = out[key]
         agg.count += 1

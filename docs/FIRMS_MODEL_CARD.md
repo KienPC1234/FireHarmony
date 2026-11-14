@@ -16,15 +16,16 @@
 |---|---|---|---|---|
 | vietnam | 3,411,143 | 169 (2012-01 … 2026-11) | 168 | full-month |
 | amazon | 4,653,546 | 85 | 84 | full-month |
-| australia | 1,700,959 | 85 | 1 | **sparse 5-day windows only** |
+| australia | 1,700,959 | 85 | 84 | full-month (backfilled 2026-11-13) |
 
 The first full-month fetcher requested days 1,6,11,16,21,26 × 5 days, which
 covers 1–30 and **never day 31**. `fetch_missing.py` now diffs the manifest
 against every calendar day and fetched only the gaps: vietnam and amazon are
-at **168/169 full months** for vietnam (2012–2025 after the early-year backfill) and **84/85** for amazon.
-Australia is still one 5-day window per month (0/85 months with ≥90% paired days); its numbers
-are a 5-day-window comparison, not a monthly total. The "full-month pooled"
-rows below therefore use vietnam + amazon only.
+at **168/169 full months** for vietnam (2012–2025 after the early-year backfill)
+and **84/85** for amazon. Australia was 0/85 full months (one 5-day window per
+month); the 2026-11-13 backfill brought it to **84/85**, so it is now a comparable
+third AOI instead of a sparse stress test. The one partial month is the current
+NRT month, which stays excluded.
 
 ## Scientific guards (audit V6)
 
@@ -38,13 +39,33 @@ rows below therefore use vietnam + amazon only.
 - **Uncertainty.** `harmonized_count_low/high` is emitted only with at least
   three co-observed months and a positive monthly-ratio IQR. Otherwise both are
   null and `uncertainty_status="not_calibrated"`; k=0.35 remains a labeled
-  fallback, never a zero-width interval.
+  fallback, never a zero-width interval. For `method=stan`, estimated cells also
+  carry the model's own log-scale band (`uncertainty_status="model_band"`),
+  calibrated on the 2023 selection year. The artifact publishes both the
+  validation coverage (0.81) and the 2024-25 holdout coverage (0.72): the
+  nominal 80% band still undercovers on the holdout, and
+  `/api/firms/stan-status` reports that number instead of quoting 80% as if it
+  were measured on the test years.
 - **Transformer artifacts.** Six `ts_*.pt` state dicts ship with the release,
   pinned in `backend/data/firms/models/TS_WEIGHTS.sha256`. `/api/health`
   advertises `ts` only when torch and the weight+metadata files both exist.
 - **Raw subset.** `data/firms/raw_subset/vietnam_2025-01` contains 16 untouched
   NASA CSVs + checksums; `rebuild_subset` reproduces 49,638 clean rows,
   20,306 cell-days and 54,563.23 for that month.
+
+## Rebuild the stack
+
+One command replaces the eight remembered steps (old workflow could silently mix
+artifacts from different data pulls):
+
+```bash
+cd backend
+python -m scripts.firms.retrain_all            # tiles -> eval -> HTS -> STAN -> unify -> docs
+python -m scripts.firms.retrain_all --with-sf  # also the SensorFormer comparator
+```
+
+Order and rationale are in the module docstring; nothing is served until the
+STAN series step, and the last two steps only publish numbers.
 
 ## Unified evaluation protocol
 
@@ -66,6 +87,27 @@ filters `qa_min=all` and `platform_set=all`; `/api/firms/qa-summary` and the
 Calendar filter selects expose how the answer changes when low-confidence rows
 are dropped or only SNPP VIIRS is kept.
 
+## One served model
+
+`backend/app/firms/registry.py` is the single source of truth for what serves
+the product:
+
+| role | method | served as | why |
+|---|---|---|---|
+| primary | `stan_safe_v1` | `method=stan` | best point estimate: 3765.8 vs B2 4411.8 and HTS 4154.4 on the 72-month holdout; every AOI improves, but the 95% CI vs B2 [−1452.9, +81.8] still includes 0 |
+| baseline | `b2_seasonal_ratio` | `method=stat` | reference every learned model must beat |
+| fallback | `hts_anchor_v1` | `method=hts`, STAN pre-2024 | stable anchor before the 12-month tile window exists; 4154.4, CI vs B2 includes 0 |
+| comparator | `spatial_hgb_v1` | not served | lowest MAE (3076.4), but needs same-month neighbour VIIRS: reconstruction, not a forecast |
+| comparator | `sf_lite_v1` | not served | loses to B2 on its own 72-row sample (2458 vs 2387) |
+| archived | `ml_b2res_v4`, `ts_logratio_pool_v2`, `tileformer_v1` | not served | HGB 4687.5 and TS 5322.9 lose to B2 on the rebuilt data; kept for reproducibility |
+
+The table below joins all of them on the same 72 AOI-months via
+`evaluation.merge_artifact_methods` (run `python -m scripts.firms.unify_eval`),
+so the served STAN number sits next to its baselines instead of in a separate
+document. `spatial_hgb_v1` looks best by MAE but is explicitly retrospective
+and never the calendar default. Point estimate and statistical significance are
+reported separately (`/api/firms/models` → `primary_gate`).
+
 ## Real unified table
 
 The block below is generated from the evaluation artifact by
@@ -73,44 +115,54 @@ The block below is generated from the evaluation artifact by
 by hand.
 
 <!-- BEGIN GENERATED METRICS -->
-_Generated from `evaluation_raw.json` · `eval-v2` · pair_table_hash `b359387bc92e7e1c`._
+_Generated from `evaluation_raw.json` · `eval-v3` · pair_table_hash `7ba6b1ac91043aeb`._
 
 Candidate holdout years: `[2024, 2025]` · scored years: `[2024, 2025]` · excluded months (no 12-month context): `[]`.
 
-**Headline — full-month AOIs only ['vietnam', 'amazon'] (n=48)**
+**Headline — full-month AOIs only ['vietnam', 'amazon', 'australia'] (n=72)**
 
 | Method | MAE | WAPE | Bias | n |
 |---|---:|---:|---:|---:|
-| `b0_raw_modis` | 21623.4 | 0.758 | -21623.4 | 48 |
-| `b1_global_ratio` | 5294.6 | 0.186 | -3718.5 | 48 |
-| `b2_seasonal_ratio` | 2746.0 | 0.096 | -222.9 | 48 |
-| `hgb_b2res_v4` | 2746.0 | 0.096 | -222.9 | 48 |
-| `ts_logratio_pool_v2` | 2934.4 | 0.103 | -845.8 | 48 |
+| `b0_raw_modis` | 38119.8 | 0.774 | -38119.8 | 72 |
+| `b1_global_ratio` | 6386.6 | 0.130 | -682.6 | 72 |
+| `b2_seasonal_ratio` | 4411.8 | 0.090 | +1281.3 | 72 |
+| `hgb_b2res_v4` | 4687.5 | 0.095 | +1647.8 | 72 |
+| `ts_logratio_pool_v2` | 5322.9 | 0.108 | +1574.2 | 72 |
+| `stan_safe_v1` | 3765.8 | 0.077 | +1421.3 | 72 |
+| `hts_anchor_v1` | 4154.4 | 0.084 | +646.1 | 72 |
+| `spatial_hgb_v1` | 3076.4 | 0.063 | -1357.0 | 72 |
 
-_Australia has 0/85 months with >=90% paired MODIS/VIIRS days; it is a sparse stress test, not a comparable monthly series._
+_All scored AOIs meet the full-month coverage rule (>=80% of months with >=90% paired MODIS/VIIRS days)._
 
 **All-AOI pooled (n=72)**
 
 | Method | MAE | WAPE | Bias | n |
 |---|---:|---:|---:|---:|
-| `b0_raw_modis` | 18220.6 | 0.764 | -18220.6 | 72 |
-| `b1_global_ratio` | 4095.5 | 0.172 | -2163.0 | 72 |
-| `b2_seasonal_ratio` | 2386.9 | 0.100 | +90.0 | 72 |
-| `hgb_b2res_v4` | 2396.4 | 0.101 | +167.4 | 72 |
-| `ts_logratio_pool_v2` | 2573.9 | 0.108 | -196.6 | 72 |
+| `b0_raw_modis` | 38119.8 | 0.774 | -38119.8 | 72 |
+| `b1_global_ratio` | 6386.6 | 0.130 | -682.6 | 72 |
+| `b2_seasonal_ratio` | 4411.8 | 0.090 | +1281.3 | 72 |
+| `hgb_b2res_v4` | 4687.5 | 0.095 | +1647.8 | 72 |
+| `ts_logratio_pool_v2` | 5322.9 | 0.108 | +1574.2 | 72 |
+| `stan_safe_v1` | 3765.8 | 0.077 | +1421.3 | 72 |
+| `hts_anchor_v1` | 4154.4 | 0.084 | +646.1 | 72 |
+| `spatial_hgb_v1` | 3076.4 | 0.063 | -1357.0 | 72 |
 
 | AOI | coverage class | months ≥90% paired days | months |
 |---|---|---:|---:|
 | vietnam | full_month | 168 | 169 |
 | amazon | full_month | 84 | 85 |
-| australia | sparse_window | 0 | 85 |
+| australia | full_month | 84 | 85 |
 
 | comparison | ΔMAE (A−B) | 95% bootstrap CI | P(A better) | n |
 |---|---:|---|---:|---:|
-| hgb_vs_b2 | +9.5 | [-59.4, +89.0] | 0.38 | 72 |
+| hgb_vs_b2 | +275.6 | [-154.7, +717.2] | 0.11 | 72 |
 | hgb_vs_b1 | -1699.1 | [-3244.4, -450.1] | 1.00 | 72 |
-| ts_vs_b2 | +186.9 | [-258.3, +620.9] | 0.19 | 72 |
-| ts_vs_b1 | -1521.6 | [-2964.7, -379.6] | 1.00 | 72 |
+| ts_vs_b2 | +911.0 | [+91.4, +1758.4] | 0.02 | 72 |
+| ts_vs_b1 | -1063.7 | [-2465.5, +121.5] | 0.96 | 72 |
+| stan_vs_b2 | -646.0 | [-1452.9, +81.8] | 0.96 | 72 |
+| stan_vs_hts | -388.6 | [-939.0, +50.7] | 0.95 | 72 |
+| hts_vs_b2 | -257.4 | [-777.1, +266.2] | 0.83 | 72 |
+| spatial_vs_b2 | -1335.4 | [-2740.4, -162.3] | 0.99 | 72 |
 
 _Bootstrap unit: AOI-month block; it is not a claim of independent hotspot observations._
 
@@ -118,27 +170,27 @@ _Bootstrap unit: AOI-month block; it is not a claim of independent hotspot obser
 
 | AOI | test year | B1 | B2 | residual |
 |---|---:|---:|---:|---:|
-| vietnam | 2015 | 5426.5 | 2466.09 | 2930.99 |
-| vietnam | 2016 | 7811.86 | 4731.46 | 4831.95 |
-| vietnam | 2017 | 3496.16 | 1115.02 | 1282.03 |
-| vietnam | 2018 | 3765.74 | 547.55 | 971.72 |
-| vietnam | 2019 | 4972.09 | 1768.35 | 1737.8 |
-| vietnam | 2020 | 6756.34 | 2430.08 | 2443.56 |
-| vietnam | 2021 | 4115.81 | 1311.58 | 1632.17 |
-| vietnam | 2022 | 2856.38 | 1902.84 | 2165.56 |
-| vietnam | 2023 | 3754.8 | 865.28 | 696.74 |
-| amazon | 2022 | 7649.42 | 4434.51 | 4350.69 |
-| amazon | 2023 | 4977.64 | 2662.11 | 2863.9 |
-| australia | 2022 | 1726.91 | 2035.6 | 1840.71 |
-| australia | 2023 | 1191.68 | 1907.94 | 1552.37 |
+| vietnam | 2015 | 5425.98 | 2465.55 | 2930.99 |
+| vietnam | 2016 | 7811.34 | 4731.14 | 4831.95 |
+| vietnam | 2017 | 3497.21 | 1115.56 | 1282.03 |
+| vietnam | 2018 | 3766.75 | 548.23 | 971.72 |
+| vietnam | 2019 | 4972.59 | 1769.03 | 1737.8 |
+| vietnam | 2020 | 6755.35 | 2428.42 | 2443.56 |
+| vietnam | 2021 | 4115.81 | 1312.81 | 1632.17 |
+| vietnam | 2022 | 2856.89 | 1903.06 | 2165.56 |
+| vietnam | 2023 | 3754.3 | 865.32 | 696.74 |
+| amazon | 2022 | 7649.84 | 4434.88 | 4350.69 |
+| amazon | 2023 | 4978.47 | 2662.84 | 2863.9 |
+| australia | 2022 | 10252.14 | 11956.41 | 12277.16 |
+| australia | 2023 | 9510.23 | 15654.96 | 17038.04 |
 
 **Per-AOI metrics**
 
-| AOI | b0_raw_modis | b1_global_ratio | b2_seasonal_ratio | hgb_b2res_v4 | ts_logratio_pool_v2 |
-|---|---:|---:|---:|---:|---:|
-| vietnam | 11112.1 | 3493.2 | 844.2 | 844.2 | 1329.6 |
-| amazon | 32134.6 | 7095.9 | 4647.7 | 4647.7 | 4539.1 |
-| australia | 11415.2 | 1697.3 | 1668.8 | 1697.3 | 1852.8 |
+| AOI | b0_raw_modis | b1_global_ratio | b2_seasonal_ratio | hgb_b2res_v4 | ts_logratio_pool_v2 | stan_safe_v1 | hts_anchor_v1 | spatial_hgb_v1 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| vietnam | 11112.1 | 3493.2 | 844.2 | 844.2 | 1264.4 | 694.2 | 783.9 | 633.5 |
+| amazon | 32134.6 | 7095.9 | 4647.7 | 4647.7 | 4769.7 | 3391.4 | 4250.1 | 2870.4 |
+| australia | 71112.8 | 8570.5 | 7743.6 | 8570.5 | 9934.5 | 7211.9 | 7429.3 | 5725.3 |
 <!-- END GENERATED METRICS -->
 
 How to read it:
@@ -216,47 +268,51 @@ How to read it:
 - Aggregates the raw pull at 1-degree tiles: 42,327 tile-months, 10,315 with
   ≥20 MODIS and ≥20 VIIRS, 1,060 tiles, 3,924 windows with 12-month context.
 - Per-tile monthly log-ratio shrunk toward B2: `w = n/(n+3)`; sparse tiles fall
-  back to the tile mean, then B2. One global level factor fit on 2023 (0.997).
-- **Result on the official 72 rows: MAE 2,230.7 vs B2 2,386.9 (−156.2, −6.5%)**;
-  Vietnam 790.9, Amazon 4,297.1, Australia 1,604.1 — all three improve.
-- CI **[−362.0, +44.0]**, P(better) 0.93; year-block CI [−366.9, +54.5]. The
-  gate (≥2% and CI upper < 0) is **not passed**, so this is a candidate, not a
-  deployed win.
+  back to the tile mean, then B2. One global level factor fit on 2023 (0.995).
+- **Result on the official 72 rows: MAE 4,218.8 vs B2 4,411.8 (−193.0, −4.4%)**;
+  Vietnam 795.7, Amazon 4,325.9, Australia 7,534.8 — all three improve.
+- CI **[−743.8, +358.6]**, P(better) 0.76. The gate (≥2% and CI upper < 0) is
+  **not passed**, so this is a candidate/fallback, not a deployed win.
 - Artifact: `models/hts_anchor_raw.json`; monthly serving targets:
   `models/hts_series_raw.json` (`scripts.firms.build_hts_series`).
-- Served only as `method=hts` on raw data; responses mark it candidate with
-  `gate_passed=false`. The synthetic sample returns 409 (no tiles).
+- Served as `method=hts` on raw data and as STAN's pre-2024 fallback; responses
+  mark it candidate with `gate_passed=false`. The synthetic sample returns 409.
 
 ### `stan_v1` (Spatial-Temporal Anchor Network — served main model)
 
 - NB2 count likelihood; mean = HTS anchor × exp(δ); 12-month dilated TCN
   (1/2/4) with seasonal FiLM; target-month query cross-attention; neighbour
   context without same-month neighbour VIIRS.
-- 171k params, 5 seeds, early stop on 2023, refit `< 2024`, one level factor
-  from 2023. Weights `models/stan_safe_raw.pt` (sha256 in the JSON).
-- **Official 72: MAE 2,128.7 vs B2 2,386.9 (−10.8%), CI [−534.8, −19.1];
-  Vietnam 646.0, Amazon 4,151.9, Australia 1,588.2.** Beats HTS point estimate
-  (2,211.1) but the HTS CI includes 0.
-- LOO: Vietnam 948.4 vs HTS 783.9, Amazon 5,292.9 vs 4,250.1, Australia
-  1,594.8 vs 1,599.2 (CI barely excludes 0). Region transfer is not solved.
-- Ablations: FiLM is the main structural win (no-FiLM +13%); 3 layers best;
-  Poisson ≈ NB; d=96 > d=64 > d=32. Retrospective twin (neighbour VIIRS)
-  reaches 2,105.4 but is flagged, not the forecast claim.
-- **Served as `method=stan` on raw data** (product decision): STAN targets for
-  2024+, HTS fallback before 2024; sample uses B2 and STAN returns 409.
-  `/api/firms/stan-status` reports `served=true, role=main`.
-- Caveats stay visible: HTS CI includes 0, and LOO fails for Vietnam/Amazon.
+- 171k params, 5 seeds, early stop on 2023 count MAE (the NLL made training
+  collapse to epoch 1 after the full Australia backfill — fixed), refit `< 2024`,
+  one level factor from 2023. Weights `models/stan_safe_raw.pt` (sha256 in JSON).
+- **Official 72: MAE 3,765.8 vs B2 4,411.8 (−14.6%), CI [−1,452.9, +81.8];
+  Vietnam 694.2, Amazon 3,391.4, Australia 7,211.9.** Best point estimate and
+  beats HTS (4,154.4) in every AOI, but the 95% CI still includes 0.
+- LOO: Vietnam 801.4 vs HTS 783.9, Amazon 4,510.9 vs 4,250.1, Australia
+  7,493.2 vs 7,429.3. Region transfer is still not solved.
+- Predictive band: log-scale 80% band calibrated on the 2023 selection year;
+  validation coverage 0.81, 2024-25 holdout coverage 0.72 (reported, not hidden).
+- Ablations from the earlier run: FiLM is the main structural win (no-FiLM +13%);
+  3 layers best; Poisson ≈ NB; d=96 > d=64 > d=32. The retrospective twin
+  (neighbour VIIRS) is flagged, not the forecast claim.
+- **Served as `method=stan` on raw data**: STAN targets for 2024+, HTS fallback
+  before 2024; sample uses B2 and STAN returns 409.
+  `/api/firms/stan-status` reports `served=true, role=main`, and
+  `/api/firms/models` separates the point-estimate winner from
+  `statistically_established`.
+- Caveats stay visible: the CI vs B2 includes 0, and LOO fails for all three AOIs.
 
 ### `spatial_hgb_v1` (neighbour-tile HGB — retrospective, candidate)
 
 - HGB on the HTS residual with eight-neighbour tile context (same-month MODIS
   and VIIRS, previous-month ratio).
-- **Official 72 months: MAE 1,312.8 vs B2 2,386.9 (−45%) and HTS 2,211.1
-  (−41%)**; Vietnam 467.1, Amazon 2,169.8, Australia 1,301.6.
-- CI vs B2 **[−1,832, −467]**; vs HTS **[−1,516, −383]**. Spatial holdout on
-  210 unseen tiles: 640.6 vs 869.6.
+- **Official 72 months: MAE 3,076.4 vs B2 4,411.8 (−30.3%) and HTS 4,154.4
+  (−26.0%)**; Vietnam 633.5, Amazon 2,870.4, Australia 5,725.3.
+- CI vs B2 **[−2,740.4, −162.3]**; vs HTS **[−2,334.2, −118.4]**. Spatial
+  holdout on 222 unseen tiles: 789.7 vs 1,305.3.
 - **Retrospective only**: the forecast-safe variant without same-month neighbour
-  VIIRS scores 2,302.5, worse than HTS. It is spatial imputation/gap-fill, not a
+  VIIRS scores 4,611.0, worse than HTS. It is spatial imputation/gap-fill, not a
   MODIS-only forecast. Artifact `models/spatial_hgb_raw.json`;
   `GET /api/firms/spatial-status`. Not wired into the calendar.
 

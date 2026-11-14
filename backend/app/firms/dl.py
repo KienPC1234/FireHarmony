@@ -33,16 +33,20 @@ def describe() -> dict:
             "kind": m["kind"],
             "input": m["coverage"],
             "target": m["target"],
-            "used_in_pipeline": bool(m["served"]),
+            "used_in_pipeline": m["role"] == "primary",
             "role": m["role"],
+            "served": bool(m["served"]),
             "served_as": m["served_as"],
             "method_id": m["method_id"],
         })
     return {
         "has_torch": _HAS_TORCH,
-        "status": (f"primary: {registry.primary()['name']}"
-                   if _HAS_TORCH else "statistical path only (torch not installed)"),
-        "framework": "PyTorch" if _HAS_TORCH else "none",
+        # STAN is served from a precomputed series; torch is only needed to
+        # retrain or to run the archived Transformer/SensorFormer artifacts.
+        "status": ("primary: STAN precomputed series (torch available)"
+                   if _HAS_TORCH else
+                   "primary: STAN precomputed series (torch absent; training disabled)"),
+        "framework": "PyTorch" if _HAS_TORCH else "none (serving precomputed STAN series)",
         "active_served_model": registry.primary()["name"],
         "primary_method_id": st["primary_method_id"],
         "baseline_method_id": st["baseline_method_id"],

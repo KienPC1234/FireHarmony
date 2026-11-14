@@ -38,6 +38,10 @@ def _table(metrics: dict, title: str) -> list[str]:
 
 def build(manifest: dict) -> str:
     per = manifest.get("per_aoi") or {}
+    pooled = (manifest.get("pooled") or {}).get("metrics") or {}
+    # Only methods that actually have a pooled metric enter the per-AOI table;
+    # artifact-backed methods (STAN/HTS/spatial) are raw-only.
+    methods = [m for m in manifest.get("methods", []) if m in pooled]
     coverage = {a: (i.get("coverage") or {}) for a, i in per.items()}
     lines = [
         BEGIN,
@@ -83,11 +87,11 @@ def build(manifest: dict) -> str:
                 lines.append(f"| {a} | {f.get('test_year')} | {f.get('b1_mae')} | "
                              f"{f.get('b2_mae')} | {f.get('residual_mae')} |")
     lines += ["", "**Per-AOI metrics**", "",
-              "| AOI | " + " | ".join(manifest.get("methods", [])) + " |",
-              "|---|" + "---:|" * len(manifest.get("methods", []))]
+              "| AOI | " + " | ".join(methods) + " |",
+              "|---|" + "---:|" * len(methods)]
     for a, info in per.items():
         m = info.get("metrics") or {}
-        cells = [str(round(m.get(k, {}).get("mae", float("nan")), 1)) for k in manifest.get("methods", [])]
+        cells = [str(round(m.get(k, {}).get("mae", float("nan")), 1)) for k in methods]
         lines.append(f"| {a} | " + " | ".join(cells) + " |")
     lines.append(END)
     return "\n".join(lines)
@@ -96,19 +100,24 @@ def build(manifest: dict) -> str:
 def build_readme(manifest: dict) -> str:
     head = manifest.get("headline") or {}
     metrics = head.get("metrics") or {}
+    primary = manifest.get("primary_method_id") or "stan_safe_v1"
     lines = [README_BEGIN,
              f"_Generated from `evaluation_{manifest.get('data', 'raw')}.json` "
              f"({manifest.get('evaluation_version')}); headline = full-month AOIs "
-             f"{head.get('aois')}, n={head.get('n_eval')}._", "",
+             f"{head.get('aois')}, n={head.get('n_eval')}. "
+             f"Primary: `{primary}`._", "",
              "| Method | MAE (headline) |", "|---|---:|"]
     for k, v in metrics.items():
         lines.append(f"| `{k}` | {v['mae']:.1f} |")
-    comp = (manifest.get("comparisons") or {}).get("hgb_vs_b2")
+    comp = (manifest.get("comparisons") or {}).get("stan_vs_b2") or \
+        (manifest.get("comparisons") or {}).get("hgb_vs_b2")
     if comp:
         lines.append("")
-        lines.append(f"HGB−B2 ΔMAE {comp['delta_mae']:+.1f}, "
-                     f"95% CI [{comp['ci95'][0]:+.1f}, {comp['ci95'][1]:+.1f}] — "
-                     "CI includes 0 means the gain is not established.")
+        lines.append(f"`{comp['method_a']}` − `{comp['method_b']}` ΔMAE "
+                     f"{comp['delta_mae']:+.1f}, 95% CI "
+                     f"[{comp['ci95'][0]:+.1f}, {comp['ci95'][1]:+.1f}] — "
+                     + ("CI excludes 0." if comp['ci95'][1] < 0
+                        else "CI includes 0, so the gain is not established."))
     lines.append(README_END)
     return "\n".join(lines)
 
@@ -123,6 +132,10 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true")
     a = ap.parse_args()
+    return run(a.check)
+
+
+def run(check: bool = False) -> int:
     manifest = evaluation.load_manifest("raw")
     if not manifest:
         print("no evaluation_raw.json")
@@ -140,14 +153,14 @@ def main() -> int:
             continue
         current = _replace(text, begin, end, text.split(begin, 1)[1].split(end, 1)[0].join([begin, end]))
         expected = _replace(text, begin, end, block)
-        if a.check:
+        if check:
             if current != expected:
                 print(f"DOCS METRICS MISMATCH {path}")
                 bad += 1
         else:
             path.write_text(expected, encoding="utf-8")
             print("updated", path)
-    if a.check:
+    if check:
         print("DOCS METRICS " + ("OK" if bad == 0 else "MISMATCH"))
     return 0 if bad == 0 else 1
 

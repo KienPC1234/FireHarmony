@@ -24,7 +24,7 @@ MODEL_DIR = BACKEND / "data" / "firms" / "models"
 AOIS = ("vietnam", "amazon", "australia")
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--aoi", default="vietnam")
     ap.add_argument("--test-years", type=int, default=2)
@@ -32,7 +32,7 @@ def main() -> int:
     ap.add_argument("--data", default="sample", choices=("sample", "raw"))
     ap.add_argument("--single-aoi", action="store_true",
                     help="no pooling (ablation / spatial-transfer baseline)")
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
     wins: list[dict] = []
     pooled: list[str] = []
     targets = [a.aoi] if a.single_aoi else list(AOIS)
@@ -67,8 +67,15 @@ def main() -> int:
     if not res.get("trained"):
         print(json.dumps(out, indent=1))
         return 2
-    paths = ts_v2.save_artifact(res["models"], res, a.aoi, MODEL_DIR, tag=tag)
-    out.update(paths)
+    # A pooled model is one set of weights for every AOI it trained on; save a
+    # per-AOI sidecar so /ts-status and _block_raw_ml_ts work for each region
+    # instead of only the --aoi passed on the command line.
+    paths = []
+    for name in (pooled or [a.aoi]):
+        paths.append(ts_v2.save_artifact(res["models"], res, name, MODEL_DIR, tag=tag))
+    out["saved"] = paths
+    if paths:
+        out.update(paths[0])
     print(json.dumps(out, indent=1, default=str))
     return 0
 

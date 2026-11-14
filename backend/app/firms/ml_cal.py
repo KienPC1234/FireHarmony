@@ -65,10 +65,6 @@ def _norm_instrument(rec: dict) -> str | None:
     return None
 
 
-def _monthly_pair_accumulator() -> dict:
-    return {}
-
-
 def _accumulate_pair(counts: dict, rec: dict) -> None:
     ym = _parse_year_month(rec)
     if ym is None:

@@ -1,5 +1,10 @@
 # Tile hierarchy: the strongest candidate, and why more GPU did not help
 
+> **Historical analysis (pre-2026-11-13).** Numbers below were computed before
+> the Australia full-month backfill. Current, reproducible numbers are in
+> `docs/FIRMS_MODEL_CARD.md` (`eval-v3`); this file is kept as the experiment
+> trail, not as the served-metrics source.
+
 This is the audit trail for the data-expansion experiment requested after the
 second audit. It answers three questions with numbers:
 

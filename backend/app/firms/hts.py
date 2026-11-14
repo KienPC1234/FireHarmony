@@ -9,8 +9,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from app.firms.ml_core import apply_monthly_targets
+
 MODEL_DIR = Path(__file__).resolve().parents[2] / "data" / "firms" / "models"
 SERIES_FILE = "hts_series_raw.json"
+ALGORITHM_VERSION = "hts-v1.0"
 
 
 def series_path(model_dir: Path | None = None) -> Path:
@@ -68,65 +71,23 @@ def apply_monthly(daily_stat: list[dict], targets_by_month: dict[str, float],
                   requested: str = "hts",
                   candidate: bool = True,
                   gate_passed: bool = False,
-                  method_by_month: dict[str, str] | None = None) -> tuple[list[dict], dict]:
-    """Rescale MODIS-only cells so each month totals the HTS target.
+                  method_by_month: dict[str, str] | None = None,
+                  targets_low: dict[str, float] | None = None,
+                  targets_high: dict[str, float] | None = None,
+                  estimate_label: str = "hts_predicted",
+                  labels_by_month: dict[str, str] | None = None) -> tuple[list[dict], dict]:
+    """Rescale MODIS-only cells so each month totals the model target.
 
     VIIRS-observed cells are never changed; only the estimated part is
-    redistributed, exactly like the ML/TS post-adjustment paths.
+    redistributed. The conservation implementation lives in
+    `ml_core.apply_monthly_targets` and is shared with STAN, HGB-v4 and TS.
+    Optional `targets_low/high` propagate a model predictive band onto the
+    estimated cells (STAN's NB2 interval); HTS itself passes no band.
     """
-    month_totals: dict[str, list[float]] = {}
-    for c in daily_stat:
-        ym = str(c["date"])[:7]
-        slot = month_totals.setdefault(ym, [0.0, 0.0])
-        slot[0] += float(c["harmonized_count"])
-        if c.get("estimate_type") == "modis_upscaled_estimated":
-            slot[1] += float(c["harmonized_count"])
-    factors: dict[str, float] = {}
-    targets_used: dict[str, float] = {}
-    missing: list[str] = []
-    below: list[str] = []
-    for ym in sorted(month_totals):
-        target = targets_by_month.get(ym)
-        if target is None:
-            missing.append(ym)
-            continue
-        stat_total, modis_only = month_totals[ym]
-        observed_part = stat_total - modis_only
-        target_est = target - observed_part
-        if modis_only > 0 and target_est > 0:
-            factors[ym] = target_est / modis_only
-            targets_used[ym] = target
-        else:
-            below.append(ym)
-    for c in daily_stat:
-        ym = str(c["date"])[:7]
-        if c.get("estimate_type") == "modis_upscaled_estimated" and ym in factors:
-            c["harmonized_count"] = round(c["harmonized_count"] * factors[ym], 3)
-            c["estimate_type"] = "hts_predicted"
-            mid = (method_by_month or {}).get(ym, method_id)
-            c["method"] = mid
-            c["effective_method"] = mid
-            c["coverage_status"] = "unknown"
-        else:
-            c["effective_method"] = "stat:seasonal_ratio_v1"
-    conservation = []
-    for ym in factors:
-        total = sum(float(c["harmonized_count"]) for c in daily_stat
-                    if str(c["date"])[:7] == ym)
-        conservation.append(abs(total - targets_used[ym]))
-    return daily_stat, {
-        "requested_method": requested,
-        "effective_method": method_id,
-        "model_method_id": method_id,
-        "candidate": candidate,
-        "gate_passed": gate_passed,
-        "months_requested": len(month_totals),
-        "months_scored": len(factors),
-        "months_missing_target": len(missing),
-        "missing_target_examples": missing[:12],
-        "months_without_modis_only_cells": len(below),
-        "months_corrected": len(factors),
-        "conservation_max_abs_error": round(max(conservation), 4) if conservation else 0.0,
-        "month_effective_method": {ym: (method_by_month or {}).get(ym, method_id)
-                                   for ym in factors},
-    }
+    return apply_monthly_targets(
+        daily_stat, targets_by_month,
+        estimate_label=estimate_label, method_id=method_id,
+        requested=requested, candidate=candidate, gate_passed=gate_passed,
+        method_by_month=method_by_month,
+        targets_low=targets_low, targets_high=targets_high,
+        labels_by_month=labels_by_month)

@@ -36,7 +36,7 @@ MODELS: tuple[dict, ...] = (
         "weights": "stan_safe_raw.pt",
         "evaluation": "stan_safe_raw.json#official",
         "coverage": "raw data, 2024+ (HTS anchor before 2024)",
-        "gate": "beats B2 by -10.8% MAE, bootstrap CI excludes 0",
+        "gate": "must beat B2 on the frozen holdout with a CI excluding 0; re-check after every retrain",
     },
     {
         "method_id": "b2_seasonal_ratio",

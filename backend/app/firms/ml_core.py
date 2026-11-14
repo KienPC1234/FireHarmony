@@ -126,6 +126,10 @@ def apply_monthly_targets(
     candidate: bool = False,
     gate_passed: bool = False,
     method_by_month: dict[str, str] | None = None,
+    targets_low: dict[str, float] | None = None,
+    targets_high: dict[str, float] | None = None,
+    band_status: str = "model_band",
+    labels_by_month: dict[str, str] | None = None,
     untouched_method: str = "stat:seasonal_ratio_v1",
 ) -> tuple[list[dict], dict]:
     """Rescale MODIS-only cells so each month totals its model target.
@@ -147,6 +151,7 @@ def apply_monthly_targets(
             slot[1] += float(c["harmonized_count"])
     factors: dict[str, float] = {}
     targets_used: dict[str, float] = {}
+    bands: dict[str, tuple[float, float]] = {}
     missing: list[str] = []
     below: list[str] = []
     for ym in sorted(month_totals):
@@ -160,17 +165,30 @@ def apply_monthly_targets(
         if modis_only > 0 and target_est > 0:
             factors[ym] = target_est / modis_only
             targets_used[ym] = float(target)
+            if targets_low and targets_high:
+                lo = float(targets_low.get(ym, target)) - observed_part
+                hi = float(targets_high.get(ym, target)) - observed_part
+                if hi > 0 and lo < target_est:
+                    bands[ym] = (max(lo, 0.0), max(hi, lo))
         else:
             below.append(ym)
     for c in daily:
         ym = str(c["date"])[:7]
         if c.get("estimate_type") == "modis_upscaled_estimated" and ym in factors:
             c["harmonized_count"] = round(c["harmonized_count"] * factors[ym], 3)
-            c["estimate_type"] = estimate_label
+            c["estimate_type"] = (labels_by_month or {}).get(ym, estimate_label)
             mid = (method_by_month or {}).get(ym, method_id)
             c["method"] = mid
             c["effective_method"] = mid
             c["coverage_status"] = "unknown"
+            if ym in bands:
+                share = (float(c["harmonized_count"])
+                         / max(targets_used[ym] - (month_totals[ym][0]
+                                                   - month_totals[ym][1]), 1e-9))
+                lo, hi = bands[ym]
+                c["harmonized_count_low"] = round(max(lo, 0.0) * share, 3)
+                c["harmonized_count_high"] = round(hi * share, 3)
+                c["uncertainty_status"] = band_status
         else:
             c["effective_method"] = untouched_method
     conservation = []
@@ -190,6 +208,7 @@ def apply_monthly_targets(
         "missing_target_examples": missing[:12],
         "months_without_modis_only_cells": len(below),
         "months_corrected": len(factors),
+        "months_with_band": len(bands),
         "conservation_max_abs_error": round(max(conservation), 4) if conservation else 0.0,
         "month_effective_method": {ym: (method_by_month or {}).get(ym, method_id)
                                    for ym in factors},

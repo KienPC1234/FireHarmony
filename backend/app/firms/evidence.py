@@ -5,7 +5,6 @@ LLM can only quote numbers that the dashboard can also show.
 """
 from __future__ import annotations
 
-import math
 
 
 def build_evidence(cal_out: dict, daily: list[dict], aoi: str, data: str,
@@ -14,11 +13,23 @@ def build_evidence(cal_out: dict, daily: list[dict], aoi: str, data: str,
     cells = [c for c in daily if str(c.get("date", ""))[:7] == ym]
     total = round(sum(float(c.get("harmonized_count", 0.0) or 0.0) for c in cells), 3)
     observed = sum(1 for c in cells if c.get("estimate_type") == "viirs_observed")
-    estimated = sum(1 for c in cells
-                    if c.get("estimate_type") in ("modis_upscaled_estimated",
-                                                  "ml_predicted", "ts_predicted"))
+    # Any non-observed cell is an estimate, including the HTS/STAN labels
+    # ("hts_predicted"). The old whitelist silently reported estimated_cells=0
+    # for method=stan, which made a fully modelled month look fully observed.
+    estimated = sum(1 for c in cells if c.get("estimate_type") != "viirs_observed")
     ml_cells = sum(1 for c in cells if c.get("estimate_type") == "ml_predicted")
     ts_cells = sum(1 for c in cells if c.get("estimate_type") == "ts_predicted")
+    model_cells = sum(1 for c in cells
+                      if c.get("estimate_type") in ("hts_predicted", "stan_predicted"))
+    band_low = [float(c["harmonized_count_low"]) for c in cells
+                if c.get("harmonized_count_low") is not None]
+    band_high = [float(c["harmonized_count_high"]) for c in cells
+                 if c.get("harmonized_count_high") is not None]
+    band = ({"low": round(sum(band_low), 3), "high": round(sum(band_high), 3),
+             "cells": len(band_low),
+             "status": next((c.get("uncertainty_status") for c in cells
+                             if c.get("uncertainty_status")), None)}
+            if band_low and len(band_low) == len(band_high) else None)
     modis = sum(int(c.get("modis_count", 0) or 0) for c in cells)
     viirs = sum(int(c.get("viirs_count", 0) or 0) for c in cells)
     platforms: dict[str, int] = {}
@@ -65,6 +76,10 @@ def build_evidence(cal_out: dict, daily: list[dict], aoi: str, data: str,
     if method == "stan" and effective == "hts_anchor_v1":
         notes.append("This month predates 2024 and uses the HTS fallback; "
                      "STAN monthly targets start in 2024.")
+    if band:
+        notes.append(f"Model band ({band['status']}) for the estimated part: "
+                     f"{band['low']}–{band['high']} activity-index units; it is a "
+                     "predictive interval, not a confidence interval.")
     if platforms and len(platforms) > 1:
         notes.append("Multiple satellite platforms contributed; a platform change "
                      "is not the same as a fire change.")
@@ -76,6 +91,8 @@ def build_evidence(cal_out: dict, daily: list[dict], aoi: str, data: str,
         "modis_detections": modis, "viirs_detections": viirs,
         "observed_cells": observed, "estimated_cells": estimated,
         "ml_predicted_cells": ml_cells, "ts_predicted_cells": ts_cells,
+        "model_predicted_cells": model_cells,
+        "model_band": band,
         "coverage": coverage,
         "z": z, "anomaly_label": anomaly_label,
         "k_used": k, "ratio_mode": ratios.get("_mode"),

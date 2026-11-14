@@ -1,12 +1,12 @@
-"""Train SensorFormer Lite on committed monthly pairs.
+"""Train SensorFormer Lite on committed monthly pairs (comparator, never served).
 
     python -m scripts.firms.train_sf --data raw
     python -m scripts.firms.train_sf --data sample --epochs 160
 
-Writes sf_lite_<tag>.pt + .json. This is the single served architecture:
-SensorFormer = seasonal anchor + gated residual. The calendar serves the anchor
-until the gate opens (>=2% mean gain and CI upper < 0), so a losing model is
-never silently substituted for the anchor.
+Writes sf_lite_<tag>.pt + .json. This is an EXPERIMENTAL comparator: the served
+calendar is STAN (`registry.PRIMARY`); SF is scored on the same holdout and its
+gate is closed because it loses to B2. It exists so the loss is reproducible,
+not as a deployable architecture.
 """
 from __future__ import annotations
 

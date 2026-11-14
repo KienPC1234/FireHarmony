@@ -57,6 +57,16 @@ SOURCES = ("MODIS_NRT", "MODIS_SP", "VIIRS_SNPP_NRT", "VIIRS_SNPP_SP",
            "VIIRS_NOAA20_NRT", "VIIRS_NOAA21_NRT")
 
 
+class FetchError(RuntimeError):
+    """Retryable/terminal download failure that callers must be able to catch.
+
+    This used to be `raise SystemExit(...)`, a BaseException: one bad request
+    inside the thread pool killed the whole multi-thousand-request backfill
+    (observed at 550/1000 Australia windows), and worker loops could not count
+    the failure.
+    """
+
+
 def fetch_one(key: str, source: str, bbox: str, days: int,
               day: str | None = None, retries: int = 4) -> bytes:
     # Exact shape per https://firms.modaps.eosdis.nasa.gov/api/area/ :
@@ -69,11 +79,17 @@ def fetch_one(key: str, source: str, bbox: str, days: int,
     for attempt in range(retries):
         try:
             with urllib.request.urlopen(url, timeout=60) as r:  # noqa: S310 - official NASA endpoint
-                return r.read()
+                content = r.read()
+            if b"latitude" not in content[:300].lower():
+                # NASA returns a plain-text error (bad key/range) with HTTP 200
+                # in some cases; never persist it as a raw CSV.
+                raise FetchError(f"unexpected response body: {content[:120]!r}")
+            return content
         except Exception as e:  # noqa: BLE001 - retried below
             last = e
             time.sleep(2 ** attempt)
-    raise SystemExit(f"download failed after {retries} tries: {last}\nURL: .../{source}/{bbox}/{days}")
+    raise FetchError(f"download failed after {retries} tries: {last}\n"
+                     f"URL: .../{source}/{bbox}/{days}")
 
 
 def qa_bytes(content: bytes, cap_errors: int = 5) -> dict:
@@ -122,6 +138,7 @@ def main() -> None:
 
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     manifest = []
+    failures = 0
     if MANIFEST.exists():
         try:
             manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
@@ -129,12 +146,25 @@ def main() -> None:
             manifest = []
 
     for source in sources:
-        content = fetch_one(key, source, args.bbox, args.days, args.date)
-        digest = hashlib.sha256(content).hexdigest()[:16]
+        try:
+            content = fetch_one(key, source, args.bbox, args.days, args.date)
+        except FetchError as e:
+            print(f"FAILED {source}: {e}", file=sys.stderr)
+            failures += 1
+            continue
+        full_digest = hashlib.sha256(content).hexdigest()
+        digest = full_digest[:16]
         daytag = args.date or date.today().isoformat()
         out = RAW_DIR / f"{args.aoi}_{source}_{daytag}_{args.days}d_{digest}.csv"
         if out.exists():
             print(f"skip (exists): {out.name}")
+            if not any(e.get("file") == out.name for e in manifest):
+                manifest.append({"file": out.name, "aoi": args.aoi,
+                                 "source": source, "bbox": args.bbox,
+                                 "days": args.days, "sha16": digest,
+                                 "sha256": full_digest,
+                                 "at": date.today().isoformat(),
+                                 "backfilled": True})
             continue
         out.write_bytes(content)
         report = qa_bytes(content)
@@ -142,10 +172,14 @@ def main() -> None:
               f"rejected={report['rejected']} {report['by_instrument']}")
         manifest.append({"file": out.name, "aoi": args.aoi, "source": source,
                          "bbox": args.bbox, "days": args.days,
-                         "sha16": digest, "at": date.today().isoformat(),
+                         "sha16": digest, "sha256": full_digest,
+                         "at": date.today().isoformat(),
                          **{k: v for k, v in report.items() if k != "errors"}})
-    MANIFEST.write_text(json.dumps(manifest, indent=1), encoding="utf-8")
+    from app.firms.store import _atomic_write_json
+    _atomic_write_json(MANIFEST, manifest)
     print(f"manifest: {len(manifest)} entries")
+    if failures:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

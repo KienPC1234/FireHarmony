@@ -84,7 +84,8 @@ class FirmsRecord(BaseModel):
             return "NOAA-20"
         if s in {"N21", "N-21"}:
             return "NOAA-21"
-        if s in {"N", "NPP", "Suomi NPP", "S-NPP"}:
+        if s.upper() in {"N", "NPP", "SNPP", "SUOMI NPP", "SUOMI-NPP",
+                         "S-NPP", "S NPP"}:
             return "NPP"
         return s or "UNKNOWN"
 

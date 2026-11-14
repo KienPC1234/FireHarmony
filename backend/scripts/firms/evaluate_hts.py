@@ -118,7 +118,7 @@ def main() -> dict:
                         "hts_vs_b2_year_block": year_ci},
         "gate": {"rule": ">=2% mean gain AND HTS-B2 CI upper < 0",
                  "passed": gate_pass},
-        "deployed": False,
+        "deployed": bool(gate_pass),
         "status": ("candidate: consistent point gain, CI includes 0"
                    if not gate_pass else "passes gate"),
         "dataset_sha256": hashlib.sha256(

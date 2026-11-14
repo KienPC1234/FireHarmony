@@ -27,12 +27,18 @@ def run(name: str, cmd: list[str], env: dict | None = None) -> bool:
 
 
 def artifacts_ok() -> bool:
-    """Release ZIP must actually ship servable ML/TS artifacts (audit V6 P0-03)."""
+    """Release ZIP must ship a servable primary artifact + its fallback.
+
+    HGB/TS are archived: their absence is reported as a warning, not a gate
+    failure. The gate requires stat + STAN series + HTS series.
+    """
     from app.main import _artifact_availability
     a = _artifact_availability()
     print("\n== artifact health ==")
     print(a)
-    ok = bool(a["ml"] and a["ts"] and a["ts_artifact_present"])
+    ok = bool(a["stat"] and a.get("stan") and a.get("hts"))
+    if not (a["ml"] and a["ts"]):
+        print("WARN archived HGB/TS artifacts missing (fine, not served)")
     print(("PASS " if ok else "FAIL ") + "artifact health")
     return ok
 

@@ -27,23 +27,22 @@ from pathlib import Path
 import numpy as np
 
 from app.firms import coverage as cov, ml_cal, ml_v4, store, ts_v2
+from app.firms.ml_core import counts_from_log_ratio as _counts
+from app.firms.ml_core import delta_ci as _delta_ci
+from app.firms.ml_core import metrics as _metrics
+from app.firms.ml_core import ratios_from_train
 
-EVALUATION_VERSION = "eval-v2"
+EVALUATION_VERSION = "eval-v3"
+MODEL_DIR = Path(__file__).resolve().parents[2] / "data" / "firms" / "models"
 METHOD_ORDER = ("b0_raw_modis", "b1_global_ratio", "b2_seasonal_ratio",
                 "hgb_b2res_v4", "ts_logratio_pool_v2")
+# Artifact-backed methods are joined onto the same sample IDs by
+# `merge_artifact_methods`; they are not retrained inside evaluate().
+ARTIFACT_METHODS = ("stan_safe_v1", "hts_anchor_v1", "spatial_hgb_v1")
 
 
 def _hash(obj) -> str:
     return hashlib.sha256(json.dumps(obj, sort_keys=True, default=str).encode()).hexdigest()[:16]
-
-
-def _metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
-    err = np.asarray(y_pred, dtype=float) - np.asarray(y_true, dtype=float)
-    denom = float(np.sum(y_true)) or 1.0
-    return {"mae": round(float(np.mean(np.abs(err))), 4),
-            "wape": round(float(np.sum(np.abs(err)) / denom), 6),
-            "bias": round(float(np.mean(err)), 4),
-            "n": int(len(y_true))}
 
 
 def pair_id(aoi: str, p: dict) -> str:
@@ -55,70 +54,6 @@ def split_years(pairs: list[dict], test_years: int) -> tuple[set[int], set[int]]
     if not years:
         return set(), set()
     return set(years[:-test_years]), set(years[-test_years:])
-
-
-def ratios_from_train(train: list[dict]) -> tuple[float, dict[int, float]]:
-    """B1 global log-ratio and B2 per-month log-ratio, from train only."""
-    logs = [math.log((p["viirs"] + 1.0) / (p["modis"] + 1.0))
-            for p in train if p["modis"] > 0]
-    b1 = float(np.median(logs)) if logs else 0.0
-    by_m: dict[int, float] = {}
-    for m in range(1, 13):
-        rs = [math.log((p["viirs"] + 1.0) / (p["modis"] + 1.0))
-              for p in train if int(p["month"]) == m and p["modis"] > 0]
-        if rs:
-            by_m[m] = float(np.median(rs))
-    return b1, by_m
-
-
-def _counts(modis: float, log_ratio: float) -> float:
-    return max(math.exp(log_ratio) * (max(float(modis), 0.0) + 1.0) - 1.0, 0.0)
-
-
-def _delta_ci(samples: list[dict], method_a: str, method_b: str,
-              n_boot: int = 2000, seed: int = 7,
-              block: str | None = None) -> dict | None:
-    """Bootstrap of ΔMAE (A − B); negative means A is better.
-
-    Default resamples AOI-month rows. `block="year"` resamples whole years, which
-    respects within-year correlation but is coarse when only two years exist.
-    """
-    rows = [s for s in samples if s.get(method_a) is not None and s.get(method_b) is not None]
-    if len(rows) < 8:
-        return None
-    rng = np.random.default_rng(seed)
-    y_all = np.array([s["viirs_ref"] for s in rows], dtype=float)
-    pa_all = np.array([s[method_a] for s in rows], dtype=float)
-    pb_all = np.array([s[method_b] for s in rows], dtype=float)
-    deltas = []
-    if block:
-        keys = sorted({s.get(block) for s in rows}, key=str)
-        groups = {k: [i for i, s in enumerate(rows) if s.get(block) == k]
-                  for k in keys}
-        for _ in range(n_boot):
-            pick = rng.integers(0, len(keys), len(keys))
-            idx = np.array([i for p in pick for i in groups[keys[p]]], dtype=int)
-            deltas.append(float(np.mean(np.abs(pa_all[idx] - y_all[idx])) -
-                                np.mean(np.abs(pb_all[idx] - y_all[idx]))))
-        unit = (f"{block}-block cluster bootstrap ({len(keys)} blocks; "
-                "coarse, respects within-block correlation)")
-    else:
-        for _ in range(n_boot):
-            idx = rng.integers(0, len(rows), len(rows))
-            deltas.append(float(np.mean(np.abs(pa_all[idx] - y_all[idx])) -
-                                np.mean(np.abs(pb_all[idx] - y_all[idx]))))
-        unit = "AOI-month row bootstrap (not independent hotspots)"
-    deltas = np.array(deltas)
-    return {
-        "method_a": method_a, "method_b": method_b,
-        "delta_mae": round(float(np.mean(np.abs(pa_all - y_all)) -
-                                 np.mean(np.abs(pb_all - y_all))), 4),
-        "ci95": [round(float(np.percentile(deltas, 2.5)), 4),
-                 round(float(np.percentile(deltas, 97.5)), 4)],
-        "prob_a_better": round(float(np.mean(deltas < 0)), 4),
-        "n": len(rows), "n_boot": n_boot,
-        "unit": unit,
-    }
 
 
 def evaluate(data: str = "raw", aois: tuple[str, ...] = store.AOIS,
@@ -293,7 +228,9 @@ def evaluate(data: str = "raw", aois: tuple[str, ...] = store.AOIS,
         })
 
     dataset_sha = _hash([
-        {"aoi": a, "pairs": [{k: p[k] for k in ("year", "month", "modis", "viirs")}
+        {"aoi": a, "pairs": [{k: p[k] for k in
+                              ("year", "month", "modis", "viirs",
+                               "day_frac", "terra_frac") if k in p}
                              for p in ps]}
         for a, ps in sorted(pairs_by_aoi.items())])
     comparisons = {
@@ -336,7 +273,11 @@ def evaluate(data: str = "raw", aois: tuple[str, ...] = store.AOIS,
                               "metrics": pooled_full_month},
         "headline": {"scope": "full-month AOIs only", "aois": full_month_aois,
                      "n_eval": len(fm_ids), "metrics": pooled_full_month,
-                     "why": "Australia has 0/85 months with >=90% paired MODIS/VIIRS days; it is a sparse stress test, not a comparable monthly series."},
+                     "why": ("All scored AOIs meet the full-month coverage rule "
+                             "(>=80% of months with >=90% paired MODIS/VIIRS days)."
+                             if len(full_month_aois) == len(per_aoi)
+                             else "AOIs outside the full-month coverage rule are excluded "
+                                  "from this headline; see per_aoi.coverage_class.")},
         "ts": {k: v for k, v in ts_info.items() if k not in ("models", "metrics")},
         "ts_unified_seed_mae_range": ts_seed_range,
         "ts_training_split_metrics": ts_info.get("metrics"),
@@ -346,10 +287,188 @@ def evaluate(data: str = "raw", aois: tuple[str, ...] = store.AOIS,
                  "reported separately because the Transformer lacks a 12-month "
                  "context for some of them."),
     }
+    manifest = merge_artifact_methods(manifest, model_dir)
     out = model_dir / f"evaluation_{data}.json"
     model_dir.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(manifest, indent=1, ensure_ascii=False), encoding="utf-8")
     return {"trained": True, "manifest": manifest, "path": str(out)}
+
+
+def _artifact_predictions(data: str, model_dir: Path) -> dict[str, dict[str, float]]:
+    """Join committed artifact predictions onto the unified sample IDs.
+
+    No retraining: STAN/HTS/spatial already publish one prediction per
+    AOI-month. This is what stops the README from quoting a table that only
+    contains the archived HGB/Transformer while the calendar serves STAN.
+    """
+    out: dict[str, dict[str, float]] = {}
+    if data != "raw":
+        return out
+
+    def _read(name: str) -> dict | None:
+        p = model_dir / name
+        if not p.exists():
+            return None
+        try:
+            return json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+
+    stan = _read("stan_series_raw.json")
+    if stan:
+        for aoi, months in (stan.get("series") or {}).items():
+            for ym, v in months.items():
+                if v.get("target") is not None:
+                    out.setdefault("stan_safe_v1", {})[f"{aoi}:{ym}"] = float(v["target"])
+    hts = _read("hts_series_raw.json")
+    if hts:
+        for aoi, months in (hts.get("series") or {}).items():
+            for ym, v in months.items():
+                if v.get("hts") is not None:
+                    out.setdefault("hts_anchor_v1", {})[f"{aoi}:{ym}"] = float(v["hts"])
+    spatial = _read("spatial_hgb_raw.json")
+    if spatial:
+        for sid, v in (spatial.get("predictions") or {}).items():
+            if v.get("spatial") is not None:
+                out.setdefault("spatial_hgb_v1", {})[sid] = float(v["spatial"])
+    return out
+
+
+def _group_metrics(samples: list[dict], methods: list[str], ids: list[str]) -> dict:
+    """Metrics per method on `ids`, skipping methods with a missing value."""
+    idx = {s["id"]: s for s in samples}
+    y = np.array([idx[i]["viirs_ref"] for i in ids], dtype=float)
+    out = {}
+    for method in methods:
+        if any(idx[i].get(method) is None for i in ids):
+            continue
+        out[method] = _metrics(y, np.array([idx[i][method] for i in ids], dtype=float))
+    return out
+
+
+def merge_artifact_methods(manifest: dict, model_dir: Path | None = None) -> dict:
+    """Add STAN/HTS/spatial to an evaluation manifest, on the same sample IDs.
+
+    Pure bookkeeping over committed artifacts: no model is retrained and no
+    sample is added or removed. `verify_manifest` can recompute every number.
+    """
+    model_dir = Path(model_dir or MODEL_DIR)
+    preds = _artifact_predictions(manifest.get("data", "raw"), model_dir)
+    if not preds:
+        return manifest
+    samples = manifest.get("samples") or []
+    if not samples:
+        return manifest
+    methods = list(manifest.get("methods") or METHOD_ORDER)
+    for m in preds:
+        if m not in methods:
+            methods.append(m)
+    for s in samples:
+        for m, mp in preds.items():
+            if s["id"] in mp:
+                s[m] = round(float(mp[s["id"]]), 4)
+    ids = [s["id"] for s in samples]
+    manifest["methods"] = methods
+    manifest["evaluation_version"] = EVALUATION_VERSION
+    manifest["primary_method_id"] = "stan_safe_v1"
+    manifest["pooled"] = {"n_eval": len(ids),
+                          "metrics": _group_metrics(samples, methods, ids)}
+    fm_aois = ((manifest.get("headline") or {}).get("aois")) or [
+        a for a, i in (manifest.get("per_aoi") or {}).items()
+        if i.get("coverage_class") == "full_month"]
+    fm_ids = [s["id"] for s in samples if s["aoi"] in fm_aois]
+    if fm_ids:
+        manifest["headline"] = {
+            **(manifest.get("headline") or {}),
+            "scope": "full-month AOIs only", "aois": fm_aois,
+            "n_eval": len(fm_ids),
+            "metrics": _group_metrics(samples, methods, fm_ids)}
+    for aoi, info in (manifest.get("per_aoi") or {}).items():
+        sub = [s["id"] for s in samples if s["aoi"] == aoi]
+        info["metrics"] = _group_metrics(samples, methods, sub)
+        info["n_eval"] = len(sub)
+    comp = dict(manifest.get("comparisons") or {})
+    for a, b, name in (("stan_safe_v1", "b2_seasonal_ratio", "stan_vs_b2"),
+                       ("stan_safe_v1", "hts_anchor_v1", "stan_vs_hts"),
+                       ("hts_anchor_v1", "b2_seasonal_ratio", "hts_vs_b2"),
+                       ("spatial_hgb_v1", "b2_seasonal_ratio", "spatial_vs_b2")):
+        c = _delta_ci(samples, a, b)
+        if c:
+            comp[name] = c
+    manifest["comparisons"] = comp
+    return manifest
+
+
+def primary_status(data: str = "raw", model_dir: Path | None = None) -> dict:
+    """Which model the frozen holdout currently supports as the primary.
+
+    Two separate questions, deliberately not conflated:
+      * `recommended_primary` = lowest pooled MAE among served candidates that
+        also improves every AOI over B2 (the point-estimate winner);
+      * `statistically_established` = its bootstrap CI vs B2 excludes zero.
+    With a 72-month, 2-year holdout a point win can be real but not significant;
+    the API reports both instead of hiding one behind the other.
+    """
+    m = load_manifest(data, model_dir)
+    pooled = ((m or {}).get("pooled") or {}).get("metrics") or {}
+    per = (m or {}).get("per_aoi") or {}
+    comps = (m or {}).get("comparisons") or {}
+
+    def beats_b2_everywhere(name: str) -> bool:
+        if not per:
+            return False
+        for info in per.values():
+            metrics = info.get("metrics") or {}
+            a = (metrics.get(name) or {}).get("mae")
+            b = (metrics.get("b2_seasonal_ratio") or {}).get("mae")
+            if a is None or b is None or a >= b:
+                return False
+        return True
+
+    candidates = []
+    for name in ("stan_safe_v1", "hts_anchor_v1"):
+        mae = (pooled.get(name) or {}).get("mae")
+        if mae is not None and beats_b2_everywhere(name):
+            candidates.append((mae, name))
+    primary = min(candidates)[1] if candidates else "b2_seasonal_ratio"
+    comp_key = {"stan_safe_v1": "stan_vs_b2",
+                "hts_anchor_v1": "hts_vs_b2"}.get(primary, "")
+    c = comps.get(comp_key) or {}
+    ci = c.get("ci95") or []
+    return {
+        "design_primary": "stan_safe_v1",
+        "recommended_primary": primary,
+        "rule": ("lowest pooled MAE among served candidates that improve every "
+                 "AOI over B2; CI is reported separately"),
+        "delta_mae_vs_b2": c.get("delta_mae"),
+        "ci95_vs_b2": ci,
+        "statistically_established": bool(ci and ci[1] < 0),
+        "evaluation_version": (m or {}).get("evaluation_version"),
+    }
+
+
+def unified_table(data: str = "raw", model_dir: Path | None = None) -> dict:
+    """The one table: primary, baseline, fallback, comparator, pooled + headline."""
+    manifest = load_manifest(data, model_dir)
+    if not manifest:
+        return {"available": False, "reason": "no_manifest"}
+    manifest = merge_artifact_methods(manifest, model_dir)
+    return {
+        "available": True,
+        "evaluation_version": manifest.get("evaluation_version"),
+        "primary_method_id": manifest.get("primary_method_id"),
+        "eval_unit": manifest.get("eval_unit"),
+        "n_eval": manifest.get("n_eval"),
+        "methods": manifest.get("methods"),
+        "pooled": (manifest.get("pooled") or {}).get("metrics"),
+        "headline": (manifest.get("headline") or {}).get("metrics"),
+        "per_aoi": {a: (i.get("metrics") or {})
+                    for a, i in (manifest.get("per_aoi") or {}).items()},
+        "comparisons": manifest.get("comparisons"),
+    }
+
+
+_MANIFEST_CACHE: dict[str, tuple[int, int, dict]] = {}
 
 
 def load_manifest(data: str, model_dir: Path | None = None) -> dict | None:
@@ -358,9 +477,33 @@ def load_manifest(data: str, model_dir: Path | None = None) -> dict | None:
     if not p.exists():
         return None
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
+        st = p.stat()
+    except OSError:
+        return None
+    key = str(p)
+    hit = _MANIFEST_CACHE.get(key)
+    if hit is not None and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
+        return hit[2]
+    try:
+        doc = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+    _MANIFEST_CACHE[key] = (st.st_mtime_ns, st.st_size, doc)
+    return doc
+
+
+def _model_signature() -> dict:
+    """Identity of every served/comparator artifact (path mtime + size)."""
+    sig: dict[str, list[int]] = {}
+    for name in ("stan_series_raw.json", "hts_series_raw.json",
+                 "spatial_hgb_raw.json", "sf_lite_raw.json"):
+        p = MODEL_DIR / name
+        try:
+            st = p.stat()
+        except OSError:
+            continue
+        sig[name] = [st.st_mtime_ns, st.st_size]
+    return sig
 
 
 def cache_key(aoi: str, data: str, test_years: int, extra: str = "") -> str:
@@ -369,6 +512,7 @@ def cache_key(aoi: str, data: str, test_years: int, extra: str = "") -> str:
     payload = {"v": EVALUATION_VERSION, "aoi": aoi, "data": data,
                "test_years": test_years, "fp": fp,
                "ml": ml_v4.ALGORITHM_VERSION, "ts": ts_v2.ALGORITHM_VERSION,
+               "models": _model_signature(),
                "extra": extra}
     return _hash(payload)
 

@@ -137,21 +137,28 @@ def _t_accuracy(f: dict, critical: list[dict], vi: bool) -> str:
         bests = {a: (v.get("unified_eval") or {}).get("best_method") for a, v in per.items()}
         gate = (per.get("vietnam") or {}).get("hgb_residual_enabled")
         lines = "; ".join(f"{k} {v['mae']:.1f}" for k, v in methods)
+        stan = pooled.get("stan_safe_v1", {}).get("mae")
+        b2 = pooled.get("b2_seasonal_ratio", {}).get("mae")
+        cmp = (ev.get("comparisons") or {}).get("stan_vs_b2") or {}
+        claim = ""
+        if stan is not None and b2:
+            gain = (b2 - stan) / b2 * 100
+            claim = f"STAN MAE {stan:.1f} vs B2 {b2:.1f} ({gain:+.1f}%)"
+            if cmp.get("ci95"):
+                lo, hi = cmp["ci95"]
+                claim += (f", 95% bootstrap CI [{lo:+.1f}, {hi:+.1f}] "
+                          + ("(excludes 0)." if hi < 0 else "(includes 0, so the gain is not statistically established)."))
         if vi:
             return (f"Trên unified eval ({ev.get('evaluation_version')}, test {ev.get('test_years')}, "
-                    f"n={ev.get('n_eval')}): {lines}. Tốt nhất pooled: {best[0] if best else '?'}. "
-                    f"Best theo vùng: {bests}. HGB residual enabled: {gate}. "
-                    f"Mô hình phục vụ chính STAN đạt MAE 2,128.7 (-10.8% so với B2 2,386.9, p=98.3%). "
-                    f"Spatial HGB đạt MAE 1,312.8 (-45.0% error). "
-                    f"Tỷ lệ era sau-2012/trước-2012 = {f.get('era_ratio')} (bảo toàn nhất quán đa kỷ nguyên). "
-                    f"Nguồn: {src}.")
+                    f"n={ev.get('n_eval')}): {lines}. Tốt nhất pooled: {best[0] if best else '?'}; "
+                    f"primary `{ev.get('primary_method_id') or 'stan_safe_v1'}`. "
+                    f"Best theo vùng: {bests}. HGB residual enabled: {gate}. {claim} "
+                    f"Tỷ lệ era sau-2012/trước-2012 = {f.get('era_ratio')}. Nguồn: {src}.")
         return (f"Unified eval ({ev.get('evaluation_version')}, test {ev.get('test_years')}, "
-                f"n={ev.get('n_eval')}): {lines}. Best pooled: {best[0] if best else '?'}. "
-                f"Best per AOI: {bests}. HGB residual enabled: {gate}. "
-                f"Served flagship STAN reaches MAE 2,128.7 (-10.8% vs B2 2,386.9, p=98.3%). "
-                f"Spatial HGB reaches MAE 1,312.8 (-45.0% error reduction). "
-                f"Era ratio {f.get('era_ratio')} confirms cross-era radiometric consistency. "
-                f"Source: {src}.")
+                f"n={ev.get('n_eval')}): {lines}. Best pooled: {best[0] if best else '?'}; "
+                f"primary `{ev.get('primary_method_id') or 'stan_safe_v1'}`. "
+                f"Best per AOI: {bests}. HGB residual enabled: {gate}. {claim} "
+                f"Era ratio {f.get('era_ratio')}. Source: {src}.")
     if vi:
         return (f"3 con số tính live trên nguồn HIỆN TẠI ({src}): (1) Tỷ lệ hoạt động sau-2012/trước-2012 = {f['era_ratio']} "
                 f"(mục tiêu ~1.0: nhất quán nội bộ đa kỷ nguyên). (2) k trên {f['k_months_measured']} tháng, "
@@ -209,33 +216,35 @@ def _t_latest(f: dict, latest: dict | None, vi: bool) -> str:
 def _t_dl(f: dict, dl_info: dict, vi: bool) -> str:
     ev = f.get("evaluation") or {}
     pooled = ev.get("pooled_metrics") or {}
-    mae = pooled.get("hgb_b2res_v4", {}).get("mae")
-    tmae = pooled.get("ts_logratio_pool_v2", {}).get("mae")
+    stan = pooled.get("stan_safe_v1", {}).get("mae")
     b2 = pooled.get("b2_seasonal_ratio", {}).get("mae")
+    cmp = (ev.get("comparisons") or {}).get("stan_vs_b2") or {}
+    verdict = "primary comparator served as the calendar model"
+    if stan is not None and b2:
+        gain = (b2 - stan) / b2 * 100
+        verdict = f"MAE {stan:,.1f} vs B2 {b2:,.1f} ({gain:+.1f}%)"
+        if cmp.get("ci95"):
+            lo, hi = cmp["ci95"]
+            verdict += (f", 95% CI [{lo:+.1f}, {hi:+.1f}]"
+                        + (", excludes 0" if hi < 0 else ", includes 0 (not established)"))
     if vi:
         return (
-            "Hệ thống triển khai 2 kiến trúc học máy chủ lực vượt qua kiểm định MLOps nghiêm ngặt: "
-            "(1) Mô hình phục vụ chính: STAN (Spatio-Temporal Attention Network, 171k tham số). "
-            "Kiến trúc tích hợp Dilated Causal TCN (1,2,4), Seasonal FiLM modulation và Target Cross-Attention "
-            "với hàm Negative Binomial (NB2). STAN giảm 10.8% MAE so với baseline B2 của NASA (2,128.7 so với 2,386.9), "
-            "khoảng tin cậy bootstrap 95% [-534.8, -19.1] hoàn toàn loại trừ 0 và xác suất thắng 98.3%. "
-            "(2) Mô hình tái thiết không gian: Spatial HGB với ngữ cảnh 8 ô lân cận, giảm 45.0% sai số (MAE 1,312.8 so với B2 2,386.9) "
-            "phục vụ lấp mây che và Sensor Lab. "
-            f"Các kiến trúc so sánh & chẩn đoán: SensorFormer Lite (quantile heads p10/p50/p90), TimeSeries Transformer "
-            f"(MAE {tmae if tmae else 'chẩn đoán'}), HGB residual (MAE {mae if mae else 'chẩn đoán'}, baseline {b2 if b2 else '2,386.9'}) "
-            "và HTS Bayes Shrinkage trên 1,060 ô 1 độ."
+            "Hệ thống chỉ triển khai MỘT mô hình học máy phục vụ lịch: STAN "
+            "(Spatial-Temporal Anchor Network, ~171k tham số): Dilated Causal TCN "
+            "(1,2,4), Seasonal FiLM, Target Cross-Attention, NB2. "
+            f"Kết quả unified eval: {verdict}. Trước 2024 lịch dùng anchor HTS; "
+            "baseline B2 luôn hiển thị để đối chiếu. Các mô hình cũ (HGB residual, "
+            "Transformer, SensorFormer, TileFormer, MLP/autoencoder) đã lưu trữ, "
+            "không phục vụ người dùng."
         )
     return (
-        "Production deploys two core ML architectures verified by rigorous MLOps gating: "
-        "(1) Served Main Model: STAN (Spatio-Temporal Attention Network, 171k parameters). "
-        "Architecture combines Dilated Causal TCN (1,2,4), Seasonal FiLM modulation, and Target Cross-Attention "
-        "with Negative Binomial (NB2) count loss. STAN cuts MAE by 10.8% over the NASA B2 baseline "
-        "(2,128.7 vs 2,386.9), with a 95% bootstrap CI [-534.8, -19.1] strictly below zero and a 98.3% win rate. "
-        "(2) Spatial Reconstruction: Spatial HGB with 8-neighbourhood tile context reduces error by 45.0% "
-        "(MAE 1,312.8 vs B2 2,386.9) for cloud gap-filling and simulation. "
-        f"Diagnostic comparators: SensorFormer Lite (monotonic quantile heads [p10, p50, p90]), TimeSeries Transformer "
-        f"(MAE {tmae if tmae else 'eval'}), HGB residual (MAE {mae if mae else 'eval'}, baseline {b2 if b2 else '2,386.9'}), "
-        "and Empirical Bayes HTS shrinkage across 1,060 1-degree tiles."
+        "Exactly ONE machine-learning model serves the calendar: STAN "
+        "(Spatial-Temporal Anchor Network, ~171k parameters): Dilated Causal TCN "
+        "(1,2,4), Seasonal FiLM, Target Cross-Attention, NB2. "
+        f"Unified eval: {verdict}. Before 2024 the calendar uses the HTS anchor; "
+        "B2 stays visible as the reference. Older models (HGB residual, "
+        "Transformer, SensorFormer, TileFormer, MLP/autoencoder) are archived and "
+        "never served."
     )
 
 

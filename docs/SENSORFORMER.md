@@ -1,9 +1,16 @@
-# SensorFormer — the single served architecture
+# SensorFormer — experimental comparator (not served)
 
-Status: **served, anchor-only.** SensorFormer is the only model in the runtime
-and UI. It is a seasonal-anchor-plus-residual model: the B2 monthly ratio is the
-anchor, and a small transformer residue is allowed only if it clears a
-pre-registered gate. On the 2024–2025 holdout the gate is **closed**, so every
+> **Updated 2026-11-13.** SensorFormer Lite is a comparator in
+> `app.firms.registry`, not the served architecture. The single served model is
+> STAN (`method=stan`), with B2 as the baseline and HTS as the pre-2024
+> fallback. Numbers in this document predate the Australia full-month backfill;
+> current numbers are in `docs/FIRMS_MODEL_CARD.md`.
+
+Status: **comparator, gate closed.** SensorFormer is scored on the same holdout
+as every other method. It is a seasonal-anchor-plus-residual model: the B2
+monthly ratio is the anchor, and a small transformer residue is allowed only if
+it clears a pre-registered gate. On the 2024–2025 holdout the gate is **closed**,
+so every
 served number is the anchor. This document explains the architecture, the
 protocol, the negative result, and the limits.
 

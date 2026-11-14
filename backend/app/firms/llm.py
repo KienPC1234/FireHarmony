@@ -34,13 +34,24 @@ SYSTEM = (
 )
 
 
+_TAGS_CACHE: tuple[float, list[str]] = (0.0, [])
+_TAGS_TTL_S = 30.0
+
+
 def _tags() -> list[str]:
+    """Cached model list: a down Ollama must not add 5 s to every status call."""
+    global _TAGS_CACHE
+    now = time.time()
+    if now - _TAGS_CACHE[0] < _TAGS_TTL_S:
+        return _TAGS_CACHE[1]
     try:
         with urllib.request.urlopen(OLLAMA_HOST.rstrip("/") + "/api/tags", timeout=5) as r:
             out = json.loads(r.read().decode())
-        return [m.get("name", "") for m in out.get("models", [])]
+        models = [m.get("name", "") for m in out.get("models", [])]
     except Exception:
-        return []
+        models = []
+    _TAGS_CACHE = (now, models)
+    return models
 
 
 def available() -> dict:
@@ -159,7 +170,6 @@ def stream_llm(question: str, facts: dict, fallback_answer: str):
                     delta = chunk.get("message", {}).get("content", "")
                     if delta:
                         full_text.append(delta)
-                        yield {"delta": delta, "llm_used": True}
                     if chunk.get("done", False):
                         break
                 except Exception:
@@ -168,10 +178,15 @@ def stream_llm(question: str, facts: dict, fallback_answer: str):
             if not accumulated:
                 raise ValueError("Empty streaming response from Ollama")
     except Exception as e:
-        # Fallback: stream the verified deterministic rule answer in natural token bursts
-        words = fallback_answer.split(" ")
-        for i, word in enumerate(words):
-            token = word if i == 0 else " " + word
-            yield {"delta": token, "llm_used": False, "reason": str(e)}
-            time.sleep(0.012)
+        yield {"delta": fallback_answer, "llm_used": False, "reason": str(e)}
+        return
+    # Streaming must obey the same grounding guard as the non-streaming path:
+    # buffering lets us reject an invented number instead of emitting it.
+    ok, bad = _large_numbers_grounded(accumulated, facts, question)
+    if not ok:
+        yield {"delta": fallback_answer, "llm_used": False,
+               "reason": f"ungrounded numbers {bad}; returned rule-based answer"}
+        return
+    for i, piece in enumerate(re.findall(r"\S+\s*", accumulated)):
+        yield {"delta": piece, "llm_used": True}
 

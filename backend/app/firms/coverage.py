@@ -17,7 +17,7 @@ import calendar as _cal
 import json
 import re
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 from functools import lru_cache
 from pathlib import Path
 
@@ -58,11 +58,20 @@ def ledger_status(aoi: str, limit: int = 50) -> dict:
     If the JSONL ledger is empty (pulls predate it), reconstruct successful
     entries from the manifest and mark them `backfilled`; failed pulls from
     before the ledger existed cannot be recovered and are not invented.
+
+    Bounded scan: only the last 20000 ledger lines are inspected so a
+    multi-year ledger cannot stall a request.
     """
     rows: list[dict] = []
     backfilled = False
     if LEDGER.exists():
-        for line in LEDGER.read_text(encoding="utf-8").splitlines():
+        try:
+            lines = LEDGER.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            lines = []
+        if len(lines) > 20000:
+            lines = lines[-20000:]
+        for line in lines:
             try:
                 e = json.loads(line)
             except ValueError:
@@ -100,6 +109,13 @@ def append_ledger(entry: dict) -> None:
 
 
 def _entry_interval(entry: dict) -> tuple[int, int, int, int] | None:
+    """Parse (year, month, start_day, ndays) from a manifest filename.
+
+    Uploads (`{aoi}_{source}_YYYYMMDDTHHMMSS_{digest}.csv`) carry no
+    `YYYY-MM-DD` and no `days` window, so they return None and are
+    excluded from request coverage by design. Request coverage only
+    answers "did the Area API pull ask for this day?".
+    """
     m = _DATE_RE.search(str(entry.get("file", "")))
     if not m:
         return None
@@ -112,7 +128,15 @@ def _entry_interval(entry: dict) -> tuple[int, int, int, int] | None:
 
 
 def requested_days(aoi: str, manifest: list[dict] | None = None) -> dict[str, dict[str, set[int]]]:
-    """{ 'YYYY-MM': {source: {day numbers actually requested}} }."""
+    """{ 'YYYY-MM': {source: {day numbers actually requested}} }.
+
+    Two API shapes are handled explicitly:
+      * archive pulls pass an explicit start date and cover start..start+days-1;
+      * NRT pulls carry no date and cover the last `days` days **ending at the
+        file's date tag**, not starting there. Treating NRT forward used to
+        claim future days (and could make a partial month look full).
+    A window that crosses a month boundary is split across both months.
+    """
     manifest = manifest if manifest is not None else load_manifest()
     out: dict[str, dict[str, set[int]]] = defaultdict(lambda: defaultdict(set))
     for e in manifest:
@@ -122,15 +146,12 @@ def requested_days(aoi: str, manifest: list[dict] | None = None) -> dict[str, di
         if iv is None:
             continue
         y, mo, start, ndays = iv
-        last = _cal.monthrange(y, mo)[1]
         src = str(e.get("source", "?"))
+        anchor = date(y, mo, start)
+        step = -1 if "NRT" in src.upper() else 1
         for k in range(ndays):
-            day = start + k
-            if day > last:
-                # old windows could spill into the next month; never count
-                # those days as coverage of THIS month.
-                break
-            out[f"{y}-{mo:02d}"][src].add(day)
+            d = anchor + timedelta(days=step * k)
+            out[f"{d.year}-{d.month:02d}"][src].add(d.day)
     return {ym: dict(by_src) for ym, by_src in out.items()}
 
 

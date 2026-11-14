@@ -44,6 +44,8 @@ def main() -> int:
     a = ap.parse_args()
     checks = [
         ("health", _get(a.base, "/api/health")[0], ""),
+        ("models", _get(a.base, "/api/firms/models")[0], ""),
+        ("stan status", _get(a.base, "/api/firms/stan-status")[0], ""),
         ("aois", _get(a.base, "/api/firms/aois")[0], ""),
         ("calendar sample", _get(a.base, "/api/firms/calendar?aoi=vietnam&data=sample")[0], ""),
         ("export sample", _get(a.base, "/api/firms/export?aoi=vietnam&method=stat")[0], ""),

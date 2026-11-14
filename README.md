@@ -91,45 +91,52 @@ filter changes the answer.
 ## Models (all numbers are from the committed artifacts)
 
 <!-- BEGIN GENERATED README METRICS -->
-_Generated from `evaluation_raw.json` (eval-v2); headline = full-month AOIs ['vietnam', 'amazon'], n=48._
+_Generated from `evaluation_raw.json` (eval-v3); headline = full-month AOIs ['vietnam', 'amazon', 'australia'], n=72. Primary: `stan_safe_v1`._
 
 | Method | MAE (headline) |
 |---|---:|
-| `b0_raw_modis` | 21623.4 |
-| `b1_global_ratio` | 5294.6 |
-| `b2_seasonal_ratio` | 2746.0 |
-| `hgb_b2res_v4` | 2746.0 |
-| `ts_logratio_pool_v2` | 2934.4 |
+| `b0_raw_modis` | 38119.8 |
+| `b1_global_ratio` | 6386.6 |
+| `b2_seasonal_ratio` | 4411.8 |
+| `hgb_b2res_v4` | 4687.5 |
+| `ts_logratio_pool_v2` | 5322.9 |
+| `stan_safe_v1` | 3765.8 |
+| `hts_anchor_v1` | 4154.4 |
+| `spatial_hgb_v1` | 3076.4 |
 
-HGB-B2 Delta-MAE +9.5, 95% CI [-59.4, +89.0]: CI includes 0 means the gain is not established.
+`stan_safe_v1` − `b2_seasonal_ratio` ΔMAE -646.0, 95% CI [-1452.9, +81.8] — CI includes 0, so the gain is not established.
 <!-- END GENERATED README METRICS -->
 
 **Tile hierarchy and STAN are the primary advances.** Aggregating
-the existing raw pull at 1-degree tiles gives 3,924 training windows instead of
-231. A hierarchical tile-seasonal anchor (HTS) reaches MAE **2,230.7 vs B2
-2,386.9** on the 72 holdout rows (-6.5%; all three AOIs improve).
-It is served as `method=hts` on raw data and exposed at `/api/firms/hts-status`.
+the raw pull at 1-degree tiles gives 56,187 tile-months (17,742 strong) over
+1,125 tiles instead of 231 AOI-months. A hierarchical tile-seasonal anchor (HTS)
+reaches MAE **4,218.8 vs B2 4,411.8** on the 72 holdout rows (−4.4%; all three
+AOIs improve, CI [−743.8, +358.6]). It is served as `method=hts` on raw data and
+as STAN's pre-2024 fallback; `/api/firms/hts-status` marks the gate as not passed.
 
 **STAN is the served main model for raw data.** A
 negative-binomial spatial-temporal network (seasonal FiLM + dilated TCN +
-target-month query + neighbour context) reaches MAE **2,128.7 vs B2 2,386.9**
-on the 72 holdout months (-10.8%, CI [-534.8, -19.1]; all three AOIs improve).
-It edges HTS on the point estimate. `method=stan` serves
+target-month query + neighbour context) reaches MAE **3,765.8 vs B2 4,411.8**
+on the 72 holdout months (−14.6%, CI [−1,452.9, +81.8]; every AOI improves and
+it beats HTS 4,154.4). The point-estimate win is real, the 95% CI is not
+strictly below zero, and `/api/firms/models` exposes that split
+(`recommended_primary` vs `statistically_established`). `method=stan` serves
 STAN for 2024+ with HTS fallback before 2024. See `docs/TILE_HIERARCHY.md` and
 `/api/firms/stan-status`.
 
 **Spatial context is the strongest lever (retrospective only).** A neighbour-tile
-HGB reaches MAE **1,312.8 vs B2 2,386.9** on the 72 holdout months (all three
-AOIs, CI excludes 0, and a 210-tile spatial holdout also wins). The catch: the
-gain needs same-month VIIRS in adjacent tiles; without it the model is worse
-than HTS (2,302.5). It is spatial reconstruction/gap-fill, not a forecast or a
-pure MODIS→VIIRS calibration. See `docs/TILE_HIERARCHY.md`.
+HGB reaches MAE **3,076.4 vs B2 4,411.8** on the 72 holdout months (all three
+AOIs, CI excludes 0, and a 222-tile spatial holdout also wins: 789.7 vs 1,305.3).
+The catch: the gain needs same-month VIIRS in adjacent tiles; without it the
+model scores 4,611.0, worse than HTS. It is spatial reconstruction/gap-fill, not
+a forecast or a pure MODIS→VIIRS calibration. See `docs/TILE_HIERARCHY.md`.
 
-**No model wins every region.** The HGB gate abstains on the current data and
-serves the best baseline (B2/B1); B2 is the pooled point-estimate winner and
-the Transformer loses to B2 on this sample. No gain is called “proven”. See `docs/FIRMS_MODEL_CARD.md` (generated from the
-evaluation artifact) for per-AOI numbers, CI, seed spread and the
-leave-one-region-out test.
+**No model transfers across regions.** Leave-one-region-out still favours HTS
+over STAN on all three held-out AOIs, and the HGB/Transformer gates abstain on
+the current data. Point estimates and statistical significance are reported
+separately; no gain is called “proven”. See `docs/FIRMS_MODEL_CARD.md`
+(generated from the evaluation artifact) for per-AOI numbers, CI, seed spread
+and the leave-one-region-out test.
 
 Evaluation protocol: one frozen `evaluation_manifest.json` gives every method
 the **same AOI-month sample IDs**; only months where the Transformer has a
@@ -179,7 +186,7 @@ cd backend
 
 The committed `backend/data/firms/benchmark/evaluation_samples_*.csv` files are
 the exact evaluation sample IDs; `make_benchmark --check` recomputes every
-published MAE/WAPE/bias to 1e-6 without needing the ~820 MB raw pulls.
+published MAE/WAPE/bias to 1e-4 without needing the ~820 MB raw pulls.
 
 ## SensorFormer (single served architecture)
 

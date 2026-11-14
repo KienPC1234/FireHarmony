@@ -78,16 +78,38 @@ def plan(aoi: str, start_year: int, end_year: int, sources: list[str]) -> list[d
 
 def task(key: str, job: dict, bbox: str) -> dict:
     content = fetch_one(key, job["source"], bbox, job["days"], job["start"])
-    digest = hashlib.sha256(content).hexdigest()[:16]
+    full_digest = hashlib.sha256(content).hexdigest()
+    digest = full_digest[:16]
     name = f"{job['aoi']}_{job['source']}_{job['start']}_{job['days']}d_{digest}.csv"
     out = store.RAW_DIR / name
     if out.exists():
+        with LOCK:
+            manifest = []
+            if store.MANIFEST.exists():
+                try:
+                    manifest = json.loads(store.MANIFEST.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    manifest = []
+            if not any(e.get("file") == name for e in manifest):
+                y, m, d = (int(x) for x in job["start"].split("-"))
+                manifest.append({"file": name, "aoi": job["aoi"],
+                                 "source": job["source"], "bbox": bbox,
+                                 "days": job["days"], "sha16": digest,
+                                 "sha256": full_digest,
+                                 "rows": 0, "clean": 0, "rejected": 0,
+                                 "start_day": d,
+                                 "end_day": min(d + job["days"] - 1, job["last"]),
+                                 "days_in_month": job["last"],
+                                 "at": date.today().isoformat(),
+                                 "backfill": True})
+                store._atomic_write_json(store.MANIFEST, manifest)
         return {"file": name, "skipped": True, "status": "skipped", "rows": 0}
     out.write_bytes(content)
     rep = qa_bytes(content)
     y, m, d = (int(x) for x in job["start"].split("-"))
     entry = {"file": name, "aoi": job["aoi"], "source": job["source"],
              "bbox": bbox, "days": job["days"], "sha16": digest,
+             "sha256": full_digest,
              "rows": rep.get("rows", 0), "clean": rep.get("clean", 0),
              "rejected": rep.get("rejected", 0),
              "start_day": d, "end_day": min(d + job["days"] - 1, job["last"]),
@@ -102,7 +124,7 @@ def task(key: str, job: dict, bbox: str) -> dict:
             except (OSError, json.JSONDecodeError):
                 manifest = []
         manifest.append(entry)
-        store.MANIFEST.write_text(json.dumps(manifest, indent=1), encoding="utf-8")
+        store._atomic_write_json(store.MANIFEST, manifest)
         coverage.append_ledger({"aoi": job["aoi"], "source": job["source"],
                                 "start": job["start"], "days": job["days"],
                                 "rows": rep.get("rows", 0),

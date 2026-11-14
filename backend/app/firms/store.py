@@ -35,10 +35,10 @@ def _read_all_rows(path: Path) -> list[dict]:
 
 
 @lru_cache(maxsize=8)
-def _load_cached(key: tuple[str, float, int], limit: int) -> list[dict]:
+def _load_cached(key: tuple[str, float, int]) -> list[dict]:
     """Cache key = (path, mtime, size): file edits invalidate automatically."""
     path = Path(key[0])
-    return _read_all_rows(path)[:limit]
+    return _read_all_rows(path)
 
 
 def load_records(aoi: str, limit: int = 25000) -> list[dict]:
@@ -49,7 +49,7 @@ def load_records(aoi: str, limit: int = 25000) -> list[dict]:
     if not p.exists():
         return []
     st = p.stat()
-    return _load_cached((str(p), st.st_mtime, st.st_size), limit)
+    return _load_cached((str(p), st.st_mtime, st.st_size))[:limit]
 
 
 def cache_info() -> dict:
@@ -114,11 +114,13 @@ def ingest_upload(filename: str, content: bytes, aoi: str,
     if total == 0:
         raise ValueError("Empty CSV (no data rows)")
     RAW_DIR.mkdir(parents=True, exist_ok=True)
-    digest = hashlib.sha256(content).hexdigest()[:16]
+    full_digest = hashlib.sha256(content).hexdigest()
+    digest = full_digest[:16]
     stamp = time.strftime("%Y%m%dT%H%M%S")
     dest = RAW_DIR / f"{aoi}_{source}_{stamp}_{digest}.csv"
     dest.write_bytes(content)
     report = {"file": dest.name, "bytes": len(content), "sha16": digest,
+              "sha256": full_digest,
               "aoi": aoi, "source": source, "rows": total,
               "clean": clean, "rejected": rejected, "errors": errors}
     manifest = []
@@ -128,8 +130,18 @@ def ingest_upload(filename: str, content: bytes, aoi: str,
         except (OSError, json.JSONDecodeError):
             manifest = []
     manifest.append({**report, "errors": [], "at": stamp})
-    MANIFEST.write_text(json.dumps(manifest, indent=1), encoding="utf-8")
+    _atomic_write_json(MANIFEST, manifest)
     return report
+
+
+def _atomic_write_json(path: Path, doc) -> None:
+    """Write JSON atomically (tmp + replace) to survive crashes/races."""
+    import uuid as _uuid
+    import os as _os
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.parent / f".{path.name}.{_os.getpid()}.{_uuid.uuid4().hex[:8]}.tmp"
+    tmp.write_text(json.dumps(doc, indent=1), encoding="utf-8")
+    tmp.replace(path)
 
 
 def save_upload_dataset(filename: str, chunks, max_bytes: int = 10 * 1024 * 1024) -> dict:
@@ -141,11 +153,13 @@ def save_upload_dataset(filename: str, chunks, max_bytes: int = 10 * 1024 * 1024
     Returns {dataset_id, file, rows, clean, rejected, errors}.
     """
     import re as _re
+    import uuid as _uuid
+    import os as _os
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     safe = _re.sub(r"[^A-Za-z0-9_.-]", "_", filename or "upload.csv")[:60]
     digest = hashlib.sha256()
     size = 0
-    tmp = UPLOAD_DIR / f"tmp_{int(time.time() * 1000)}.part"
+    tmp = UPLOAD_DIR / f"tmp_{_os.getpid()}_{_uuid.uuid4().hex[:12]}.part"
     with tmp.open("wb") as fh:
         for ch in chunks:
             if not ch:
@@ -218,6 +232,14 @@ def load_upload_dataset(dataset_id: str, limit: int = 100000) -> list[dict]:
 
 CACHE_DIR = DATA_DIR / "cache"
 _FP_CACHE: dict[str, tuple[int, int, int, str]] = {}
+_FP_CACHE_CAP = 2000
+
+
+def _fp_cache_set(key: str, marker: tuple[int, int, int], digest: str) -> None:
+    if len(_FP_CACHE) >= _FP_CACHE_CAP:
+        # Bounded: evict oldest inserted (dict preserves insertion order).
+        _FP_CACHE.pop(next(iter(_FP_CACHE)), None)
+    _FP_CACHE[key] = (*marker, digest)
 
 
 def file_sha256(path: Path) -> str:
@@ -236,25 +258,69 @@ def raw_fingerprint(aoi: str, raw_dir: Path | None = None) -> str:
     contents, memoized by (size, mtime_ns, ctime_ns). Rewriting a byte changes
     ctime even if mtime is restored; copying identical content changes ctime
     but the content hash (and therefore the fingerprint) stays the same.
+
+    A disk sidecar (`cache/fp_{aoi}.json`) keeps the fingerprint cheap across
+    restarts: when no file marker changed, no byte is hashed and a cache
+    lookup stays a cache lookup instead of a full re-hash.
     """
     raw_dir = raw_dir or RAW_DIR
     files = sorted(raw_dir.glob(f"{aoi}_*.csv"))
     if not files:
         return "empty"
-    parts: list[str] = []
+    markers: dict[str, list] = {}
     for f in files:
-        st = f.stat()
+        try:
+            st = f.stat()
+        except OSError:
+            continue
+        markers[f.name] = [st.st_size, st.st_mtime_ns, st.st_ctime_ns]
+    if not markers:
+        return "empty"
+    sidecar = DATA_DIR / "cache" / f"fp_{aoi}.json"
+    if raw_dir == RAW_DIR:
+        try:
+            saved = json.loads(sidecar.read_text(encoding="utf-8"))
+            sfiles = saved.get("files")
+            if (isinstance(saved, dict) and isinstance(saved.get("fp"), str)
+                    and isinstance(sfiles, dict)
+                    and {n: list(e)[:3] for n, e in sfiles.items()} == markers):
+                for n, m in markers.items():
+                    _fp_cache_set(str(raw_dir / n), (m[0], m[1], m[2]),
+                                  str(sfiles[n][3]))
+                return saved["fp"]
+        except (OSError, ValueError, KeyError, TypeError, IndexError):
+            pass
+    parts: list[str] = []
+    digests: dict[str, str] = {}
+    for f in files:
+        if f.name not in markers:
+            continue
+        m = markers[f.name]
         key = str(f)
         cached = _FP_CACHE.get(key)
-        marker = (st.st_size, st.st_mtime_ns, st.st_ctime_ns)
-        if cached is None or cached[:3] != marker:
+        if cached is None or list(cached[:3]) != m:
             try:
                 digest = file_sha256(f)
             except OSError:
                 digest = "unreadable"
-            _FP_CACHE[key] = (*marker, digest)
-        parts.append(f"{f.name}:{_FP_CACHE[key][3]}")
-    return hashlib.sha256("|".join(parts).encode()).hexdigest()[:16]
+            _fp_cache_set(key, (m[0], m[1], m[2]), digest)
+            dval = digest
+        else:
+            dval = cached[3]
+        digests[f.name] = dval
+        parts.append(f"{f.name}:{dval}")
+    fp = hashlib.sha256("|".join(parts).encode()).hexdigest()[:16]
+    if raw_dir == RAW_DIR:
+        try:
+            sidecar.parent.mkdir(parents=True, exist_ok=True)
+            sidecar.write_text(json.dumps(
+                {"fp": fp,
+                 "files": {n: [*m, digests[n]]
+                           for n, m in markers.items() if n in digests}},
+                ensure_ascii=False), encoding="utf-8")
+        except OSError:
+            pass
+    return fp
 
 
 def sample_fingerprint(aoi: str) -> str:
@@ -298,9 +364,11 @@ def cache_get(key: str):
 
 
 def cache_put(key: str, value) -> None:
+    import uuid as _uuid
+    import os as _os
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     safe = _safe_cache_key(key)
-    tmp = CACHE_DIR / f".{safe}.tmp"
+    tmp = CACHE_DIR / f".{safe}.{_os.getpid()}.{_uuid.uuid4().hex[:8]}.tmp"
     tmp.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
     tmp.replace(CACHE_DIR / f"{safe}.json")
     # keep the newest 40 entries
@@ -328,7 +396,7 @@ def iter_raw_rows(aoi: str, raw_dir: Path | None = None, limit: int | None = Non
         files = [f for f in files if f"_{ym}-" in f.name or f"_{ym}_" in f.name]
     elif year is not None:
         files = [f for f in files if f"_{year}-" in f.name]
-    seen: set[int] = set()
+    seen: set[tuple] = set()
     n = 0
     for f in files:
         try:
@@ -345,6 +413,7 @@ def iter_raw_rows(aoi: str, raw_dir: Path | None = None, limit: int | None = Non
                 i_time = idx.get("acq_time")
                 i_lat = idx.get("latitude")
                 i_lon = idx.get("longitude")
+                i_ver = idx.get("version")
                 for row in reader:
                     try:
                         sig = (
@@ -354,15 +423,15 @@ def iter_raw_rows(aoi: str, raw_dir: Path | None = None, limit: int | None = Non
                             row[i_time].strip() if i_time is not None else "",
                             round(float(row[i_lat]), 4) if i_lat is not None else 0.0,
                             round(float(row[i_lon]), 4) if i_lon is not None else 0.0,
+                            row[i_ver].strip() if i_ver is not None else "",
                         )
                     except (IndexError, TypeError, ValueError):
                         continue
-                    # 64-bit Python hash: same dedup intent with ~1/8 memory
-                    # of a tuple set at 4M+ rows.
-                    key = hash(sig)
-                    if key in seen:
+                    # Deterministic tuple dedup: stable across processes,
+                    # no hash() randomization/collision risk.
+                    if sig in seen:
                         continue
-                    seen.add(key)
+                    seen.add(sig)
                     yield dict(zip(header, row))
                     n += 1
                     if limit is not None and n >= limit:
@@ -392,7 +461,7 @@ def load_raw_merged(aoi: str, limit: int = 2000000,
         return []
     cap = max(8, (limit + len(files) - 1) // len(files) + 8)
     for _ in range(4):
-        seen: set[int] = set()
+        seen: set[tuple] = set()
         per_file: list[list[dict]] = []
         for f in files:
             buf: list[dict] = []
@@ -408,13 +477,13 @@ def load_raw_merged(aoi: str, limit: int = 2000000,
                                    str(d.get("acq_date", ""))[:10],
                                    str(d.get("acq_time", "")).strip(),
                                    round(float(d.get("latitude") or 0), 4),
-                                   round(float(d.get("longitude") or 0), 4))
+                                   round(float(d.get("longitude") or 0), 4),
+                                   str(d.get("version", "")).strip())
                         except (TypeError, ValueError):
                             continue
-                        key = hash(sig)
-                        if key in seen:
+                        if sig in seen:
                             continue
-                        seen.add(key)
+                        seen.add(sig)
                         buf.append(d)
             except OSError:
                 continue
@@ -464,6 +533,7 @@ def raw_stats(aoi: str, raw_dir: Path | None = None) -> dict:
         "months_available": len(months),
         "date_range": [months[0], months[-1]] if months else None,
         "full_months": full_months,
+        "full_month_ready": bool(full_months >= 1),
         "partial_months": len(months) - full_months,
         "coverage_verified": bool(cover),
         "checksum_entries": checksums,
@@ -474,6 +544,21 @@ def raw_stats(aoi: str, raw_dir: Path | None = None) -> dict:
 
 def raw_ready(aoi: str) -> bool:
     return bool(list(RAW_DIR.glob(f"{aoi}_*.csv"))) if RAW_DIR.exists() else False
+
+
+def model_artifacts_ready(aoi: str) -> bool:
+    """True only when a servable artifact exists (never hardcoded).
+
+    `data-status` used to report `model_artifact_ready: True` unconditionally,
+    which is exactly the kind of claim the audit banned.
+    """
+    md = DATA_DIR / "models"
+    return any(p.exists() for p in (
+        md / f"cal_{aoi}_raw.json",
+        md / f"ts_{aoi}_raw.json",
+        md / "stan_series_raw.json",
+        md / "hts_series_raw.json",
+    ))
 
 
 def data_status() -> dict:
@@ -487,7 +572,7 @@ def data_status() -> dict:
                          "sample_rows": max(n, 0),
                          "sample_bytes": p.stat().st_size if p.exists() else 0,
                          "dataset_ready": bool(rs.get("raw_ready")),
-                         "model_artifact_ready": True,
+                         "model_artifact_ready": model_artifacts_ready(aoi),
                          **rs})
     raw_files = []
     if RAW_DIR.exists():

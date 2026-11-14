@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import hmac
 import io
 import json
 import logging
@@ -134,9 +135,7 @@ def health():
                                   "ts": availability["ts"],
                                   "stan": availability["stan"],
                                   "hts": availability["hts"]},
-            "methods_detail": availability,
-            "admin_gated": bool(os.getenv("ADMIN_TOKEN")) or
-                           os.getenv("APP_ENV", "").lower() in ("production", "prod")}
+            "methods_detail": availability}
 
 
 @app.get("/api/firms/aois")
@@ -263,7 +262,8 @@ def _require_admin(request: Request) -> None:
     """
     tok = os.getenv("ADMIN_TOKEN", "")
     production = os.getenv("APP_ENV", "").lower() in ("production", "prod")
-    if tok and request.headers.get("X-Admin-Token") != tok:
+    if tok and not hmac.compare_digest(
+            request.headers.get("X-Admin-Token", ""), tok):
         raise HTTPException(403, "Admin token required (X-Admin-Token)")
     if production and not tok:
         raise HTTPException(503, "ADMIN_TOKEN must be set when APP_ENV=production")
@@ -365,9 +365,15 @@ def _in_bbox(r: dict, b: tuple[float, float, float, float] | None) -> bool:
 
 
 def _parse_geometry(raw: str | None) -> dict | None:
-    """Parse a GeoJSON Polygon/MultiPolygon geometry (P0-03)."""
+    """Parse a GeoJSON Polygon/MultiPolygon geometry (P0-03).
+
+    Bounded: raw payload capped at 200 kB and 5000 vertices so a hostile
+    polygon cannot pin a worker in the O(V) ray-casting loop below.
+    """
     if not raw:
         return None
+    if len(raw) > 200_000:
+        raise HTTPException(400, "geometry payload too large (max 200 kB)")
     try:
         g = json.loads(raw) if isinstance(raw, str) else raw
     except (TypeError, ValueError):
@@ -383,6 +389,7 @@ def _parse_geometry(raw: str | None) -> dict | None:
     else:
         raise HTTPException(400, "geometry type must be Polygon or MultiPolygon")
     out = []
+    n_pts = 0
     for poly in rings:
         if not poly or not isinstance(poly[0], list):
             raise HTTPException(400, "geometry has no rings")
@@ -397,6 +404,9 @@ def _parse_geometry(raw: str | None) -> dict | None:
                 pts.append((lon, lat))
             if len(pts) < 3:
                 raise HTTPException(400, "geometry ring needs at least 3 vertices")
+            n_pts += len(pts)
+            if n_pts > 5000:
+                raise HTTPException(400, "geometry has too many vertices (max 5000)")
             norm.append(pts)
         out.append(norm)
     if not out:
@@ -502,7 +512,8 @@ def _activity_summary(out: dict, *, data: str, method: str, aoi: str,
                       bbox: str | None, qa_min: str, platform_set: str,
                       dataset: str | None, geom_hash: str = "none",
                       from_date: str | None = None,
-                      to_date: str | None = None) -> dict:
+                      to_date: str | None = None,
+                      source_type: str = "all") -> dict:
     """P0-01: server-side totals over the FULL filtered set.
 
     Sensor detections are hotspot records, not fires. MODIS and VIIRS are
@@ -533,7 +544,8 @@ def _activity_summary(out: dict, *, data: str, method: str, aoi: str,
              else "synthetic_demo_not_observed")
     filters = {"aoi": aoi, "bbox": bbox or "all", "data": data,
                "method": method, "qa_min": qa_min,
-               "platform_set": platform_set, "dataset": dataset or "none",
+               "platform_set": platform_set, "source_type": source_type,
+               "dataset": dataset or "none",
                "geometry_hash": geom_hash,
                "from_date": from_date or "all", "to_date": to_date or "all"}
     return {
@@ -622,6 +634,9 @@ def _harmonize_daily_ml(agg: dict, model, meta: dict | None,
                  "statistical calendar under an ML label. First error: "
                  + failed[0]["error"])
     # Mutate in place: a second 633k-cell copy would double peak memory.
+    # Single pass: rescale + accumulate per-month totals for the conservation
+    # check (a second O(M*N) scan here cost minutes on the raw pull).
+    ym_totals: dict[str, float] = {}
     for c in stat:
         ym = str(c["date"])[:7]
         if c.get("estimate_type") == "modis_upscaled_estimated" and ym in factors:
@@ -632,10 +647,10 @@ def _harmonize_daily_ml(agg: dict, model, meta: dict | None,
             c["coverage_status"] = "unknown"
         else:
             c["effective_method"] = "stat:seasonal_ratio_v1"
-    conservation = []
-    for ym in factors:
-        total = sum(float(c["harmonized_count"]) for c in stat if str(c["date"])[:7] == ym)
-        conservation.append(abs(total - preds.get(ym, total)))
+        if ym in factors:
+            ym_totals[ym] = ym_totals.get(ym, 0.0) + float(c["harmonized_count"])
+    conservation = [abs(ym_totals.get(ym, 0.0) - preds.get(ym, ym_totals.get(ym, 0.0)))
+                    for ym in factors]
     diagnostics = {
         **(meta or {}),
         "requested_method": "ml",
@@ -670,6 +685,7 @@ def _harmonize_daily_ts(clean: list[dict] | None, daily_stat: list[dict], aoi: s
     Audit P1-19: those months are counted and exposed as `effective_method`,
     so the API cannot claim Transformer coverage for a month it never scored.
     """
+    import numpy as _np  # hoisted: one import, not one per scored month
     model, meta = tst.load_artifact(aoi, MODEL_DIR, tag=(data if data == "raw" else "sample"))
     if model is None or meta is None:
         raise HTTPException(404, f"No Transformer artifact for aoi={aoi}; POST /api/firms/ts-train first")
@@ -708,10 +724,9 @@ def _harmonize_daily_ts(clean: list[dict] | None, daily_stat: list[dict], aoi: s
         if not ok:
             missing_context.append(ym)
             continue
-        import numpy as _np
-        X = _np.array([[__import__("math").log1p(v),
-                        __import__("math").sin(2 * __import__("math").pi * mm / 12.0),
-                        __import__("math").cos(2 * __import__("math").pi * mm / 12.0)]
+        X = _np.array([[math.log1p(v),
+                        math.sin(2 * math.pi * mm / 12.0),
+                        math.cos(2 * math.pi * mm / 12.0)]
                        for v, mm in seq], dtype=_np.float32).reshape(1, 12, 3)
         pred = float(tst.predict_windows(model, X, aoi)[0])
         scored.append(ym)
@@ -725,6 +740,8 @@ def _harmonize_daily_ts(clean: list[dict] | None, daily_stat: list[dict], aoi: s
         else:
             no_modis_only.append(ym)
     # Mutate in place (see _harmonize_daily_ml): no second 633k-cell copy.
+    # Single pass: rescale + accumulate per-month totals for conservation.
+    ym_totals: dict[str, float] = {}
     for c in daily_stat:
         ym = str(c["date"])[:7]
         if c.get("estimate_type") == "modis_upscaled_estimated" and ym in factors:
@@ -735,10 +752,10 @@ def _harmonize_daily_ts(clean: list[dict] | None, daily_stat: list[dict], aoi: s
             c["coverage_status"] = "unknown"
         else:
             c["effective_method"] = "stat:seasonal_ratio_v1"
-    conservation = []
-    for ym in factors:
-        total = sum(float(c["harmonized_count"]) for c in daily_stat if str(c["date"])[:7] == ym)
-        conservation.append(abs(total - preds.get(ym, total)))
+        if ym in factors:
+            ym_totals[ym] = ym_totals.get(ym, 0.0) + float(c["harmonized_count"])
+    conservation = [abs(ym_totals.get(ym, 0.0) - preds.get(ym, ym_totals.get(ym, 0.0)))
+                    for ym in factors]
     diagnostics = {
         **(meta or {}),
         "requested_method": "ts",
@@ -810,7 +827,8 @@ def _latest_summary(calen: dict, daily: list[dict],
 
 def _raw_agg(aoi: str, bbox=None, qa_min: str = "all",
              platform_set: str = "all", year: int | None = None,
-             ym: str | None = None, geom: dict | None = None):
+             ym: str | None = None, geom: dict | None = None,
+             source_type: str = "all"):
     """Aggregate raw rows for one AOI without materialising cell-day dicts."""
     b = _parse_bbox(bbox) if isinstance(bbox, str) else bbox
 
@@ -828,7 +846,8 @@ def _raw_agg(aoi: str, bbox=None, qa_min: str = "all",
             yield r
 
     return harmonize.aggregate_iter(rows(), qa_min=qa_min,
-                                    platform_set=platform_set)
+                                    platform_set=platform_set,
+                                    source_type=source_type)
 
 
 def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
@@ -840,7 +859,8 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
                       cache_result: bool = True,
                       geom: dict | None = None,
                       from_date: str | None = None,
-                      to_date: str | None = None) -> dict:
+                      to_date: str | None = None,
+                      source_type: str = "all") -> dict:
     """Memory-bounded pipeline for large raw pulls (1.4M+ rows).
 
     Validates, dedups and aggregates while streaming from disk; only the
@@ -865,14 +885,13 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
             model_key = hashlib.sha256(mp.read_bytes()).hexdigest()[:10]
     manifest_key = "none"
     if store.MANIFEST.exists():
-        mst = store.MANIFEST.stat()
-        manifest_key = f"{mst.st_mtime_ns}_{mst.st_size}"
+        manifest_key = hashlib.sha256(store.MANIFEST.read_bytes()).hexdigest()[:12]
     sim_key = (hashlib.sha256(json.dumps(simulate_configs or [],
                                           sort_keys=True).encode()).hexdigest()[:8]
                if simulate_configs else "nosim")
     geom_key = _geometry_hash(geom)
     ckey = (f"cal_{aoi}_{method}_{fp}_{bbox or 'all'}_{cache_cap}_"
-            f"{qa_min}_{platform_set}_{focus_ym or 'all'}_{simulate_year or 'nosim'}_"
+            f"{qa_min}_{platform_set}_{source_type}_{focus_ym or 'all'}_{simulate_year or 'nosim'}_"
             f"{model_key}_{manifest_key}_{sim_key}_{geom_key}_"
             f"{from_date or 'all'}_{to_date or 'all'}_sum-v1_"
             f"{harmonize.ALGORITHM_VERSION}_{ml_v4.ALGORITHM_VERSION}_"
@@ -887,7 +906,8 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
         d = {**d, "summary": _activity_summary(
             d, data=data, method=method, aoi=aoi, bbox=bbox,
             qa_min=qa_min, platform_set=platform_set, dataset=None,
-            geom_hash=geom_key, from_date=from_date, to_date=to_date)}
+            geom_hash=geom_key, from_date=from_date, to_date=to_date,
+            source_type=source_type)}
         return d
 
     hit = store.cache_get(ckey) if cache_result else None
@@ -913,7 +933,8 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
             yield r
     agg, stats = harmonize.aggregate_iter(rows(), keep_clean=keep,
                                           qa_min=qa_min,
-                                          platform_set=platform_set)
+                                          platform_set=platform_set,
+                                          source_type=source_type)
     if not agg:
         raise HTTPException(404, detail={
             "error_code": "no_raw_data",
@@ -926,7 +947,7 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
     # is not. Reuse the full-run calibration cached by any earlier full request
     # so evidence cards and the calendar quote the same uncertainty.
     ratio_key = (f"ratios_{aoi}_{fp}_{harmonize.ALGORITHM_VERSION}_"
-                 f"fusion_{qa_min}_{platform_set}")
+                 f"fusion_{qa_min}_{platform_set}_{source_type}")
     if focus_ym or simulate_year:
         cached_ratios = store.cache_get(ratio_key)
         if cached_ratios:
@@ -1005,11 +1026,15 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
         targets = stan.targets(aoi)
         if not targets:
             raise HTTPException(404, f"No STAN series for aoi={aoi}")
+        bands = stan.bands(aoi)
         cell_days, ml_meta = hts.apply_monthly(
             harmonize.harmonize_daily(agg, ratios), targets,
             method_id="stan_safe_v1", requested="stan",
             candidate=False, gate_passed=True,
-            method_by_month=stan.sources(aoi))
+            method_by_month=stan.sources(aoi),
+            targets_low={k: v[0] for k, v in bands.items()},
+            targets_high={k: v[1] for k, v in bands.items()})
+        ml_meta["interval"] = stan.interval_status()
         for c in cell_days:
             _accumulate(c)
             if _retain(str(c["date"])[:10]):
@@ -1133,7 +1158,8 @@ def _harmonize_from_records(records: list[dict], daily_cap: int = 2000,
                               geom: dict | None = None,
                               from_date: str | None = None,
                               to_date: str | None = None,
-                              bbox: str | None = None) -> dict:
+                              bbox: str | None = None,
+                              source_type: str = "all") -> dict:
     """Validate -> QA -> dedup -> harmonize. Single path for sample/raw/upload (P0-07)."""
     _block_raw_ml_ts(method, data, aoi)
     if method in ("hts", "stan"):
@@ -1142,7 +1168,7 @@ def _harmonize_from_records(records: list[dict], daily_cap: int = 2000,
     clean: list[dict] = []
     rejected = 0
     qa_counts: dict[str, int] = {}
-    filtered_low = filtered_conf = filtered_plat = 0
+    filtered_low = filtered_conf = filtered_plat = filtered_source = 0
     for r in records:
         try:
             rec = FirmsRecord(**{k.lower(): v for k, v in dict(r).items()})
@@ -1165,6 +1191,12 @@ def _harmonize_from_records(records: list[dict], daily_cap: int = 2000,
         if (platform_set == "snpp" and rec.instrument == "VIIRS"
                 and rec.satellite != "NPP"):
             filtered_plat += 1
+            continue
+        if source_type == "land" and rec.type == 3:
+            filtered_source += 1
+            continue
+        if source_type == "vegetation" and rec.type in (1, 2, 3):
+            filtered_source += 1
             continue
         clean.append(d)
     agg = harmonize.aggregate(clean)
@@ -1224,7 +1256,8 @@ def _harmonize_from_records(records: list[dict], daily_cap: int = 2000,
             "calibration": calibration,
             "validation_unit": "aoi-month",
             "spatial_validation": "not_identified_from_monthly_pairs",
-            "filters": {"qa_min": qa_min, "platform_set": platform_set},
+            "filters": {"qa_min": qa_min, "platform_set": platform_set,
+                        "source_type": source_type},
             "ml_meta": ml_meta,
             "coverage": (cov.coverage_summary(aoi) if (data == "raw" and not dataset) else
                          {"verified": False, "reason": "sample_or_upload"}),
@@ -1232,12 +1265,14 @@ def _harmonize_from_records(records: list[dict], daily_cap: int = 2000,
                    "filtered_low_confidence": filtered_low,
                    "filtered_confidence": filtered_conf,
                    "filtered_platform": filtered_plat,
+                   "filtered_source_type": filtered_source,
                    "qa_counts": qa_counts},
             "daily": daily[:daily_cap] if daily_cap else []}
     out["summary"] = _activity_summary(
         out, data=data, method=method, aoi=aoi, bbox=bbox,
         qa_min=qa_min, platform_set=platform_set, dataset=dataset,
-        geom_hash=_geometry_hash(geom), from_date=from_date, to_date=to_date)
+        geom_hash=_geometry_hash(geom), from_date=from_date, to_date=to_date,
+        source_type=source_type)
     return out
 
 
@@ -1286,6 +1321,7 @@ def firms_calendar(limit: int = Query(2000, ge=1, le=2000000),
                    method: str = Query("stat", pattern="^(stat|ml|ts|hts|stan)$"),
                    qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
                    platform_set: str = Query("all", pattern="^(all|snpp)$"),
+                   source_type: str = Query("all", pattern="^(all|land|vegetation)$"),
                    dataset: str | None = Query(None, description="session upload id (upload:<hex>)"),
                    geometry: str | None = Query(None, description="GeoJSON Polygon/MultiPolygon"),
                    from_date: str | None = Query(None, description="inclusive YYYY-MM-DD"),
@@ -1310,7 +1346,8 @@ def firms_calendar(limit: int = Query(2000, ge=1, le=2000000),
     if data == "raw" and not dataset:
         out = _harmonize_stream(aoi, data, bbox, method, daily_cap=min(limit, 5000),
                                 qa_min=qa_min, platform_set=platform_set,
-                                geom=geom, from_date=from_date, to_date=to_date)
+                                geom=geom, from_date=from_date, to_date=to_date,
+                                source_type=source_type)
     else:
         records = [r for r in _resolve_records(aoi, data, 2000000, dataset)
                    if _in_bbox(r, _parse_bbox(bbox))]
@@ -1321,7 +1358,7 @@ def firms_calendar(limit: int = Query(2000, ge=1, le=2000000),
                                       dataset=dataset, qa_min=qa_min,
                                       platform_set=platform_set, geom=geom,
                                       from_date=from_date, to_date=to_date,
-                                      bbox=bbox)
+                                      bbox=bbox, source_type=source_type)
     out["bbox"] = bbox
     out["aoi"] = aoi
     out["data"] = data
@@ -1344,6 +1381,7 @@ def firms_map_cells(ym: str = Query(..., description="YYYY-MM"),
                     method: str = Query("stat", pattern="^(stat|ml|ts|hts|stan)$"),
                     qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
                     platform_set: str = Query("all", pattern="^(all|snpp)$"),
+                    source_type: str = Query("all", pattern="^(all|land|vegetation)$"),
                     dataset: str | None = Query(None),
                     geometry: str | None = Query(None),
                     from_date: str | None = Query(None),
@@ -1375,7 +1413,8 @@ def firms_map_cells(ym: str = Query(..., description="YYYY-MM"),
         out = _harmonize_stream(aoi, data, bbox, method, daily_cap=1000000,
                                 qa_min=qa_min, platform_set=platform_set,
                                 focus_ym=ym, cache_result=False, geom=geom,
-                                from_date=from_date, to_date=to_date)
+                                from_date=from_date, to_date=to_date,
+                                source_type=source_type)
     else:
         records = [r for r in _resolve_records(aoi, data, 2000000, dataset)
                    if _in_bbox(r, _parse_bbox(bbox))]
@@ -1385,7 +1424,8 @@ def firms_map_cells(ym: str = Query(..., description="YYYY-MM"),
                                       data=data, aoi=aoi, method=method,
                                       dataset=dataset, qa_min=qa_min,
                                       platform_set=platform_set, geom=geom,
-                                      from_date=from_date, to_date=to_date)
+                                      from_date=from_date, to_date=to_date,
+                                      source_type=source_type)
     agg_cells: dict[str, dict] = {}
     for c in out.get("daily") or []:
         if str(c.get("date", ""))[:7] != ym:
@@ -1405,7 +1445,7 @@ def firms_map_cells(ym: str = Query(..., description="YYYY-MM"),
     all_cells = sorted(agg_cells.values(),
                        key=lambda d: d["harmonized_count"], reverse=True)
     total = len(all_cells)
-    capped = all_cells[:min(max_cells, 20000)]
+    capped = all_cells[:max_cells]
     cells = [{**{k: v for k, v in c.items() if k != "estimate_types"},
               "harmonized_count": round(c["harmonized_count"], 3),
               "estimate_type": ("viirs_observed"
@@ -1426,7 +1466,7 @@ def firms_map_cells(ym: str = Query(..., description="YYYY-MM"),
         "aggregation_level": "0.05deg cell-month",
         "aggregation_note": ("One point per 0.05-degree grid cell, summed over "
                              "the month; detections are hotspot records, not fires."),
-        "capped_at": min(max_cells, 20000),
+        "capped_at": max_cells,
         "filter_hash": summary.get("filter_hash"),
         "source_scope": summary.get("source_scope"),
     })
@@ -1440,6 +1480,7 @@ def firms_export(limit: int = Query(2000000, ge=100, le=2000000),
                  method: str = Query("stat", pattern="^(stat|ml|ts|hts|stan)$"),
                  qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
                  platform_set: str = Query("all", pattern="^(all|snpp)$"),
+                 source_type: str = Query("all", pattern="^(all|land|vegetation)$"),
                  dataset: str | None = Query(None, description="session upload id"),
                  geometry: str | None = Query(None, description="GeoJSON Polygon/MultiPolygon"),
                  from_date: str | None = Query(None),
@@ -1463,7 +1504,8 @@ def firms_export(limit: int = Query(2000000, ge=100, le=2000000),
     if data == "raw" and not dataset and method == "stat":
         # Stream the CSV straight from the aggregate: retaining 1.4M cell dicts
         # only to write them out was the peak-memory path of the whole API.
-        agg, _stats = _raw_agg(aoi, bbox, qa_min, platform_set, geom=geom)
+        agg, _stats = _raw_agg(aoi, bbox, qa_min, platform_set, geom=geom,
+                               source_type=source_type)
         if not agg:
             raise HTTPException(404, f"No raw data in this AOI")
         ratios = harmonize.estimate_efficiency_ratio(agg)
@@ -1476,7 +1518,8 @@ def firms_export(limit: int = Query(2000000, ge=100, le=2000000),
         full_daily = _harmonize_stream(aoi, data, bbox, method, daily_cap=2000000,
                                        qa_min=qa_min, platform_set=platform_set,
                                        cache_result=False, geom=geom,
-                                       from_date=from_date, to_date=to_date)["daily"]
+                                       from_date=from_date, to_date=to_date,
+                                       source_type=source_type)["daily"]
         n_rows = len(full_daily)
         stream_cells = iter(full_daily)
     else:
@@ -1489,7 +1532,7 @@ def firms_export(limit: int = Query(2000000, ge=100, le=2000000),
                                              dataset=dataset, qa_min=qa_min,
                                              platform_set=platform_set, geom=geom,
                                              from_date=from_date, to_date=to_date,
-                                             bbox=bbox)["daily"]
+                                             bbox=bbox, source_type=source_type)["daily"]
         n_rows = len(full_daily)
         stream_cells = iter(full_daily)
     fields = ["cell_id", "date", "lat", "lon",
@@ -1544,6 +1587,7 @@ def firms_export_detections(bbox: str | None = Query(None),
                             dataset: str | None = Query(None),
                             qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
                             platform_set: str = Query("all", pattern="^(all|snpp)$"),
+                            source_type: str = Query("all", pattern="^(all|land|vegetation)$"),
                             geometry: str | None = Query(None),
                             from_date: str | None = Query(None),
                             to_date: str | None = Query(None),
@@ -1588,6 +1632,15 @@ def firms_export_detections(bbox: str | None = Query(None),
         if (platform_set == "snpp" and str(r.get("instrument", "")).upper() == "VIIRS"
                 and str(r.get("satellite", "")).upper() not in ("NPP", "SNPP")):
             return False
+        if source_type != "all":
+            try:
+                tval = int(r["type"]) if r.get("type") not in (None, "") else None
+            except (TypeError, ValueError):
+                tval = None
+            if source_type == "land" and tval == 3:
+                return False
+            if source_type == "vegetation" and tval in (1, 2, 3):
+                return False
         return True
 
     def _rows():
@@ -1712,12 +1765,12 @@ async def firms_ingest(request: Request,
 
 @app.post("/api/firms/upload-dataset")
 async def firms_upload_dataset(request: Request, file: UploadFile = File(...)):
-    """Session upload (P1-18): streamed with a 10 MB cap, validated, returns
+    """Session upload (P1-18): streamed with a 50 MB cap, validated, returns
     dataset_id for /calendar?dataset=upload:<id>. Gated when ADMIN_TOKEN set."""
     _require_admin(request)
     import hashlib as _hl
     import time as _t
-    max_bytes = 10 * 1024 * 1024
+    max_bytes = 50 * 1024 * 1024
     store.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     tmp = store.UPLOAD_DIR / f"tmp_{int(_t.time() * 1000)}.part"
     digest, size = _hl.sha256(), 0
@@ -1729,7 +1782,7 @@ async def firms_upload_dataset(request: Request, file: UploadFile = File(...)):
                     break
                 size += len(ch)
                 if size > max_bytes:
-                    raise ValueError("File too large (>10 MB session cap)")
+                    raise ValueError("File too large (>50 MB session cap)")
                 digest.update(ch)
                 fh.write(ch)
         report = store.register_upload_file(
@@ -1747,6 +1800,7 @@ def firms_brief(aoi: str = Query("vietnam", description="preset region"),
                 method: str = Query("stat", pattern="^(stat|ml|ts|hts|stan)$"),
                 qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
                 platform_set: str = Query("all", pattern="^(all|snpp)$"),
+                source_type: str = Query("all", pattern="^(all|land|vegetation)$"),
                 dataset: str | None = Query(None, description="session upload id")):
     """One-page Markdown brief (hotspot-detection activity, not fire counts).
 
@@ -1759,7 +1813,8 @@ def firms_brief(aoi: str = Query("vietnam", description="preset region"),
             raise HTTPException(404, detail={"error_code": "no_raw_data",
                                              "message": f"No raw data for {aoi}"})
         out = _harmonize_stream(aoi, data, bbox, method, daily_cap=0,
-                                qa_min=qa_min, platform_set=platform_set)
+                                qa_min=qa_min, platform_set=platform_set,
+                                source_type=source_type)
     else:
         records = [r for r in _resolve_records(aoi, data, 2000000, dataset)
                    if _in_bbox(r, _parse_bbox(bbox))]
@@ -1767,7 +1822,8 @@ def firms_brief(aoi: str = Query("vietnam", description="preset region"),
             raise HTTPException(404, f"No {data} data in this AOI")
         out = _harmonize_from_records(records, daily_cap=0, data=data, aoi=aoi,
                                       method=method, dataset=dataset,
-                                      qa_min=qa_min, platform_set=platform_set)
+                                      qa_min=qa_min, platform_set=platform_set,
+                                      source_type=source_type)
     c, ys = out["calendar"], out["calendar"]["years"]
     L, F = out["latest"], out["forecast"]
     src = _data_source_label(data, dataset)
@@ -1954,6 +2010,8 @@ def firms_stan_status():
                 "hint": "python -m app.firms.stan"}
     return {"trained": True, "candidate": False, "served": True,
             "role": "main",
+            "primary_method_id": registry.PRIMARY,
+            "interval": stan.interval_status(),
             "safe": {k: v for k, v in (safe or {}).items() if k != "predictions"},
             "retrospective": {k: v for k, v in (retro or {}).items()
                               if k != "predictions"}}

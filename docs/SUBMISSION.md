@@ -4,7 +4,7 @@
 - [ ] `make demo` chạy 1 process trên :8000 (API + SPA).
 - [ ] Chạy `python -m scripts.firms.check_release`: phải OK (gồm
       pytest, raw subset checksum, benchmark, evaluate raw/sample, docs, env,
-      artifact health TS/ML).
+      artifact health STAN/HTS (HGB/TS are archived warnings)).
 - [ ] Thử walkthrough `docs/DEMO.md` dưới 3:00.
 - [ ] Điền portal Space Apps: tóm tắt, link demo/video, ảnh calendar + map.
 - [ ] Ghi rõ giới hạn: coverage theo request ledger (day-31 gap là thật),

@@ -144,8 +144,8 @@ if _HAS_TORCH:
             a, _ = self.attn(q.unsqueeze(1), h, h, need_weights=False)
             z = torch.cat([a.squeeze(1), h[:, -1, :], ctx], dim=-1)
             delta = torch.clamp(self.head(self.drop(z)).squeeze(-1), -3.0, 3.0)
-            alpha = torch.nn.functional.softplus(self.log_alpha) if self.dispersion \
-                else torch.zeros((), device=x.device)
+            alpha = (torch.nn.functional.softplus(self.log_alpha).clamp(1e-6, 10.0)
+                     if self.dispersion else torch.zeros((), device=x.device))
             return delta, alpha
 else:
     class STAN:  # type: ignore[no-redef]
@@ -188,8 +188,25 @@ def _val_loss(model, rows, device):
         return float(_nb_nll(Y, A + delta, alpha))
 
 
+def _val_mae(model, rows, device):
+    """Count-space MAE on validation rows.
+
+    Monitoring the NB NLL made training collapse to epoch 1 once the full
+    Australia months (large counts) entered the pool: the NLL is dominated by
+    dispersion/alpha noise, while MAE is the metric the gate actually uses.
+    """
+    if not rows:
+        return float("inf")
+    model.eval()
+    with torch.no_grad():
+        X, C, M, A, Y = _tensors(rows, device)
+        delta, _alpha = model(X, C, M)
+        mu = torch.exp(torch.clamp(A + delta, -20.0, 20.0))
+        return float(torch.mean(torch.abs(mu - Y)))
+
+
 def fit(seed, train, val, epochs=160, d=D_MODEL, layers=3, dispersion=True,
-        use_film=True, retrospective=False, lr=3e-4):
+        use_film=True, retrospective=False, lr=1e-3):
     torch.manual_seed(seed)
     np.random.seed(seed)
     torch.backends.cudnn.deterministic = True
@@ -213,13 +230,13 @@ def fit(seed, train, val, epochs=160, d=D_MODEL, layers=3, dispersion=True,
         if not val:
             best_ep = ep
             continue
-        vl = _val_loss(model, val, device)
+        vl = _val_mae(model, val, device)
         if vl < best - 1e-4:
             best, patience, best_ep = vl, 0, ep
             state = {k: v.detach().clone() for k, v in model.state_dict().items()}
         else:
             patience += 1
-            if patience >= 20:
+            if patience >= 30:
                 break
     if state is not None:
         model.load_state_dict(state)
@@ -251,6 +268,28 @@ def _agg(rows, pred):
              "pred": v[0], "viirs": v[1], "anchor": v[2]} for k, v in groups.items()]
 
 
+def predict_band(models, rows, qs=(0.1, 0.9)):
+    """Ensemble mean and predictive variance per window (NB2 aleatoric + seed spread).
+
+    STAN optimises an NB2 likelihood, so `alpha` is a model output, not a
+    post-hoc constant. Variance combines the within-model NB variance
+    `mu + alpha*mu^2` with the across-seed variance of the means.
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    X, C, M, A, _Y = _tensors(rows, device)
+    with torch.no_grad():
+        mus, vars_ = [], []
+        for m in models:
+            m.to(device)
+            delta, alpha = m(X, C, M)
+            mu = torch.exp(torch.clamp(A + delta, -20.0, 20.0))
+            mus.append(mu.cpu().numpy())
+            vars_.append((mu + alpha * mu * mu).cpu().numpy())
+    mu = np.mean(mus, axis=0)
+    var = np.mean(vars_, axis=0) + np.var(mus, axis=0)
+    return mu, np.maximum(var, mu)
+
+
 def load_models(path: Path | None = None):
     if not _HAS_TORCH:
         return None, None
@@ -274,30 +313,67 @@ def load_models(path: Path | None = None):
 
 def build_series() -> dict:
     """Monthly AOI targets: STAN for 2024+, HTS for earlier months."""
+    from collections import defaultdict
+
     from app.firms import sf_tile
     models, _cfg = load_models()
     if not models:
         raise RuntimeError("stan_safe_raw.pt missing; run -m app.firms.stan")
     meta = json.loads((MODEL_DIR / "stan_safe_raw.json").read_text(encoding="utf-8"))
     scale = float(meta.get("level_scale_2023", 1.0))
-    rows = [r for r in build_windows(False, 2024) if r["year"] >= 2024]
+    all_rows = build_windows(False, 2024)
+    rows = [r for r in all_rows if r["year"] >= 2024]
+    val_rows = [r for r in all_rows if r["year"] == 2023]
     pred = predict(models, rows, False) * scale
+    val_pred = predict(models, val_rows, False) * scale if val_rows else np.array([])
     tiles = sf_tile.loads()
     pairs = sf_tile.load_aoi_pairs()
     ratios = sf_tile.b2_by_aoi(pairs, 2024)
     anchors = sf_tile.tile_anchors(tiles, ratios, 2024)
-    from collections import defaultdict
-    base = defaultdict(float)
-    for t in tiles:
-        if t["year"] < 2024:
-            continue
-        b1, b2m = ratios[t["aoi"]]
-        a = anchors.get((t["tile_id"], t["month"]), b2m.get(t["month"], b1))
-        base[(t["aoi"], t["year"], t["month"])] += max(
-            math.exp(a) * (t["modis"] + 1) - 1, 0)
-    delta = defaultdict(float)
-    for r, p in zip(rows, pred):
-        delta[(r["aoi"], r["year"], r["month"])] += float(p) - r["anchor_count"]
+
+    def _aggregate(year: int, src_rows: list[dict], src_pred) -> tuple[dict, dict]:
+        """AOI-month centre (all tiles: anchor + window delta) and observed VIIRS."""
+        base: dict[tuple, float] = defaultdict(float)
+        obs: dict[tuple, float] = defaultdict(float)
+        for t in tiles:
+            if t["year"] != year:
+                continue
+            b1, b2m = ratios[t["aoi"]]
+            a = anchors.get((t["tile_id"], t["month"]), b2m.get(t["month"], b1))
+            key = (t["aoi"], year, t["month"])
+            base[key] += max(math.exp(a) * (t["modis"] + 1) - 1, 0)
+            obs[key] += float(t["viirs"])
+        delta: dict[tuple, float] = defaultdict(float)
+        for r, p in zip(src_rows, src_pred):
+            if r["year"] != year:
+                continue
+            delta[(r["aoi"], year, r["month"])] += float(p) - r["anchor_count"]
+        centre = {k: base[k] + delta.get(k, 0.0) for k in base}
+        return centre, obs
+
+    centres, observed = {}, {}
+    for year in sorted({t["year"] for t in tiles if t["year"] >= 2024}):
+        c, o = _aggregate(year, [r for r in rows if r["year"] == year],
+                          [p for r, p in zip(rows, pred) if r["year"] == year])
+        centres.update(c)
+        observed.update(o)
+
+    band_log_halfwidth = float(meta.get("band_log_halfwidth") or 0.0)
+    val_cov = meta.get("band_validation_coverage80")
+    if not band_log_halfwidth:
+        # Fallback for old artifacts: fit width on 2023 with the final models.
+        # 2023 is in-sample here, so the block records that explicitly.
+        band_log_halfwidth = 0.25
+        abslog: list[float] = []
+        if val_rows:
+            vcentres, vobs = _aggregate(2023, val_rows, val_pred)
+            abslog = [abs(math.log((vobs[k] + 1.0) / (vcentres[k] + 1.0)))
+                      for k in vcentres if vcentres[k] > 0 and k in vobs]
+            if abslog:
+                band_log_halfwidth = float(np.clip(np.quantile(abslog, 0.8), 0.02, 2.0))
+            val_cov = round(float(np.mean([x <= band_log_halfwidth + 1e-12
+                                           for x in abslog])), 4) if abslog else None
+
     series: dict[str, dict] = {a: {} for a in AOIS}
     hts_path = MODEL_DIR / "hts_series_raw.json"
     if hts_path.exists():
@@ -305,16 +381,35 @@ def build_series() -> dict:
         for a in AOIS:
             for ym, v in (hts.get(a) or {}).items():
                 series[a][ym] = {"target": float(v["hts"]), "source": "hts"}
-    for (aoi, y, m), v in base.items():
+    hits: list[float] = []
+    for (aoi, y, m), centre in centres.items():
         ym = f"{y}-{m:02d}"
-        series[aoi][ym] = {"target": round(v + delta.get((aoi, y, m), 0.0), 3),
-                           "source": "stan"}
+        entry = {"target": round(float(centre), 3), "source": "stan"}
+        # The band must be centred on the served target, not on the window-only
+        # sum: non-window tiles keep their anchor and are part of the total.
+        lo = max((centre + 1.0) * math.exp(-band_log_halfwidth) - 1.0, 0.0)
+        hi = max((centre + 1.0) * math.exp(band_log_halfwidth) - 1.0, lo)
+        entry["low"] = round(lo, 3)
+        entry["high"] = round(hi, 3)
+        series[aoi][ym] = entry
+        obs = observed.get((aoi, y, m))
+        if obs is not None and y in (2024, 2025):
+            hits.append(1.0 if lo <= obs <= hi else 0.0)
     state = {
         "method_id": "stan_safe_v1",
         "algorithm_version": ALGORITHM_VERSION,
         "role": "main",
         "cutoff_rule": "STAN for >=2024 (anchor <2024); HTS series before 2024",
         "level_scale_2023": scale,
+        "interval": {"quantiles": [0.1, 0.9],
+                     "kind": "log-scale conformal band on AOI-month totals; halfwidth = p80 |log residual| on 2023",
+                     "log_halfwidth": round(band_log_halfwidth, 4),
+                     "validation_year": 2023,
+                     "validation_scope": ("selection_2023" if meta.get("band_log_halfwidth")
+                                          else "in_sample_fallback"),
+                     "validation_coverage80": val_cov,
+                     "empirical_coverage80": round(float(np.mean(hits)), 4) if hits else None,
+                     "n_scored": len(hits)},
         "months": {a: len(series[a]) for a in AOIS},
         "dataset_sha256": hashlib.sha256(
             (BENCH / "tile_pairs_raw.csv").read_bytes()).hexdigest(),
@@ -357,6 +452,21 @@ def targets(aoi: str) -> dict[str, float]:
     data = _get_series_data()
     return {ym: float(v["target"])
             for ym, v in (data.get("series", {}).get(aoi) or {}).items()}
+
+
+def bands(aoi: str) -> dict[str, tuple[float, float]]:
+    """80% NB2 predictive band per served month, when the artifact has one."""
+    data = _get_series_data()
+    out = {}
+    for ym, v in (data.get("series", {}).get(aoi) or {}).items():
+        if v.get("low") is not None and v.get("high") is not None:
+            out[ym] = (float(v["low"]), float(v["high"]))
+    return out
+
+
+def interval_status() -> dict:
+    data = _get_series_data()
+    return data.get("interval") or {"kind": None}
 
 
 def _official_eval(test: list[dict], pred: np.ndarray,
@@ -481,9 +591,28 @@ def run(retrospective: bool = True, epochs: int = 160,
     val_pred = predict(sel_models, val, retrospective)
     scale = min(2.0, max(0.5,
         sum(r["viirs"] for r in val) / max(float(val_pred.sum()), 1e-9)))
+    # Interval calibration on the selection year (2023) with models that never
+    # trained on it. This is the only honest source for the served band width.
+    from collections import defaultdict
+    val_mu, _ = predict_band(sel_models, val)
+    val_mu = val_mu * scale
+    vm, vy = defaultdict(float), defaultdict(float)
+    for r, mu in zip(val, val_mu):
+        key = (r["aoi"], r["year"], r["month"])
+        vm[key] += float(mu)
+        vy[key] += float(r["viirs"])
+    abslog = [abs(math.log((vy[k] + 1.0) / (vm[k] + 1.0))) for k in vm if vm[k] > 0]
+    band_hw = float(np.clip(np.quantile(abslog, 0.8), 0.02, 2.0)) if abslog else 0.25
+    band_cov = float(np.mean([x <= band_hw + 1e-12 for x in abslog])) if abslog else None
     models = [fit(s, fit_rows, None, eps[s], d, layers, dispersion, use_film,
                   retrospective)[0] for s in SEEDS]
     pred = predict(models, test, retrospective) * scale
+    seed_mae = []
+    for m in models:
+        agg_s = _agg(test, predict([m], test, retrospective) * scale)
+        ys = np.array([a["viirs"] for a in agg_s])
+        ps = np.array([a["pred"] for a in agg_s])
+        seed_mae.append(round(float(np.mean(np.abs(ps - ys))), 2))
     agg = _agg(test, pred)
     y = np.array([a["viirs"] for a in agg])
     p = np.array([a["pred"] for a in agg])
@@ -498,9 +627,15 @@ def run(retrospective: bool = True, epochs: int = 160,
         "retrospective": retrospective,
         "uses_neighbour_viirs_same_month": retrospective,
         "params": int(sum(q.numel() for q in models[0].parameters())),
+        "torch_version": torch.__version__,
+        "device": ("cuda" if torch.cuda.is_available() else "cpu"),
         "n_train": len(fit_rows), "n_test": len(test),
         "epochs_by_seed": eps,
+        "seed_mae": seed_mae,
+        "seed_mae_range": [min(seed_mae), max(seed_mae)] if seed_mae else None,
         "level_scale_2023": round(scale, 4),
+        "band_log_halfwidth": round(band_hw, 4),
+        "band_validation_coverage80": round(band_cov, 4) if band_cov is not None else None,
         "metrics": _metrics(y, p),
         "hts_metrics": _metrics(y, h),
         "per_aoi": {a: {"stan": _metrics(
