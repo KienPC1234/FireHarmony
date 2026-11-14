@@ -397,12 +397,27 @@ export function CalendarPage() {
 
   const periods = useMemo(() => {
     if (!data) return [];
-    const set = new Set<string>();
+    const available = new Set<string>();
+    // Calendar.matrix describes the complete served time grid. The daily
+    // details are capped and cannot define which months the UI can select.
+    // A null matrix cell means unknown/missing coverage, not a zero.
+    data.calendar.years.forEach((year, yi) => {
+      data.calendar.months.forEach((month, mi) => {
+        const value = data.calendar.matrix[yi]?.[mi];
+        if (value !== null && value !== undefined && Number.isFinite(value)) {
+          available.add(String(year) + "-" + String(month).padStart(2, "0"));
+        }
+      });
+    });
     for (const d of data.daily) {
-      if (d.date) set.add(String(d.date).slice(0, 7));
+      const month = String(d.date ?? "").slice(0, 7);
+      if (/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) available.add(month);
     }
-    return Array.from(set).sort();
-  }, [data]);
+    // The viewer can select a month with no observations via URL or the time
+    // scrubber. Keep that month visible instead of rendering a blank select.
+    if (/^\d{4}-(0[1-9]|1[0-2])$/.test(mapPeriod)) available.add(mapPeriod);
+    return Array.from(available).sort();
+  }, [data, mapPeriod]);
 
   const dailyMapCells = useMemo(() => {
     if (!data) return [];

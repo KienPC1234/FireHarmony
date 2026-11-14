@@ -120,3 +120,30 @@ test("raw Calendar API errors remain raw; no silent synthetic fallback", async (
   expect(new URL(page.url()).searchParams.get("data")).toBe("raw");
   await expect(page.locator("[data-fh-feed]")).toContainText(/NASA quan sát|NASA Observed/i);
 });
+
+test("Calendar month selector uses full matrix, not capped daily preview", async ({ page }) => {
+  test.setTimeout(45000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const knownCells = [...emptyMonths];
+  knownCells[6] = 0; // July is an observed zero in the UI-only fixture.
+  const response = {
+    ...sampleCalendar,
+    daily: [], // A capped detail page can legitimately contain no daily rows.
+    calendar: {
+      ...sampleCalendar.calendar,
+      matrix: [knownCells],
+    },
+  };
+  await page.route("**/api/firms/calendar?*", (req) =>
+    req.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response) }));
+  await page.goto("/calendar?" + contextQuery(), { waitUntil: "domcontentloaded" });
+  const selector = page.locator('[data-fh-page="calendar"] header select[aria-label]').first();
+  await expect(selector).toBeVisible();
+  // The URL-selected August remains shown even though the matrix has no data.
+  await expect(selector).toHaveValue("2024-08");
+  await expect(selector.locator('option[value="2024-08"]')).toHaveCount(1);
+  // July is a legitimate zero-count month in the full calendar matrix.
+  await expect(selector.locator('option[value="2024-07"]')).toHaveCount(1);
+  // Missing coverage is null, not zero; do not promote June to observed.
+  await expect(selector.locator('option[value="2024-06"]')).toHaveCount(0);
+});
