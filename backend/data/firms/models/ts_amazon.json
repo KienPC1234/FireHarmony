@@ -73,10 +73,16 @@
  "unified_eval": {
   "evaluation_version": "eval-v2",
   "dataset_sha256": "e1c2e99a59b7b572",
-  "test_years": [
+  "pair_table_hash": "e1c2e99a59b7b572",
+  "candidate_holdout_years": [
    2024,
    2025
   ],
+  "scored_years": [
+   2024,
+   2025
+  ],
+  "excluded_months": [],
   "n_eval": 24,
   "eval_unit": "aoi-month (VIIRS hotspot detections, not fires)",
   "metrics": {
@@ -99,9 +105,9 @@
     "n": 24
    },
    "hgb_b2res_v4": {
-    "mae": 9.998,
-    "wape": 0.149131,
-    "bias": 0.3476,
+    "mae": 8.5478,
+    "wape": 0.127499,
+    "bias": -0.7552,
     "n": 24
    },
    "ts_logratio_pool_v2": {
@@ -131,9 +137,9 @@
     "n": 72
    },
    "hgb_b2res_v4": {
-    "mae": 10.1916,
-    "wape": 0.143375,
-    "bias": -0.3212,
+    "mae": 9.7082,
+    "wape": 0.136575,
+    "bias": -0.6888,
     "n": 72
    },
    "ts_logratio_pool_v2": {
@@ -142,6 +148,47 @@
     "bias": -1.7953,
     "n": 72
    }
+  },
+  "headline": {
+   "scope": "full-month AOIs only",
+   "aois": [
+    "vietnam",
+    "amazon"
+   ],
+   "n_eval": 48,
+   "metrics": {
+    "b0_raw_modis": {
+     "mae": 52.5833,
+     "wape": 0.727587,
+     "bias": -52.5833,
+     "n": 48
+    },
+    "b1_global_ratio": {
+     "mae": 9.8799,
+     "wape": 0.136707,
+     "bias": -0.0677,
+     "n": 48
+    },
+    "b2_seasonal_ratio": {
+     "mae": 10.3105,
+     "wape": 0.142665,
+     "bias": 1.0583,
+     "n": 48
+    },
+    "hgb_b2res_v4": {
+     "mae": 9.8799,
+     "wape": 0.136707,
+     "bias": -0.0677,
+     "n": 48
+    },
+    "ts_logratio_pool_v2": {
+     "mae": 9.9383,
+     "wape": 0.137514,
+     "bias": -0.0428,
+     "n": 48
+    }
+   },
+   "why": "Australia has 0/85 months with >=90% paired MODIS/VIIRS days; it is a sparse stress test, not a comparable monthly series."
   },
   "pooled_full_month": {
    "aois": [
@@ -169,9 +216,9 @@
      "n": 48
     },
     "hgb_b2res_v4": {
-     "mae": 10.605,
-     "wape": 0.14674,
-     "bias": 0.4838,
+     "mae": 9.8799,
+     "wape": 0.136707,
+     "bias": -0.0677,
      "n": 48
     },
     "ts_logratio_pool_v2": {
@@ -182,9 +229,67 @@
     }
    }
   },
+  "comparisons": {
+   "hgb_vs_b2": {
+    "method_a": "hgb_b2res_v4",
+    "method_b": "b2_seasonal_ratio",
+    "delta_mae": -0.287,
+    "ci95": [
+     -1.1771,
+     0.5512
+    ],
+    "prob_a_better": 0.749,
+    "n": 72,
+    "n_boot": 2000,
+    "unit": "AOI-month block bootstrap (not independent hotspots)"
+   },
+   "hgb_vs_b1": {
+    "method_a": "hgb_b2res_v4",
+    "method_b": "b1_global_ratio",
+    "delta_mae": -0.5782,
+    "ci95": [
+     -1.515,
+     0.272
+    ],
+    "prob_a_better": 0.905,
+    "n": 72,
+    "n_boot": 2000,
+    "unit": "AOI-month block bootstrap (not independent hotspots)"
+   },
+   "ts_vs_b2": {
+    "method_a": "ts_logratio_pool_v2",
+    "method_b": "b2_seasonal_ratio",
+    "delta_mae": 0.0217,
+    "ci95": [
+     -0.9709,
+     1.0043
+    ],
+    "prob_a_better": 0.4935,
+    "n": 72,
+    "n_boot": 2000,
+    "unit": "AOI-month block bootstrap (not independent hotspots)"
+   },
+   "ts_vs_b1": {
+    "method_a": "ts_logratio_pool_v2",
+    "method_b": "b1_global_ratio",
+    "delta_mae": -0.2694,
+    "ci95": [
+     -0.7646,
+     0.2333
+    ],
+    "prob_a_better": 0.8655,
+    "n": 72,
+    "n_boot": 2000,
+    "unit": "AOI-month block bootstrap (not independent hotspots)"
+   }
+  },
   "rank": [
    {
     "method": "b1_global_ratio",
+    "mae": 8.5478
+   },
+   {
+    "method": "hgb_b2res_v4",
     "mae": 8.5478
    },
    {
@@ -196,10 +301,6 @@
     "mae": 9.294
    },
    {
-    "method": "hgb_b2res_v4",
-    "mae": 9.998
-   },
-   {
     "method": "b0_raw_modis",
     "mae": 48.9167
    }
@@ -208,45 +309,46 @@
   "coverage_class": "full_month",
   "coverage": {
    "months": 85,
-   "full_months": 72,
-   "partial_months": 13,
+   "full_months": 84,
+   "complete_months": 84,
+   "partial_months": 1,
    "missing_day_histogram": {
-    "1": 12,
-    "2": 12,
-    "3": 12,
-    "4": 12,
-    "5": 12,
-    "6": 13,
-    "7": 13,
-    "8": 13,
-    "9": 12,
-    "10": 12,
-    "11": 12,
-    "12": 12,
+    "1": 1,
+    "2": 1,
+    "3": 1,
+    "4": 1,
+    "5": 1,
+    "6": 1,
+    "7": 1,
+    "8": 1,
     "14": 1,
     "15": 1,
     "16": 1,
     "17": 1,
-    "18": 13,
-    "19": 13,
-    "20": 13,
-    "21": 11,
-    "22": 11,
-    "23": 11,
-    "24": 11,
-    "25": 11,
-    "26": 11,
-    "27": 11,
-    "28": 11,
-    "29": 9,
-    "30": 9,
-    "31": 49
+    "18": 1,
+    "19": 1,
+    "20": 1,
+    "21": 1,
+    "22": 1,
+    "23": 1,
+    "24": 1,
+    "25": 1,
+    "26": 1,
+    "27": 1,
+    "28": 1,
+    "29": 1,
+    "30": 1
    },
    "verified": true
   },
-  "ts_unified_seed_mae_range": null,
+  "ts_unified_seed_mae_range": [
+   9.89,
+   10.41
+  ],
   "note": "Every method in `pooled`/`per_aoi` is scored on the exact same sample IDs. `hgb_full_test` covers all monthly test pairs and is reported separately because the Transformer lacks a 12-month context for some of them."
  },
  "eval_manifest_id": "eval-v2:e1c2e99a59b7b572",
- "metrics_scope": "training_split; use unified_eval for the published table"
+ "metrics_scope": "training_split; use unified_eval for the published table",
+ "weights_file": "ts_amazon.pt",
+ "weights_sha256": "9785f047d68358fbbfc3daad91c58f4a2447566cf7063864d4f526eeeec88ff0"
 }

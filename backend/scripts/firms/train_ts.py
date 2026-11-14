@@ -38,8 +38,13 @@ def main() -> int:
     targets = [a.aoi] if a.single_aoi else list(AOIS)
     for name in targets:
         if a.data == "raw":
+            from app.firms import coverage
             pairs = ml_cal.build_monthly_pairs_iter(
                 store.iter_raw_rows(name, limit=None))
+            eligible = coverage.eligible_pair_months(name)
+            if len(eligible) >= 24:
+                pairs = [p for p in pairs
+                         if f"{p['year']}-{p['month']:02d}" in eligible]
         else:
             pairs = ml_cal.build_monthly_pairs(store.load_records(name, 100000))
         w = ts_v2.build_windows(pairs, aoi=name)

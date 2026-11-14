@@ -1,4 +1,4 @@
-"""Deep-learning layer (poster highlight) — tiny, CPU-trainable, optional.
+"""Deep-learning layer (poster highlight) - tiny, CPU-trainable, optional.
 
 Two models, both < 50k params, both train on the harmonized series in seconds:
 
@@ -86,11 +86,11 @@ if _HAS_TORCH:
 else:
     class CrossSensorCalibrator:  # type: ignore[no-redef]
         def __init__(self, *a, **k):
-            raise RuntimeError("torch not installed — statistical blend only")
+            raise RuntimeError("torch not installed: statistical blend only")
 
     class FireSeasonAE:  # type: ignore[no-redef]
         def __init__(self, *a, **k):
-            raise RuntimeError("torch not installed — median anomaly only")
+            raise RuntimeError("torch not installed: median anomaly only")
 
 
 def train_calibrator(pairs: list[dict], epochs: int = 60, lr: float = 1e-2) -> dict:
@@ -123,14 +123,14 @@ def train_calibrator(pairs: list[dict], epochs: int = 60, lr: float = 1e-2) -> d
         r2 = 1 - float(np.sum((y - pred) ** 2)) / ss
     return {"trained": True, "n": len(pairs), "mae": round(mae, 3),
             "r2_logspace_train_only": round(float(r2), 3),
-            "warning": "train-set only, no holdout — do not quote as accuracy",
+            "warning": "train-set only, no holdout: do not quote as accuracy",
             "epochs": epochs, "seed": 7}
 
 
 def describe() -> dict:
     return {
         "has_torch": _HAS_TORCH,
-        "status": ("experimental — NOT used by /calendar; no persisted checkpoints"
+        "status": ("experimental: NOT used by /calendar; no persisted checkpoints"
                    if _HAS_TORCH else "statistical path only (torch not installed)"),
         "models": [
             {"name": "CrossSensorCalibrator", "kind": "MLP residual (6->32->32->1)",

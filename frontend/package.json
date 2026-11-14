@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "FIRMS harmonized burning-activity calendar - NASA Space Apps Challenge 2026",
+  "description": "FireHarmony — satellite fire intelligence lab for NASA FIRMS MODIS + VIIRS harmonization (Space Apps 2026)",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -26,8 +26,10 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-leaflet": "^4.2.1",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^7.18.4",
     "recharts": "^2.12.7",
+    "remark-gfm": "^4.0.1",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7"
   },

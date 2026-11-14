@@ -1,4 +1,4 @@
-"""HGB v4 — residual (stacked) model ON TOP of the seasonal-ratio baseline.
+"""HGB v4 - residual (stacked) model ON TOP of the seasonal-ratio baseline.
 
 Diagnosis from v1–v3 on real full-month data: predicting the seasonal ratio
 from features loses to the plain per-month median ratio (B2). The network
@@ -213,26 +213,30 @@ def blocked_cv_compare(pairs: list[dict], min_train_years: int = 3) -> dict:
                       "residual_mae": round(res_mae[-1], 2)})
     m_b2 = float(np.mean(b2_mae))
     m_res = float(np.mean(res_mae))
-    wins = sum(1 for b, r in zip(b2_mae, res_mae) if r < b)
-    latest_ok = (res_mae[-1] <= b2_mae[-1] * 1.05) if b2_mae else False
+    m_b1 = float(np.mean(b1_mae)) if b1_mae else float("inf")
+    m_best_base = min(m_b1, m_b2)
+    fallback = "b1_global_ratio" if m_b1 < m_b2 else "b2_seasonal_ratio"
+    best_fold = [min(b, s) for b, s in zip(b1_mae, b2_mae)]
+    wins = sum(1 for b, r in zip(best_fold, res_mae) if r < b)
+    latest_ok = (res_mae[-1] <= best_fold[-1] * 1.05) if best_fold else False
     # Three conditions, because a single lucky fold is how v3 fooled itself:
-    #   (1) >=2% better on average, (2) wins the majority of folds,
-    #   (3) no blow-up on the most recent fold (the one closest to holdout).
-    enabled = (m_res < m_b2 * 0.98) and (wins * 2 > len(b2_mae)) and latest_ok
+    #   (1) >=2% better than the BEST baseline on average,
+    #   (2) wins the majority of folds,
+    #   (3) no blow-up on the most recent fold (closest to the holdout).
+    enabled = (m_res < m_best_base * 0.98) and (wins * 2 > len(best_fold)) and latest_ok
     why = []
-    if m_res >= m_b2 * 0.98:
-        why.append(f"mean gain only {(1 - m_res / m_b2) * 100:.1f}% (<2%)")
-    if wins * 2 <= len(b2_mae):
-        why.append(f"won {wins}/{len(b2_mae)} folds")
+    if m_res >= m_best_base * 0.98:
+        why.append(f"mean gain vs best baseline only {(1 - m_res / m_best_base) * 100:.1f}% (<2%)")
+    if wins * 2 <= len(best_fold):
+        why.append(f"won {wins}/{len(best_fold)} folds")
     if not latest_ok:
         why.append("regressed on the most recent fold")
-    m_b1 = float(np.mean(b1_mae)) if b1_mae else float("inf")
-    fallback = "b1_global_ratio" if m_b1 < m_b2 else "b2_seasonal_ratio"
     return {"enabled": enabled, "folds": folds,
             "cv_b1_mae": m_b1, "cv_b2_mae": m_b2, "cv_residual_mae": m_res,
-            "fold_wins": wins, "n_folds": len(b2_mae),
+            "cv_best_baseline_mae": m_best_base,
+            "fold_wins": wins, "n_folds": len(best_fold),
             "fallback_baseline": fallback,
-            "reason": ("residual beats both baselines on the vote" if enabled
+            "reason": ("residual beats the best baseline on the vote" if enabled
                        else "no robust gain; serving " + fallback
                        + " (" + "; ".join(why) + ")")}
 
@@ -259,12 +263,20 @@ def blocked_cv(pairs: list[dict], min_train_years: int = 3) -> dict:
             "n_configs": len(cv)}
 
 
-def train_holdout(pairs: list[dict], test_years: int = 2, tune: bool = True) -> dict:
+def train_holdout(pairs: list[dict], test_years: int = 2, tune: bool = True,
+                  test_set: set[int] | None = None) -> dict:
     pairs = sorted(pairs, key=lambda p: (p["year"], p["month"]))
     years = sorted({int(p["year"]) for p in pairs})
-    test_set = set(years[-test_years:]) if test_years > 0 else set()
-    train = [p for p in pairs if int(p["year"]) not in test_set]
-    test = [p for p in pairs if int(p["year"]) in test_set]
+    if test_set is not None:
+        test_set = {int(y) for y in test_set}
+    else:
+        test_set = set(years[-test_years:]) if test_years > 0 else set()
+    if test_set:
+        cutoff = min(test_set)
+        train = [p for p in pairs if int(p["year"]) < cutoff]
+        test = [p for p in pairs if int(p["year"]) in test_set]
+    else:
+        train, test = list(pairs), []
     base = {"trained": False, "n_train": len(train), "n_test": len(test),
             "train_years": sorted({int(p["year"]) for p in train}),
             "test_years": sorted(test_set), "test_year_count": test_years}

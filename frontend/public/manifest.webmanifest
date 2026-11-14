@@ -1,7 +1,7 @@
 {
-  "name": "FIRMS Fire Calendar",
-  "short_name": "FIRMS Calendar",
-  "description": "Harmonized MODIS + VIIRS burning-activity calendar.",
+  "name": "FireHarmony — Satellite Fire Intelligence Lab",
+  "short_name": "FireHarmony",
+  "description": "FireHarmony: a satellite fire intelligence lab for harmonized NASA FIRMS MODIS + VIIRS hot spots.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0B1426",

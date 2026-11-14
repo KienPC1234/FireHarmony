@@ -31,7 +31,15 @@ def main(argv: list[str] | None = None) -> int:
     from app.firms.store import load_records
 
     if args.data == "raw":
+        from app.firms import coverage
         pairs = ml_cal.build_monthly_pairs_iter(store.iter_raw_rows(args.aoi, limit=None))
+        eligible = coverage.eligible_pair_months(args.aoi)
+        if len(eligible) >= 24:
+            pairs = [p for p in pairs
+                     if f"{p['year']}-{p['month']:02d}" in eligible]
+        print(f"eligible paired months: {len(eligible)} "
+              f"(filter {'on' if len(eligible) >= 24 else 'off: sparse AOI'})",
+              file=sys.stderr)
     else:
         pairs = ml_cal.build_monthly_pairs(load_records(args.aoi, limit=args.limit))
     result = ml_v4.train_holdout(pairs, test_years=args.test_years, tune=args.tune)

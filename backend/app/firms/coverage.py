@@ -18,6 +18,7 @@ import json
 import re
 from collections import defaultdict
 from datetime import date
+from functools import lru_cache
 from pathlib import Path
 
 from app.firms import store
@@ -31,15 +32,24 @@ LEDGER = store.DATA_DIR / "request_ledger.jsonl"
 PARTIAL_THRESHOLD = 0.90
 
 
+@lru_cache(maxsize=8)
+def _manifest_cached(path_str: str, mtime_ns: int, size: int, inode: int = 0) -> tuple:
+    try:
+        doc = json.loads(Path(path_str).read_text(encoding="utf-8"))
+        return tuple(doc) if isinstance(doc, list) else ()
+    except (OSError, ValueError):
+        return ()
+
+
 def load_manifest(path: Path | None = None) -> list[dict]:
     path = path or store.MANIFEST
     if not path.exists():
         return []
     try:
-        doc = json.loads(path.read_text(encoding="utf-8"))
-        return doc if isinstance(doc, list) else []
-    except (OSError, ValueError):
+        st = path.stat()
+    except OSError:
         return []
+    return list(_manifest_cached(str(path), st.st_mtime_ns, st.st_size, st.st_ino))
 
 
 def ledger_status(aoi: str, limit: int = 50) -> dict:
@@ -124,33 +134,90 @@ def requested_days(aoi: str, manifest: list[dict] | None = None) -> dict[str, di
     return {ym: dict(by_src) for ym, by_src in out.items()}
 
 
+def _sensor_family(source: str) -> str:
+    s = str(source).upper()
+    if s.startswith("MODIS"):
+        return "MODIS"
+    if s.startswith("VIIRS"):
+        return "VIIRS"
+    return "OTHER"
+
+
+def coverage_from_day_sets(modis_days: set[int], viirs_days: set[int],
+                           days_in_month: int) -> dict:
+    """Pure per-sensor coverage rule (used by tests and the manifest path).
+
+    Harmonization needs BOTH sensors on the same days; union coverage is not
+    evidence that a MODIS/VIIRS pair exists. Example: MODIS 31/31 + VIIRS
+    5/31 gives union=31 but paired=5.
+    """
+    modis = set(modis_days)
+    viirs = set(viirs_days)
+    paired = modis & viirs
+    union = modis | viirs
+    last = int(days_in_month) or 1
+    ratio = len(paired) / last
+    return {
+        "days_in_month": last,
+        "modis_days": len(modis),
+        "viirs_days": len(viirs),
+        "union_days": len(union),
+        "paired_days": len(paired),
+        "paired_coverage_ratio": round(ratio, 3),
+        "coverage_ratio": round(ratio, 3),  # backward-compatible alias
+        "coverage_by_sensor": {
+            "MODIS": {"days": len(modis), "ratio": round(len(modis) / last, 3)},
+            "VIIRS": {"days": len(viirs), "ratio": round(len(viirs) / last, 3)},
+        },
+        "missing_days": [d for d in range(1, last + 1) if d not in paired],
+        "missing_modis_days": [d for d in range(1, last + 1) if d not in modis],
+        "missing_viirs_days": [d for d in range(1, last + 1) if d not in viirs],
+        "coverage_status": ("complete" if len(paired) == last else
+                            "usable" if ratio >= PARTIAL_THRESHOLD else
+                            "incomplete"),
+        "partial": ratio < PARTIAL_THRESHOLD,
+        "status": "verified",
+    }
+
+
+@lru_cache(maxsize=16)
+def _coverage_cached(aoi: str, mtime_ns: int, size: int, inode: int = 0) -> dict:
+    return _coverage_compute(aoi, None)
+
+
 def coverage_for_aoi(aoi: str, manifest: list[dict] | None = None) -> dict[str, dict]:
-    """Per-month verified coverage (or {} when no manifest entries exist)."""
+    """Per-month coverage split by sensor, with a paired-day eligibility flag."""
+    if manifest is None:
+        try:
+            st = store.MANIFEST.stat()
+            return _coverage_cached(aoi, st.st_mtime_ns, st.st_size, st.st_ino)
+        except OSError:
+            return {}
+    return _coverage_compute(aoi, manifest)
+
+
+def _coverage_compute(aoi: str, manifest: list[dict] | None) -> dict[str, dict]:
     per = requested_days(aoi, manifest)
     cover: dict[str, dict] = {}
     for ym, by_src in sorted(per.items()):
         y, mo = int(ym[:4]), int(ym[5:])
         last = _cal.monthrange(y, mo)[1]
-        union: set[int] = set()
-        for days in by_src.values():
-            union |= days
-        requested = len(union)
-        ratio = requested / last if last else 0.0
-        cover[ym] = {
-            "days_in_month": last,
-            "requested_days": requested,
-            "coverage_ratio": round(ratio, 3),
-            "missing_days": [d for d in range(1, last + 1) if d not in union],
-            "sources": {s: len(d) for s, d in sorted(by_src.items())},
-            "status": "verified",
-            "partial": ratio < PARTIAL_THRESHOLD,
-        }
+        fam_days: dict[str, set[int]] = {"MODIS": set(), "VIIRS": set()}
+        for src, days in by_src.items():
+            fam_days.setdefault(_sensor_family(src), set()).update(days)
+        entry = coverage_from_day_sets(fam_days.get("MODIS", set()),
+                                       fam_days.get("VIIRS", set()), last)
+        entry["sources"] = {s: len(d) for s, d in sorted(by_src.items())}
+        entry["source_families"] = {s: sorted(d) for s, d in fam_days.items()}
+        entry["nrt"] = any("NRT" in s.upper() for s in by_src)
+        cover[ym] = entry
     return cover
 
 
 def coverage_summary(aoi: str, manifest: list[dict] | None = None) -> dict:
     cover = coverage_for_aoi(aoi, manifest)
     full = [ym for ym, c in cover.items() if not c["partial"]]
+    complete = [ym for ym, c in cover.items() if c["coverage_status"] == "complete"]
     partial = [ym for ym, c in cover.items() if c["partial"]]
     missing_day_hist: dict[str, int] = defaultdict(int)
     for c in cover.values():
@@ -160,14 +227,67 @@ def coverage_summary(aoi: str, manifest: list[dict] | None = None) -> dict:
         "aoi": aoi,
         "months": len(cover),
         "full_months": len(full),
+        "complete_months": len(complete),
         "partial_months": len(partial),
         "partial_examples": sorted(partial)[:12],
         "missing_day_histogram": dict(sorted(missing_day_hist.items(), key=lambda kv: int(kv[0]))),
         "verified": bool(cover),
         "threshold": PARTIAL_THRESHOLD,
+        "coverage_metric": "paired_request_coverage",
+        "observation_footprint": "unknown",
+        "definition": ("paired_days / days_in_month; a month is usable when both "
+                       "MODIS and VIIRS were requested on >=90% of days, complete "
+                       "only at 100%. This measures successful requests, NOT "
+                       "cloud-free overpass or per-cell observation footprint. "
+                       "Union coverage is reported separately."),
         "months_detail": cover,
+        "gaps": coverage_gaps(aoi),
     }
 
 
 def today() -> str:
     return date.today().isoformat()
+
+
+def eligible_pair_months(aoi: str, min_ratio: float = 0.9) -> set[str]:
+    """Year-months with >= min_ratio paired MODIS/VIIRS requested days.
+
+    Training/evaluation uses this so a partially fetched year cannot silently
+    enter a monthly ratio. Sample/upload has no ledger and is not filtered.
+    """
+    cover = coverage_for_aoi(aoi)
+    return {ym for ym, c in cover.items()
+            if float(c.get("paired_coverage_ratio", 0.0)) >= min_ratio}
+
+
+def coverage_gaps(aoi: str, start_year: int = 2012,
+                  end_year: int | None = None) -> dict:
+    """Explicit missing-month ledger for the satellite era.
+
+    A year with no rows is not a quiet year; it may be unfetched. This ledger
+    lists every expected month absent from the manifest so the UI and docs can
+    say "not fetched" instead of silently omitting it.
+    """
+    cover = coverage_for_aoi(aoi)
+    if not cover:
+        return {"verified": False, "reason": "no_manifest_entries"}
+    if end_year is None:
+        end_year = max(int(ym[:4]) for ym in cover)
+    expected = [f"{y}-{m:02d}" for y in range(start_year, end_year + 1)
+                for m in range(1, 13)]
+    have = set(cover)
+    missing = [ym for ym in expected if ym not in have]
+    by_year: dict[str, int] = defaultdict(int)
+    for ym in missing:
+        by_year[ym[:4]] += 1
+    return {
+        "verified": True,
+        "range": [f"{start_year}-01", f"{end_year}-12"],
+        "expected_months": len(expected),
+        "fetched_months": len(expected) - len(missing),
+        "missing_months": len(missing),
+        "missing_by_year": dict(sorted(by_year.items())),
+        "missing_examples": missing[:12],
+        "note": ("Missing = absent from the request manifest, not zero fire. "
+                 "Resume with scripts.firms.fetch_missing."),
+    }

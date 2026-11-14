@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="title desc">
-  <title id="title">FIRMS Fire Calendar</title>
-  <desc id="desc">A warm amber flame for the FIRMS harmonized fire calendar.</desc>
+  <title id="title">FireHarmony</title>
+  <desc id="desc">A warm amber flame for FireHarmony, the NASA FIRMS harmonization lab.</desc>
   <defs>
     <clipPath id="crossing"><path d="M263 113C273 170 211 197 218 249C239 243 259 225 270 204C280 240 323 254 329 213C366 255 378 285 371 319C361 365 319 394 264 394C205 394 161 357 158 306C155 265 174 231 207 198C239 166 255 144 263 113Z"/></clipPath>
     <linearGradient id="fire" x1="190" y1="150" x2="315" y2="379" gradientUnits="userSpaceOnUse">

@@ -1,9 +1,9 @@
-"""Temporal Transformer v2 — log-ratio target, pooled multi-AOI, early stop.
+"""Temporal Transformer v2 - log-ratio target, pooled multi-AOI, early stop.
 
 Why v1 struggled: it predicted the absolute VIIRS level of the last month of a
 12-month window. Absolute activity drifts 5x across years, so the model spent
 capacity on year scale instead of sensor response, and it trained on a single
-AOI (73 overlapping windows — tiny for attention).
+AOI (73 overlapping windows - tiny for attention).
 
 v2 changes:
   1. TARGET = log ratio of the LAST month, log((viirs+1)/(modis+1)). Stationary
@@ -11,7 +11,7 @@ v2 changes:
   2. POOLED training over every AOI passed in, with a learned AOI embedding so
      the model can shift its ratio baseline per region (amazon vs australia).
   3. EARLY STOPPING on the last training year (never the holdout), plus two
-     random seeds averaged — cheap variance control for a small model.
+     random seeds averaged - cheap variance control for a small model.
   4. SPATIAL TRANSFER is measurable: train on AOIs A+B, test on C, and report
      it separately from the temporal split.
 
@@ -174,14 +174,22 @@ def _predict(model, windows: list[dict], use_aoi_embedding: bool = True) -> np.n
 
 
 def train_pooled(windows: list[dict], test_years: int = 2,
-                 epochs: int = 200) -> dict:
+                 epochs: int = 200,
+                 test_set: set[int] | None = None) -> dict:
     """Temporal split over pooled windows; early-stop year carved from train."""
     if not _HAS_TORCH:
         return {"trained": False, "reason": "torch-missing"}
     years = sorted({w["year"] for w in windows})
-    test_set = set(years[-test_years:]) if test_years > 0 else set()
-    rest = [w for w in windows if w["year"] not in test_set]
-    test = [w for w in windows if w["year"] in test_set]
+    if test_set is not None:
+        test_set = {int(y) for y in test_set}
+    else:
+        test_set = set(years[-test_years:]) if test_years > 0 else set()
+    if test_set:
+        cutoff = min(test_set)
+        rest = [w for w in windows if w["year"] < cutoff]
+        test = [w for w in windows if w["year"] in test_set]
+    else:
+        rest, test = list(windows), []
     rest_years = sorted({w["year"] for w in rest})
     base = {"trained": False, "n_train": len(rest), "n_test": len(test),
             "train_years": rest_years, "test_years": sorted(test_set)}
@@ -311,6 +319,8 @@ def save_artifact(models: list, meta: dict, aoi: str, model_dir,
            "n_train": meta.get("n_train", 0), "n_test": meta.get("n_test", 0),
            "metrics": meta.get("metrics", {}),
            "params": meta.get("params", 0), "win": WIN,
+           "weights_file": mp.name,
+           "weights_sha256": __import__("hashlib").sha256(mp.read_bytes()).hexdigest(),
            "target": "log_ratio",
            "torch_version": torch.__version__,
            "created_at": datetime.now(timezone.utc).isoformat()}
@@ -331,6 +341,8 @@ def artifact_compat(models, meta: dict, expected_fingerprint: str | None = None)
         return False, "artifact_missing"
     if meta.get("feature_version") and meta["feature_version"] != FEATURE_VERSION:
         return False, f"feature_version_mismatch:{meta['feature_version']}!={FEATURE_VERSION}"
+    if meta.get("algorithm_version") and meta["algorithm_version"] != ALGORITHM_VERSION:
+        return False, f"algorithm_version_mismatch:{meta['algorithm_version']}!={ALGORITHM_VERSION}"
     fp = meta.get("data_fingerprint")
     if expected_fingerprint is not None:
         if not fp:

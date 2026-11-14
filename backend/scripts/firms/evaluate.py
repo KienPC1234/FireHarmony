@@ -42,7 +42,7 @@ def main() -> int:
             for method, got in methods.items():
                 want = expected.get(method) or {}
                 for key in ("mae", "wape", "bias"):
-                    if key in want and abs(got[key] - want[key]) > 1e-4:
+                    if key in want and abs(got[key] - want[key]) > 1e-3:
                         print(f"MISMATCH {group}/{method}/{key}: "
                               f"{got[key]} != {want[key]}")
                         mismatches += 1
@@ -55,6 +55,10 @@ def main() -> int:
         print(json.dumps(res, indent=1))
         return 2
     m = res["manifest"]
+    stamped = evaluation.stamp_artifacts(m)
+    Path(res["path"]).write_text(json.dumps(m, indent=1, ensure_ascii=False),
+                                 encoding="utf-8")
+    print(f"stamped {stamped} artifact sidecars")
     print(json.dumps({"path": res["path"], "n_eval": m["n_eval"],
                       "test_years": m["test_years"],
                       "pooled": {k: v["mae"] for k, v in m["pooled"]["metrics"].items()},

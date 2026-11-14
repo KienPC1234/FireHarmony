@@ -1,4 +1,4 @@
-"""FIRMS harmonized hotspot record — single clean schema for MODIS + VIIRS.
+"""FIRMS harmonized hotspot record - single clean schema for MODIS + VIIRS.
 
 Source format: NASA FIRMS active-fire CSV (MODIS C6.1 NRT + VIIRS 375m V2 NRT).
 Docs: https://www.earthdata.nasa.gov/faq/firms-faq (column names below).
@@ -59,7 +59,10 @@ class FirmsRecord(BaseModel):
     def _aliases(cls, data: Any) -> Any:
         """Accept real FIRMS column variants: VIIRS bright_ti4/ti5, any case."""
         if isinstance(data, dict):
-            d = {str(k).lower(): v for k, v in data.items()}
+            # `iter_raw_rows` already lowercases CSV headers; avoid rebuilding
+            # a ~15-key dict for every one of millions of rows.
+            d = data if all(isinstance(k, str) and k.islower() for k in data) else {
+                str(k).lower(): v for k, v in data.items()}
             if d.get("brightness") in (None, "") and d.get("bright_ti4") not in (None, ""):
                 d["brightness"] = d["bright_ti4"]
             if d.get("bright_t31") in (None, "") and d.get("bright_ti5") not in (None, ""):

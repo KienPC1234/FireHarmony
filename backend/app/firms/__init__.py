@@ -1,4 +1,4 @@
-"""FIRMS harmonization API — the only domain module in this repo."""
+"""FIRMS harmonization API - the only domain module in this repo."""
 from __future__ import annotations
 
 from . import calendar as cal

@@ -1,0 +1,262 @@
+import { Activity, BarChart3, Cpu, Layers } from "lucide-react";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from "recharts";
+import { SimResponse } from "@/lib/api";
+import { compact, num } from "@/lib/utils";
+import { useLang } from "@/lib/i18n";
+import { ConstellationOrbitIllustration, MultiScaleHarmonizationIllustration } from "@/components/illustrations";
+import { Kpi, Section } from "./LabWidgets";
+
+interface SimulatorTabProps {
+  sim: SimResponse | null;
+  sensors: string[];
+}
+
+export function SimulatorTab({ sim, sensors }: SimulatorTabProps) {
+  const { lang } = useLang();
+  const vi = lang === "vi";
+
+  const custom =
+    sim?.simulations.find((s) => s.sensor_config === "custom") ??
+    sim?.simulations.find((s) => s.sensor_config === "all_sensors");
+
+  const simChart = (sim?.simulations ?? []).map((s) => ({
+    name: s.sensor_config,
+    total: s.year_total,
+    delta: s.delta_vs_all ?? 0,
+    selected:
+      s.sensor_config === "custom" ||
+      (!sim?.simulations.some((x) => x.sensor_config === "custom") &&
+        s.sensor_config === "all_sensors"),
+  }));
+
+  const monthChart = custom
+    ? Object.entries(custom.months).map(([m, v]) => ({
+        month: `M${String(m).padStart(2, "0")}`,
+        value: v ?? 0,
+      }))
+    : [];
+
+  return (
+    <div className="space-y-5 animate-fade-in">
+      {/* Dynamic Orbital Constellation Swath Illustration */}
+      <ConstellationOrbitIllustration activeSensors={sensors} />
+
+      {sim && custom ? (
+        <>
+          {/* Telemetry KPIs */}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Kpi
+              icon={Activity}
+              label={vi ? "Tổng hoạt động năm" : "Year Total Activity"}
+              value={compact(custom.year_total)}
+              hint={`${num(custom.n_cells)} cells · Year ${custom.year}`}
+              tone="accent"
+            />
+            <Kpi
+              icon={BarChart3}
+              label={vi ? "Δ so với tất cả" : "Δ vs All Sensors"}
+              value={
+                custom.delta_vs_all == null
+                  ? "0 (Baseline)"
+                  : `${custom.delta_vs_all > 0 ? "+" : ""}${compact(custom.delta_vs_all)}`
+              }
+              hint={
+                custom.delta_vs_all == null || custom.delta_vs_all === 0
+                  ? "Full constellation"
+                  : "Impact from removed sensors"
+              }
+              tone={custom.delta_vs_all != null && custom.delta_vs_all < 0 ? "warn" : "good"}
+            />
+            <Kpi
+              icon={Cpu}
+              label={vi ? "Tháng đo được k" : "Months with k-ratio"}
+              value={`${custom.k_measured_months}/${custom.months_total}`}
+              hint={`Fallback ratio k=${custom.k_fallback}`}
+              tone={custom.k_measured_months ? "good" : "warn"}
+            />
+            <Kpi
+              icon={Layers}
+              label={vi ? "Ô quan sát / Ước lượng" : "Observed / Estimated"}
+              value={`${compact(custom.observed_cells)} / ${compact(custom.estimated_cells)}`}
+              hint={custom.viirs_available ? "VIIRS feed active" : "MODIS-only estimates"}
+              tone={custom.viirs_available ? "good" : "warn"}
+            />
+          </div>
+
+          {sim?.platforms_present && !sim.platforms_present.some((p) => p.startsWith("NOAA")) && (
+            <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200 leading-relaxed">
+              {vi
+                ? `Bản raw này chỉ có ${sim.platforms_present.join(", ")}. Các cấu hình NOAA-20/21 vì vậy trùng tổng với all_sensors: đây là "không có dữ liệu nền tảng", không phải bằng chứng NOAA không đóng góp.`
+                : `This raw pull contains only ${sim.platforms_present.join(", ")}. NOAA-20/21 configs therefore equal all_sensors: that means "platform absent from the pull", not evidence that NOAA contributes nothing.`}
+            </p>
+          )}
+
+          {/* Dual Visual Charts */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Section
+              title={vi ? "So sánh kịch bản cảm biến" : "Sensor Cohort Comparison"}
+              subtitle={vi ? "Tổng chỉ số hoạt động theo từng tập vệ tinh" : "Annual activity index across configurations"}
+            >
+              <div style={{ height: 260 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={simChart} margin={{ top: 10, right: 10, left: -18, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fontSize: 10, fill: "#94a3b8" }}
+                      interval={0}
+                      angle={-15}
+                      textAnchor="end"
+                      height={50}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10, fill: "#94a3b8" }}
+                      tickFormatter={(v) => compact(v)}
+                    />
+                    <RTooltip
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload;
+                        return (
+                          <div className="rounded-lg border border-border/80 bg-slate-900/95 p-2.5 font-mono text-xs shadow-xl backdrop-blur">
+                            <p className="font-bold text-white">{d.name}</p>
+                            <p className="text-cyan-400 font-semibold">{num(d.total)} activity index</p>
+                            {d.delta !== 0 && (
+                              <p className={d.delta < 0 ? "text-rose-400" : "text-emerald-400"}>
+                                Δ vs all: {d.delta > 0 ? "+" : ""}{compact(d.delta)}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      }}
+                    />
+                    <Bar dataKey="total" radius={[4, 4, 0, 0]}>
+                      {simChart.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={entry.selected ? "#06b6d4" : "#1e293b"}
+                          stroke={entry.selected ? "#38bdf8" : "#334155"}
+                          strokeWidth={entry.selected ? 1.5 : 1}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Section>
+
+            <Section
+              title={vi ? "Diễn biến 12 tháng (Kịch bản chọn)" : "Monthly Fire Profile (Selected Configuration)"}
+              subtitle={vi ? "Phân bố hoạt động trong năm theo từng tháng" : "Month-by-month activity index"}
+            >
+              <div style={{ height: 260 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={monthChart} margin={{ top: 10, right: 10, left: -18, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="monthGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                    <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={(v) => compact(v)} />
+                    <RTooltip
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload;
+                        return (
+                          <div className="rounded-lg border border-border/80 bg-slate-900/95 p-2 font-mono text-xs shadow-xl">
+                            <p className="font-bold text-white">{d.month}</p>
+                            <p className="text-cyan-400">{num(d.value)} activity index</p>
+                          </div>
+                        );
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke="#06b6d4"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#monthGrad)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </Section>
+          </div>
+
+          {/* Configuration Matrix Table */}
+          <Section
+            title={vi ? "Bảng so sánh chi tiết các kịch bản" : "Detailed Configuration Matrix"}
+            subtitle={vi ? "Đo lường độ lệch và tỷ lệ ô quan sát" : "Quantified deviation, observed fraction, and monthly breakdown"}
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full font-mono text-xs text-left">
+                <thead>
+                  <tr className="border-b border-border/60 text-xs text-slate-400">
+                    <th className="pb-2 font-semibold">{vi ? "Cấu hình cảm biến" : "Configuration"}</th>
+                    <th className="pb-2 font-semibold text-right">{vi ? "Tổng năm" : "Year Total"}</th>
+                    <th className="pb-2 font-semibold text-right">{vi ? "Δ vs Tất cả" : "Δ vs All"}</th>
+                    <th className="pb-2 font-semibold text-right">{vi ? "Ô thực trắc" : "Observed Cells"}</th>
+                    <th className="pb-2 font-semibold text-right">{vi ? "Ô ước tính" : "Estimated Cells"}</th>
+                    <th className="pb-2 font-semibold text-center">{vi ? "Tháng đỉnh" : "Peak Month"}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/30">
+                  {sim.simulations.map((s) => {
+                    const isSelected =
+                      s.sensor_config === "custom" ||
+                      (!sim.simulations.some((x) => x.sensor_config === "custom") &&
+                        s.sensor_config === "all_sensors");
+
+                    // Find peak month
+                    const entries = Object.entries(s.months);
+                    const peak = entries.reduce((max, cur) => (cur[1] || 0) > (max[1] || 0) ? cur : max, entries[0]);
+
+                    return (
+                      <tr
+                        key={s.sensor_config}
+                        className={isSelected ? "bg-cyan-500/10 text-cyan-200 font-semibold" : "text-slate-300 hover:bg-white/5"}
+                      >
+                        <td className="py-2.5 flex items-center gap-2">
+                          <span className={`h-2 w-2 rounded-full ${isSelected ? "bg-cyan-400" : "bg-slate-600"}`} />
+                          <span>{s.sensor_config}</span>
+                        </td>
+                        <td className="py-2.5 text-right font-bold text-white">{num(s.year_total)}</td>
+                        <td className="py-2.5 text-right">
+                          {s.delta_vs_all == null
+                            ? "-"
+                            : s.delta_vs_all === 0
+                            ? "0"
+                            : `${s.delta_vs_all > 0 ? "+" : ""}${compact(s.delta_vs_all)}`}
+                        </td>
+                        <td className="py-2.5 text-right text-slate-400">{num(s.observed_cells)}</td>
+                        <td className="py-2.5 text-right text-slate-400">{num(s.estimated_cells)}</td>
+                        <td className="py-2.5 text-center text-slate-400">
+                          {vi ? "T" : "M"}{String(peak?.[0] || 1).padStart(2, "0")} ({compact(peak?.[1] || 0)})
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Section>
+        </>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-border/80 p-8 text-center text-slate-400">
+          <p className="text-sm font-medium">
+            {vi
+              ? "Chọn các tham số ở bảng điều khiển bên trái rồi bấm 'Chạy mô phỏng sứ mệnh'."
+              : 'Select target parameters on the left and click "Run Mission Simulation".'}
+          </p>
+        </div>
+      )}
+
+      {/* Multi-Scale Footprint Resolution Illustration */}
+      <MultiScaleHarmonizationIllustration />
+    </div>
+  );
+}

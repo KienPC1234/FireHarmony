@@ -1,4 +1,4 @@
-"""HGB cross-sensor calibrator v3 — log-ratio target + blocked CV tuning.
+"""HGB cross-sensor calibrator v3 - log-ratio target + blocked CV tuning.
 
 Two structural fixes over v2 (which lost to the seasonal baseline):
 

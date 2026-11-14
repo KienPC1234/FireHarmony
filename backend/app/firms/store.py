@@ -216,16 +216,43 @@ def load_upload_dataset(dataset_id: str, limit: int = 100000) -> list[dict]:
 
 
 CACHE_DIR = DATA_DIR / "cache"
+_FP_CACHE: dict[str, tuple[int, int, int, str]] = {}
+
+
+def file_sha256(path: Path) -> str:
+    """Full-content SHA-256 (audit P0-05)."""
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def raw_fingerprint(aoi: str, raw_dir: Path | None = None) -> str:
-    """Cache key: file names + sizes + max mtime for an AOI's raw pulls."""
+    """Content fingerprint of an AOI's raw pulls.
+
+    Audit P0-05: name+size+mtime can miss an in-place edit. We hash file
+    contents, memoized by (size, mtime_ns, ctime_ns). Rewriting a byte changes
+    ctime even if mtime is restored; copying identical content changes ctime
+    but the content hash (and therefore the fingerprint) stays the same.
+    """
     raw_dir = raw_dir or RAW_DIR
     files = sorted(raw_dir.glob(f"{aoi}_*.csv"))
     if not files:
         return "empty"
-    parts = [f"{f.name}:{f.stat().st_size}" for f in files]
-    parts.append(f"mt:{max(f.stat().st_mtime for f in files):.0f}")
+    parts: list[str] = []
+    for f in files:
+        st = f.stat()
+        key = str(f)
+        cached = _FP_CACHE.get(key)
+        marker = (st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+        if cached is None or cached[:3] != marker:
+            try:
+                digest = file_sha256(f)
+            except OSError:
+                digest = "unreadable"
+            _FP_CACHE[key] = (*marker, digest)
+        parts.append(f"{f.name}:{_FP_CACHE[key][3]}")
     return hashlib.sha256("|".join(parts).encode()).hexdigest()[:16]
 
 
@@ -265,11 +292,13 @@ def cache_put(key: str, value) -> None:
         old.unlink(missing_ok=True)
 
 
-def iter_raw_rows(aoi: str, raw_dir: Path | None = None, limit: int | None = None):
+def iter_raw_rows(aoi: str, raw_dir: Path | None = None, limit: int | None = None,
+                  year: int | None = None, ym: str | None = None):
     """Stream deduped raw rows for an aoi without materialising them.
 
     Same dedup signature and SP-first ordering as load_raw_merged, but yields
     dicts so a 1.4M-row AOI never becomes a 1.4M-element Python list in RAM.
+    Supports year/ym fast-path filtering to avoid parsing years of unneeded CSVs.
     """
     if aoi not in AOIS and aoi != "custom":
         raise ValueError(f"Unknown aoi {aoi!r}")
@@ -278,21 +307,38 @@ def iter_raw_rows(aoi: str, raw_dir: Path | None = None, limit: int | None = Non
         return
     files = sorted(raw_dir.glob(f"{aoi}_*.csv"),
                    key=lambda p: (0 if "_SP_" in p.name else 1, p.name))
+    if ym is not None:
+        files = [f for f in files if f"_{ym}-" in f.name or f"_{ym}_" in f.name]
+    elif year is not None:
+        files = [f for f in files if f"_{year}-" in f.name]
     seen: set[int] = set()
     n = 0
     for f in files:
         try:
-            with f.open(encoding="utf-8") as fh:
-                for r in csv.DictReader(fh):
-                    d = {k.lower(): v for k, v in r.items()}
+            with f.open(encoding="utf-8", newline="") as fh:
+                reader = csv.reader(fh)
+                try:
+                    header = [h.strip().lower() for h in next(reader)]
+                except StopIteration:
+                    continue
+                idx = {k: i for i, k in enumerate(header)}
+                i_inst = idx.get("instrument")
+                i_sat = idx.get("satellite")
+                i_date = idx.get("acq_date")
+                i_time = idx.get("acq_time")
+                i_lat = idx.get("latitude")
+                i_lon = idx.get("longitude")
+                for row in reader:
                     try:
-                        sig = (str(d.get("instrument", "")).upper(),
-                               str(d.get("satellite", "")).strip(),
-                               str(d.get("acq_date", ""))[:10],
-                               str(d.get("acq_time", "")).strip(),
-                               round(float(d.get("latitude") or 0), 4),
-                               round(float(d.get("longitude") or 0), 4))
-                    except (TypeError, ValueError):
+                        sig = (
+                            row[i_inst].upper() if i_inst is not None else "",
+                            row[i_sat].strip() if i_sat is not None else "",
+                            row[i_date][:10] if i_date is not None else "",
+                            row[i_time].strip() if i_time is not None else "",
+                            round(float(row[i_lat]), 4) if i_lat is not None else 0.0,
+                            round(float(row[i_lon]), 4) if i_lon is not None else 0.0,
+                        )
+                    except (IndexError, TypeError, ValueError):
                         continue
                     # 64-bit Python hash: same dedup intent with ~1/8 memory
                     # of a tuple set at 4M+ rows.
@@ -300,7 +346,7 @@ def iter_raw_rows(aoi: str, raw_dir: Path | None = None, limit: int | None = Non
                     if key in seen:
                         continue
                     seen.add(key)
-                    yield d
+                    yield dict(zip(header, row))
                     n += 1
                     if limit is not None and n >= limit:
                         return
@@ -384,15 +430,27 @@ def raw_stats(aoi: str, raw_dir: Path | None = None) -> dict:
     cover = _cov.coverage_for_aoi(aoi) if files else {}
     months = sorted(cover)
     full = [m for m in months if not cover[m].get("partial")]
+    manifest_files = set()
+    if MANIFEST.exists():
+        try:
+            manifest_files = {e.get("file") for e in json.loads(MANIFEST.read_text())}
+        except (OSError, ValueError):
+            manifest_files = set()
+    checksums = sum(1 for f in files if f.name in manifest_files)
+    full_months = len(full)
     return {
         "aoi": aoi,
         "raw_ready": bool(files),
+        "dashboard_ready": bool(files),
+        "benchmark_ready": bool(cover) and full_months >= 12,
         "raw_files": len(files),
         "months_available": len(months),
         "date_range": [months[0], months[-1]] if months else None,
-        "full_months": len(full),
-        "partial_months": len(months) - len(full),
+        "full_months": full_months,
+        "partial_months": len(months) - full_months,
         "coverage_verified": bool(cover),
+        "checksum_entries": checksums,
+        "checksums_present": checksums == len(files) if files else False,
         "fingerprint": raw_fingerprint(aoi, raw_dir) if files else "empty",
     }
 

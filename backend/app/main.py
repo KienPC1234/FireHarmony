@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import logging
@@ -15,12 +16,13 @@ from pathlib import Path
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.firms import calendar as cal
-from app.firms import (coverage as cov, dl, evaluation, explain as ex, harmonize,
-                       llm, ml_cal, ml_v4, store, ts_v2 as tst)
+from app.firms import (coverage as cov, dl, evaluation, evidence as evd,
+                       explain as ex, harmonize, llm, ml_cal, ml_v4, sf_lite,
+                       spatial, store, ts_v2 as tst)
 from app.firms.schema import FirmsRecord
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper(),
@@ -30,18 +32,18 @@ logger = logging.getLogger("firms.api")
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 AOIS = {
-    "vietnam": "Vietnam — Central Highlands / Mekong, dry Dec–Apr",
-    "amazon": "Amazon — southern basin, dry Jul–Oct (2019 fire season)",
-    "australia": "Australia — southeast, dry Dec–Feb (Black Summer 2019–20)",
+    "vietnam": "Vietnam (Central Highlands / Mekong, dry Dec-Apr)",
+    "amazon": "Amazon (Southern Basin, dry Jul-Oct 2019)",
+    "australia": "Australia (Southeast, dry Dec-Feb Black Summer)",
 }
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MODEL_DIR = Path(__file__).resolve().parents[1] / "data" / "firms" / "models"
 
 app = FastAPI(
-    title="FIRMS Harmonized Fire Calendar API",
-    description=("Harmonization of MODIS and VIIRS hot spots into one "
-                 "burning-activity calendar. Upload FIRMS CSV -> harmonized "
-                 "calendar + anomalies + CSV export."),
+    title="FireHarmony API - NASA FIRMS MODIS/VIIRS harmonization",
+    description=("FireHarmony: harmonization of NASA FIRMS MODIS and VIIRS hot spots "
+                 "into one burning-activity calendar, with coverage audit and "
+                 "evidence-grounded explanations."),
     version="0.1.0",
 )
 
@@ -66,13 +68,51 @@ def _sample_records(limit: int = 500, aoi: str = "vietnam") -> list[dict]:
         raise HTTPException(400, str(e))
 
 
+def _artifact_availability() -> dict:
+    """Report servable methods from torch + required artifact FILES, not import alone.
+
+    Audit V6 P0-03/P1-11: torch import used to advertise `ts=true` even when
+    the release ZIP shipped only JSON metadata and no weights.
+    """
+    def present(prefix: str, extensions: tuple[str, ...]) -> bool:
+        return all(
+            (MODEL_DIR / f"{prefix}_{aoi}{tag}.{ext}").exists()
+            for aoi in AOIS for tag in ("", "_raw") for ext in extensions
+        )
+
+    ml_present = present("cal", ("json", "joblib"))
+    ts_weights = present("ts", ("json", "pt"))
+    sf_present = all(
+        (MODEL_DIR / f"sf_lite{tag}.{ext}").exists()
+        for tag in ("", "_raw") for ext in ("json", "pt"))
+    ts_ok = bool(ts_weights and tst._HAS_TORCH)  # noqa: SLF001
+    reason = None
+    if not ts_weights:
+        reason = "weights_missing"
+    elif not tst._HAS_TORCH:  # noqa: SLF001
+        reason = "torch_missing"
+    return {
+        "stat": True,
+        "ml": ml_present,
+        "ts": ts_ok,
+        "ml_artifact_present": ml_present,
+        "ts_artifact_present": ts_weights,
+        "ts_reason": reason,
+        "sf_artifact_present": sf_present,
+        "sf_experimental": True,
+    }
+
+
 @app.get("/api/health")
 def health():
+    availability = _artifact_availability()
     return {"status": "ok", "service": "firms-calendar",
             "uptime_s": round(time.time() - _STARTED, 1),
             "torch": dl.describe()["has_torch"],
-            "methods_available": {"stat": True, "ml": True,
-                                  "ts": bool(tst._HAS_TORCH)},  # noqa: SLF001
+            "methods_available": {"stat": availability["stat"],
+                                  "ml": availability["ml"],
+                                  "ts": availability["ts"]},
+            "methods_detail": availability,
             "admin_gated": bool(os.getenv("ADMIN_TOKEN")) or
                            os.getenv("APP_ENV", "").lower() in ("production", "prod")}
 
@@ -132,6 +172,25 @@ def _parse_bbox(raw: str | None) -> tuple[float, float, float, float] | None:
     return (x0, y0, x1, y1)
 
 
+def _evaluation_facts(aoi: str, data: str) -> dict:
+    m = evaluation.load_manifest(data, MODEL_DIR)
+    if not m:
+        return {}
+    per = (m.get("per_aoi") or {}).get(aoi) or {}
+    return {
+        "evaluation_version": m.get("evaluation_version"),
+        "test_years": per.get("test_years") or m.get("test_years"),
+        "n_eval": m.get("n_eval"),
+        "eval_unit": m.get("eval_unit"),
+        "pooled_metrics": (m.get("pooled") or {}).get("metrics", {}),
+        "pooled_full_month": m.get("pooled_full_month"),
+        "per_aoi": {aoi: per},
+        "hgb_residual_enabled": per.get("hgb_residual_enabled"),
+        "hgb_fallback_baseline": per.get("hgb_fallback_baseline"),
+        "hgb_gate": per.get("hgb_gate"),
+    }
+
+
 def _pairs_for(aoi: str, data: str) -> list[dict]:
     """Monthly pairs without materialising a multi-million-row raw pull."""
     if data == "raw":
@@ -157,9 +216,9 @@ def _resolve_records(aoi: str, data: str, limit: int,
 
 
 def _data_source_label(data: str, dataset: str | None = None) -> str:
-    if dataset:
+    if dataset or data == "upload":
         return "user-uploaded session dataset (unverified source)"
-    return ("synthetic demo (NOT observed — do not claim real events)"
+    return ("synthetic demo (NOT observed: do not claim real events)"
             if data == "sample" else "NASA FIRMS observed")
 
 
@@ -284,7 +343,14 @@ def _harmonize_daily_ml(agg: dict, model, meta: dict | None,
     failed: list[dict] = []
     below_observed: list[str] = []
     scored: list[str] = []
-    for ym in sorted({str(c["date"])[:7] for c in stat}):
+    month_totals: dict[str, list[float]] = {}
+    for c in stat:
+        ym = str(c["date"])[:7]
+        slot = month_totals.setdefault(ym, [0.0, 0.0])
+        slot[0] += float(c["harmonized_count"])
+        if c.get("estimate_type") == "modis_upscaled_estimated":
+            slot[1] += float(c["harmonized_count"])
+    for ym in sorted(month_totals):
         mc = ctx.get(ym, {"modis": 0.0, "day_frac": 0.5,
                           "terra_frac": 0.5, "prev_modis": 0.0})
         try:
@@ -296,10 +362,7 @@ def _harmonize_daily_ml(agg: dict, model, meta: dict | None,
             continue
         scored.append(ym)
         preds[ym] = pred
-        stat_total = sum(c["harmonized_count"] for c in stat if str(c["date"])[:7] == ym)
-        stat_modis_only = sum(c["harmonized_count"] for c in stat
-                              if str(c["date"])[:7] == ym
-                              and c.get("estimate_type") == "modis_upscaled_estimated")
+        stat_total, stat_modis_only = month_totals[ym]
         observed_part = stat_total - stat_modis_only
         target_est = pred - observed_part
         if stat_modis_only > 0 and target_est > 0:
@@ -311,21 +374,20 @@ def _harmonize_daily_ml(agg: dict, model, meta: dict | None,
             500, "ML inference failed for every month; refusing to serve the "
                  "statistical calendar under an ML label. First error: "
                  + failed[0]["error"])
-    out = []
+    # Mutate in place: a second 633k-cell copy would double peak memory.
     for c in stat:
         ym = str(c["date"])[:7]
         if c.get("estimate_type") == "modis_upscaled_estimated" and ym in factors:
-            c = {**c, "harmonized_count": round(c["harmonized_count"] * factors[ym], 3),
-                 "estimate_type": "ml_predicted",
-                 "method": served,
-                 "effective_method": served,
-                 "coverage_status": "unknown"}
+            c["harmonized_count"] = round(c["harmonized_count"] * factors[ym], 3)
+            c["estimate_type"] = "ml_predicted"
+            c["method"] = served
+            c["effective_method"] = served
+            c["coverage_status"] = "unknown"
         else:
-            c = {**c, "effective_method": "stat:seasonal_ratio_v1"}
-        out.append(c)
+            c["effective_method"] = "stat:seasonal_ratio_v1"
     conservation = []
     for ym in factors:
-        total = sum(float(c["harmonized_count"]) for c in out if str(c["date"])[:7] == ym)
+        total = sum(float(c["harmonized_count"]) for c in stat if str(c["date"])[:7] == ym)
         conservation.append(abs(total - preds.get(ym, total)))
     diagnostics = {
         **(meta or {}),
@@ -345,7 +407,7 @@ def _harmonize_daily_ml(agg: dict, model, meta: dict | None,
         "below_observed_examples": below_observed[:10],
         "conservation_max_abs_error": round(max(conservation), 4) if conservation else 0.0,
     }
-    return out, diagnostics
+    return stat, diagnostics
 
 
 def _harmonize_daily_ts(clean: list[dict] | None, daily_stat: list[dict], aoi: str,
@@ -372,6 +434,13 @@ def _harmonize_daily_ts(clean: list[dict] | None, daily_stat: list[dict], aoi: s
             ym = str(r.get("acq_date", ""))[:7]
             modis_ym[ym] = modis_ym.get(ym, 0.0) + 1.0
     months = sorted({str(c["date"])[:7] for c in daily_stat})
+    month_totals: dict[str, list[float]] = {}
+    for c in daily_stat:
+        ym = str(c["date"])[:7]
+        slot = month_totals.setdefault(ym, [0.0, 0.0])
+        slot[0] += float(c["harmonized_count"])
+        if c.get("estimate_type") == "modis_upscaled_estimated":
+            slot[1] += float(c["harmonized_count"])
     factors: dict[str, float] = {}
     preds: dict[str, float] = {}
     scored: list[str] = []
@@ -400,10 +469,7 @@ def _harmonize_daily_ts(clean: list[dict] | None, daily_stat: list[dict], aoi: s
         pred = float(tst.predict_windows(model, X, aoi)[0])
         scored.append(ym)
         preds[ym] = pred
-        stat_total = sum(c["harmonized_count"] for c in daily_stat if str(c["date"])[:7] == ym)
-        stat_modis_only = sum(c["harmonized_count"] for c in daily_stat
-                              if str(c["date"])[:7] == ym
-                              and c.get("estimate_type") == "modis_upscaled_estimated")
+        stat_total, stat_modis_only = month_totals[ym]
         observed_part = stat_total - stat_modis_only
         target_est = pred - observed_part
         if stat_modis_only > 0 and target_est > 0:
@@ -411,21 +477,20 @@ def _harmonize_daily_ts(clean: list[dict] | None, daily_stat: list[dict], aoi: s
             factors[ym] = target_est / stat_modis_only
         else:
             no_modis_only.append(ym)
-    out = []
+    # Mutate in place (see _harmonize_daily_ml): no second 633k-cell copy.
     for c in daily_stat:
         ym = str(c["date"])[:7]
         if c.get("estimate_type") == "modis_upscaled_estimated" and ym in factors:
-            c = {**c, "harmonized_count": round(c["harmonized_count"] * factors[ym], 3),
-                 "estimate_type": "ts_predicted",
-                 "method": "ts_logratio_pool_v2",
-                 "effective_method": "ts_logratio_pool_v2",
-                 "coverage_status": "unknown"}
+            c["harmonized_count"] = round(c["harmonized_count"] * factors[ym], 3)
+            c["estimate_type"] = "ts_predicted"
+            c["method"] = "ts_logratio_pool_v2"
+            c["effective_method"] = "ts_logratio_pool_v2"
+            c["coverage_status"] = "unknown"
         else:
-            c = {**c, "effective_method": "stat:seasonal_ratio_v1"}
-        out.append(c)
+            c["effective_method"] = "stat:seasonal_ratio_v1"
     conservation = []
     for ym in factors:
-        total = sum(float(c["harmonized_count"]) for c in out if str(c["date"])[:7] == ym)
+        total = sum(float(c["harmonized_count"]) for c in daily_stat if str(c["date"])[:7] == ym)
         conservation.append(abs(total - preds.get(ym, total)))
     diagnostics = {
         **(meta or {}),
@@ -445,22 +510,27 @@ def _harmonize_daily_ts(clean: list[dict] | None, daily_stat: list[dict], aoi: s
         "month_effective_method": {ym: ("ts" if ym in factors else "stat")
                                    for ym in months},
     }
-    return out, diagnostics
+    return daily_stat, diagnostics
 
 
-def _latest_summary(calen: dict, daily: list[dict]) -> dict | None:
+def _latest_summary(calen: dict, daily: list[dict],
+                    month_latest: dict[str, str] | None = None) -> dict | None:
     """Latest COMPLETE month vs history.
 
     Partial months carry no verdict; instead of returning null when the newest
     NRT month is partial, we fall back to the newest month whose coverage is
-    not verified-partial (audit P1-01).
+    not verified-partial (audit P1-01). Streaming callers pass `month_latest`
+    (newest detection date per YYYY-MM) instead of a full daily-cell list.
     """
-    if not daily or not calen.get("years"):
+    if not (daily or month_latest) or not calen.get("years"):
         return None
     by_month: dict[str, list[str]] = {}
-    for c in daily:
-        d = str(c["date"])[:10]
-        by_month.setdefault(d[:7], []).append(d)
+    if month_latest:
+        by_month = {ym: [d] for ym, d in month_latest.items()}
+    else:
+        for c in daily:
+            d = str(c["date"])[:10]
+            by_month.setdefault(d[:7], []).append(d)
     comp = calen.get("completeness", {})
     for ym in sorted(by_month, reverse=True):
         if comp.get(ym, {}).get("partial") is True:
@@ -470,8 +540,11 @@ def _latest_summary(calen: dict, daily: list[dict]) -> dict | None:
         mi = m - 1
         ly = int(ym[:4])
         import statistics as _st
+        excluded = set((calen.get("anomaly_eligibility") or {})
+                       .get("excluded_months") or [])
         col = [calen["matrix"][yi][mi] for yi, y in enumerate(calen["years"])
-               if y != ly and calen["matrix"][yi][mi] is not None]
+               if y != ly and calen["matrix"][yi][mi] is not None
+               and f"{y}-{m:02d}" not in excluded]
         cur = next((calen["matrix"][yi][mi] for yi, y in enumerate(calen["years"])
                     if y == ly), None)
         if cur is None or len(col) < 3:
@@ -488,8 +561,29 @@ def _latest_summary(calen: dict, daily: list[dict]) -> dict | None:
     return None
 
 
+def _raw_agg(aoi: str, bbox=None, qa_min: str = "all",
+             platform_set: str = "all", year: int | None = None,
+             ym: str | None = None):
+    """Aggregate raw rows for one AOI without materialising cell-day dicts."""
+    b = _parse_bbox(bbox) if isinstance(bbox, str) else bbox
+
+    def rows():
+        for r in store.iter_raw_rows(aoi, limit=None, year=year, ym=ym):
+            if b is not None and not _in_bbox(r, b):
+                continue
+            yield r
+
+    return harmonize.aggregate_iter(rows(), qa_min=qa_min,
+                                    platform_set=platform_set)
+
+
 def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
-                      daily_cap: int = 2000) -> dict:
+                      daily_cap: int = 2000, qa_min: str = "all",
+                      platform_set: str = "all",
+                      focus_ym: str | None = None,
+                      simulate_year: int | None = None,
+                      simulate_configs: list[dict] | None = None,
+                      cache_result: bool = True) -> dict:
     """Memory-bounded pipeline for large raw pulls (1.4M+ rows).
 
     Validates, dedups and aggregates while streaming from disk; only the
@@ -500,10 +594,32 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
     # the finished result is cached on disk keyed by file fingerprint, method,
     # data version and model version (audit P0-08 / P1-20).
     fp = store.raw_fingerprint(aoi)
-    ckey = (f"cal_{aoi}_{method}_{fp}_{bbox or 'all'}_{daily_cap}_"
-            f"{ml_v4.ALGORITHM_VERSION}_{tst.ALGORITHM_VERSION}")
-    hit = store.cache_get(ckey)
+    # One cache entry per (method, filters), not per `limit`: the frontend uses
+    # 25k and other callers use 2k, which used to trigger duplicate 90 s runs.
+    cache_cap = (daily_cap if (focus_ym or simulate_year or not cache_result)
+                 else 5000)
+    model_key = "none"
+    if method in ("ml", "ts"):
+        mp = MODEL_DIR / (f"cal_{aoi}_raw.json" if method == "ml"
+                          else f"ts_{aoi}_raw.json")
+        if mp.exists():
+            model_key = hashlib.sha256(mp.read_bytes()).hexdigest()[:10]
+    manifest_key = "none"
+    if store.MANIFEST.exists():
+        mst = store.MANIFEST.stat()
+        manifest_key = f"{mst.st_mtime_ns}_{mst.st_size}"
+    sim_key = (hashlib.sha256(json.dumps(simulate_configs or [],
+                                          sort_keys=True).encode()).hexdigest()[:8]
+               if simulate_configs else "nosim")
+    ckey = (f"cal_{aoi}_{method}_{fp}_{bbox or 'all'}_{cache_cap}_"
+            f"{qa_min}_{platform_set}_{focus_ym or 'all'}_{simulate_year or 'nosim'}_"
+            f"{model_key}_{manifest_key}_{sim_key}_"
+            f"{harmonize.ALGORITHM_VERSION}_{ml_v4.ALGORITHM_VERSION}_"
+            f"{tst.ALGORITHM_VERSION}")
+    hit = store.cache_get(ckey) if cache_result else None
     if hit is not None:
+        if len(hit.get("daily") or []) > daily_cap:
+            return {**hit, "daily": hit["daily"][:daily_cap]}
         return hit
     ctx_builder = ml_cal.ModisCtxBuilder() if method in ("ts", "ml") else None
     if ctx_builder is not None:
@@ -512,11 +628,13 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
     else:
         keep = None
     def rows():
-        for r in store.iter_raw_rows(aoi, limit=None):
+        for r in store.iter_raw_rows(aoi, limit=None, year=simulate_year, ym=focus_ym):
             if b is not None and not _in_bbox(r, b):
                 continue
             yield r
-    agg, stats = harmonize.aggregate_iter(rows(), keep_clean=keep)
+    agg, stats = harmonize.aggregate_iter(rows(), keep_clean=keep,
+                                          qa_min=qa_min,
+                                          platform_set=platform_set)
     if not agg:
         raise HTTPException(404, detail={
             "error_code": "no_raw_data",
@@ -524,32 +642,160 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
                        "Fetch a full month first (scripts/firms/fetch_full_month).",
             "aoi": aoi})
     ratios = harmonize.estimate_efficiency_ratio(agg)
+    # A focus-month request only parses that month's files (fast path), so its
+    # month-k is identical but the cross-month dispersion (`_fallback_rel_iqr`)
+    # is not. Reuse the full-run calibration cached by any earlier full request
+    # so evidence cards and the calendar quote the same uncertainty.
+    ratio_key = (f"ratios_{aoi}_{fp}_{harmonize.ALGORITHM_VERSION}_"
+                 f"fusion_{qa_min}_{platform_set}")
+    if focus_ym or simulate_year:
+        cached_ratios = store.cache_get(ratio_key)
+        if cached_ratios:
+            ratios = cached_ratios
+    else:
+        store.cache_put(ratio_key, ratios)
+    monthly: dict[str, dict] = {}
+    month_days: dict[str, list[str]] = {}
+    platform_year: dict[int, dict[str, float]] = {}
+    retained: list[dict] = []
+    n_cells = 0
+    retain_all = cache_cap >= 2_000_000
+
+    def _accumulate(c: dict) -> None:
+        nonlocal n_cells
+        n_cells += 1
+        day = str(c["date"])[:10]
+        ym = day[:7]
+        slot = monthly.setdefault(ym, {"modis": 0.0, "viirs": 0.0,
+                                       "harmonized": 0.0, "cells": 0})
+        slot["modis"] += float(c.get("modis_count", 0) or 0)
+        slot["viirs"] += float(c.get("viirs_count", 0) or 0)
+        slot["harmonized"] += round(float(c.get("harmonized_count", 0) or 0), 3)
+        slot["cells"] += 1
+        month_days.setdefault(ym, []).append(day)
+        try:
+            y = int(day[:4])
+        except ValueError:
+            return
+        bucket = platform_year.setdefault(y, {})
+        for sat, n in (c.get("platform_counts") or {}).items():
+            bucket[str(sat)] = bucket.get(str(sat), 0.0) + float(n or 0)
+
+    def _retain(day: str) -> bool:
+        if simulate_year:
+            # The simulator re-reads every cell of the target year; never cap it.
+            return day[:4] == str(simulate_year)
+        if focus_ym:
+            return day[:7] == focus_ym and len(retained) < cache_cap
+        return retain_all or len(retained) < cache_cap
+
     ml_meta = None
     if method == "ml":
         model, ml_meta = ml_cal.load_artifact(aoi, MODEL_DIR, tag="raw")
         if model is None:
             raise HTTPException(404, f"No raw ML artifact for aoi={aoi}")
-        daily, ml_meta = _harmonize_daily_ml(
+        cell_days, ml_meta = _harmonize_daily_ml(
             agg, model, ml_meta, ctx=ctx_builder.finalize())
+        for c in cell_days:
+            _accumulate(c)
+            if _retain(str(c["date"])[:10]):
+                retained.append(c)
     elif method == "ts":
         model, ml_meta = tst.load_artifact(aoi, MODEL_DIR, tag="raw")
         if model is None:
             raise HTTPException(404, f"No raw Transformer artifact for aoi={aoi}")
-        daily, ml_meta = _harmonize_daily_ts(
+        cell_days, ml_meta = _harmonize_daily_ts(
             None, harmonize.harmonize_daily(agg, ratios), aoi, data,
             modis_counts=ctx_builder.modis_counts())
+        for c in cell_days:
+            _accumulate(c)
+            if _retain(str(c["date"])[:10]):
+                retained.append(c)
     else:
-        daily = harmonize.harmonize_daily(agg, ratios)
+        rel_iqr = float(ratios.get("_fallback_rel_iqr", 0.0) or 0.0)
+        calibrated = ratios.get("_calibration_status", "calibrated") == "calibrated"
+        fallback = ratios["_fallback"]
+        provenance = harmonize._provenance(ratios)
+        for cell, day, per in harmonize.iter_cell_days(agg):
+            k = ratios.get(day[:7], fallback)
+            mo, vi, h_count, h_frp, h_low, h_high, est, sensors = \
+                harmonize.fuse_cell_day(per, k, rel_iqr, calibrated)
+            n_cells += 1
+            ym = day[:7]
+            slot = monthly.setdefault(ym, {"modis": 0.0, "viirs": 0.0,
+                                           "harmonized": 0.0, "cells": 0})
+            slot["modis"] += float(mo.count)
+            slot["viirs"] += float(vi.count)
+            slot["harmonized"] += round(float(h_count), 3)
+            slot["cells"] += 1
+            month_days.setdefault(ym, []).append(day)
+            try:
+                y = int(day[:4])
+            except ValueError:
+                y = None
+            if y is not None:
+                bucket = platform_year.setdefault(y, {})
+                for src in (mo.platform_counts or {}), (vi.platform_counts or {}):
+                    for sat, n in src.items():
+                        bucket[str(sat)] = bucket.get(str(sat), 0.0) + float(n or 0)
+            if simulate_year:
+                keep = day[:4] == str(simulate_year)
+            elif focus_ym:
+                keep = day[:7] == focus_ym and len(retained) < cache_cap
+            else:
+                keep = retain_all or len(retained) < cache_cap
+            if keep:
+                retained.append(harmonize.daily_row(
+                    cell, day, mo, vi, h_count, h_frp, h_low, h_high,
+                    est, sensors, k, rel_iqr, provenance))
+    daily = retained
     covmap = cov.coverage_for_aoi(aoi)
-    calen = cal.build_calendar(daily, coverage=covmap)
+    calen = cal.build_calendar(daily, coverage=covmap, monthly=monthly,
+                               month_days=month_days, platform_year=platform_year)
     crit = cal.critical_periods(calen)
-    latest = _latest_summary(calen, daily)
+    latest = _latest_summary(calen, daily,
+                             {k: max(v) for k, v in month_days.items() if v})
     coverage_summary = cov.coverage_summary(aoi)
+    simulations = None
+    if simulate_year and simulate_configs:
+        year_daily = [c for c in daily if str(c["date"])[:4] == str(simulate_year)]
+        simulations = []
+        all_cfg = next((c for c in simulate_configs
+                        if c.get("label") == "all_sensors"), simulate_configs[0])
+        _, all_meta = harmonize.reconfigure_daily(
+            year_daily, all_cfg["platforms"], all_cfg.get("label", "all_sensors"))
+        baseline_k = all_meta.get("k_by_month") or {}
+        for cfg in simulate_configs:
+            rd, smeta = harmonize.reconfigure_daily(
+                year_daily, cfg["platforms"], cfg.get("label", "custom"),
+                baseline_k=baseline_k)
+            scal = cal.build_calendar(rd)
+            ys = scal.get("years") or []
+            total = scal["row_totals"][0] if scal["row_totals"] else 0.0
+            obs = sum(1 for c in rd if c.get("estimate_type") == "viirs_observed")
+            est = sum(1 for c in rd if c.get("estimate_type") == "modis_upscaled_estimated")
+            simulations.append({
+                **smeta,
+                "year": int(simulate_year),
+                "year_total": round(float(total), 3),
+                "months": {str(m): scal["matrix"][0][m - 1]
+                           for m in range(1, 13)} if scal.get("matrix") else {},
+                "observed_cells": obs,
+                "estimated_cells": est,
+                "n_cells": len(rd),
+                "calendar": scal,
+            })
+        base_total = next((s["year_total"] for s in simulations
+                           if s["sensor_config"] == "all_sensors"), None)
+        for s in simulations:
+            s["delta_vs_all"] = (round(s["year_total"] - base_total, 3)
+                                 if base_total is not None else None)
     calibration = {k: ratios.get(k) for k in (
-        "_fallback", "_fallback_rel_iqr", "_n_months", "_mode",
-        "_calibration_window", "_train_end", "_sensor_set", "_data_version",
-        "_excluded_months")}
-    out = {"daily_cells": len(daily), "ratios": ratios, "calendar": calen,
+        "_fallback", "_fallback_rel_iqr", "_n_months", "_calibration_status",
+        "_calibration_min_months", "_clipped_months", "_clipped_fraction",
+        "_mode", "_calibration_window", "_train_end", "_sensor_set",
+        "_data_version", "_excluded_months")}
+    out = {"daily_cells": n_cells, "ratios": ratios, "calendar": calen,
            "critical_periods": crit[:24], "latest": latest,
            "forecast": _forecast(calen, latest["date"] if latest else None),
            "data_source": _data_source_label(data),
@@ -558,22 +804,36 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
            "effective_method": (ml_meta or {}).get("effective_method",
                                                    "seasonal_ratio_v1"),
            "calibration": calibration,
+           "validation_unit": "aoi-month",
+           "spatial_validation": "not_identified_from_monthly_pairs",
+           "filters": {"qa_min": qa_min, "platform_set": platform_set},
            "qa": stats, "ml_meta": ml_meta,
            "coverage": coverage_summary,
-           "daily": daily[:daily_cap] if daily_cap else []}
-    store.cache_put(ckey, out)
+           "simulations": simulations,
+           "monthly": {k: {kk: round(vv, 3) if isinstance(vv, float) else vv
+                           for kk, vv in v.items()}
+                       for k, v in sorted(monthly.items())},
+           "daily": ([c for c in daily if str(c["date"])[:7] == focus_ym][:cache_cap]
+                     if focus_ym else (daily[:cache_cap] if cache_cap else []))}
+    if cache_result:
+        store.cache_put(ckey, out)
+    if len(out.get("daily") or []) > daily_cap:
+        return {**out, "daily": out["daily"][:daily_cap]}
     return out
 
 
 def _harmonize_from_records(records: list[dict], daily_cap: int = 2000,
                               data: str = "sample", aoi: str = "vietnam",
                               method: str = "stat",
-                              dataset: str | None = None) -> dict:
+                              dataset: str | None = None,
+                              qa_min: str = "all",
+                              platform_set: str = "all") -> dict:
     """Validate -> QA -> dedup -> harmonize. Single path for sample/raw/upload (P0-07)."""
     _block_raw_ml_ts(method, data, aoi)
     clean: list[dict] = []
     rejected = 0
     qa_counts: dict[str, int] = {}
+    filtered_low = filtered_conf = filtered_plat = 0
     for r in records:
         try:
             rec = FirmsRecord(**{k.lower(): v for k, v in dict(r).items()})
@@ -586,6 +846,16 @@ def _harmonize_from_records(records: list[dict], daily_cap: int = 2000,
         qa_counts[q] = qa_counts.get(q, 0) + 1
         if q in ("suspect_geometry", "anachronistic_platform"):
             rejected += 1
+            continue
+        if qa_min in ("nominal", "high") and q == "low_confidence":
+            filtered_low += 1
+            continue
+        if qa_min == "high" and rec.confidence != "h":
+            filtered_conf += 1
+            continue
+        if (platform_set == "snpp" and rec.instrument == "VIIRS"
+                and rec.satellite != "NPP"):
+            filtered_plat += 1
             continue
         clean.append(d)
     agg = harmonize.aggregate(clean)
@@ -609,9 +879,10 @@ def _harmonize_from_records(records: list[dict], daily_cap: int = 2000,
     crit = cal.critical_periods(calen)
     latest = _latest_summary(calen, daily)
     calibration = {k: ratios.get(k) for k in (
-        "_fallback", "_fallback_rel_iqr", "_n_months", "_mode",
-        "_calibration_window", "_train_end", "_sensor_set", "_data_version",
-        "_excluded_months")}
+        "_fallback", "_fallback_rel_iqr", "_n_months", "_calibration_status",
+        "_calibration_min_months", "_clipped_months", "_clipped_fraction",
+        "_mode", "_calibration_window", "_train_end", "_sensor_set",
+        "_data_version", "_excluded_months")}
     return {"daily_cells": len(daily), "ratios": ratios,
             "calendar": calen, "critical_periods": crit[:24],
             "latest": latest,
@@ -621,10 +892,17 @@ def _harmonize_from_records(records: list[dict], daily_cap: int = 2000,
             "effective_method": (ml_meta or {}).get("effective_method",
                                                     "seasonal_ratio_v1"),
             "calibration": calibration,
+            "validation_unit": "aoi-month",
+            "spatial_validation": "not_identified_from_monthly_pairs",
+            "filters": {"qa_min": qa_min, "platform_set": platform_set},
             "ml_meta": ml_meta,
             "coverage": (cov.coverage_summary(aoi) if (data == "raw" and not dataset) else
                          {"verified": False, "reason": "sample_or_upload"}),
-            "qa": {"clean": len(clean), "rejected": rejected, "qa_counts": qa_counts},
+            "qa": {"clean": len(clean), "rejected": rejected,
+                   "filtered_low_confidence": filtered_low,
+                   "filtered_confidence": filtered_conf,
+                   "filtered_platform": filtered_plat,
+                   "qa_counts": qa_counts},
             "daily": daily[:daily_cap] if daily_cap else []}
 
 
@@ -645,8 +923,16 @@ def firms_harmonize(payload: dict):
     method = str(payload.get("method", "stat"))
     if method not in ("stat", "ml", "ts"):
         raise HTTPException(400, "method must be stat|ml|ts")
+    qa_min = str(payload.get("qa_min", "all"))
+    platform_set = str(payload.get("platform_set", "all"))
+    if qa_min not in ("all", "nominal", "high"):
+        raise HTTPException(400, "qa_min must be all|nominal|high")
+    if platform_set not in ("all", "snpp"):
+        raise HTTPException(400, "platform_set must be all|snpp")
     _block_raw_ml_ts(method, data, aoi)
-    out = _harmonize_from_records(records, daily_cap=2000, data=data, aoi=aoi, method=method)
+    out = _harmonize_from_records(records, daily_cap=2000, data=data, aoi=aoi,
+                                  method=method, qa_min=qa_min,
+                                  platform_set=platform_set)
     out["ms"] = round((time.perf_counter() - t0) * 1000, 1)
     out["method"] = ({"stat": "daily 0.05deg grid + monthly activity ratio + sensor-adjusted index "
                               "(hotspot detections, not fires; MODIS-only cells are estimates)",
@@ -661,6 +947,8 @@ def firms_calendar(limit: int = Query(2000, ge=1, le=2000000),
                    aoi: str = Query("vietnam", description="preset region"),
                    data: str = Query("sample", pattern="^(sample|raw)$"),
                    method: str = Query("stat", pattern="^(stat|ml|ts)$"),
+                   qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
+                   platform_set: str = Query("all", pattern="^(all|snpp)$"),
                    dataset: str | None = Query(None, description="session upload id (upload:<hex>)")):
     # P0-06: aggregate the FULL filtered set, slice only the daily response.
     _block_raw_ml_ts(method, data, aoi)
@@ -671,7 +959,8 @@ def firms_calendar(limit: int = Query(2000, ge=1, le=2000000),
                        "Use data=sample for the synthetic demo, or fetch a month first.",
             "aoi": aoi})
     if data == "raw" and not dataset:
-        out = _harmonize_stream(aoi, data, bbox, method, daily_cap=min(limit, 5000))
+        out = _harmonize_stream(aoi, data, bbox, method, daily_cap=min(limit, 5000),
+                                qa_min=qa_min, platform_set=platform_set)
     else:
         records = [r for r in _resolve_records(aoi, data, 2000000, dataset)
                    if _in_bbox(r, _parse_bbox(bbox))]
@@ -679,7 +968,8 @@ def firms_calendar(limit: int = Query(2000, ge=1, le=2000000),
             raise HTTPException(404, f"No {data} data in this AOI")
         out = _harmonize_from_records(records, daily_cap=min(limit, 5000),
                                       data=data, aoi=aoi, method=method,
-                                      dataset=dataset)
+                                      dataset=dataset, qa_min=qa_min,
+                                      platform_set=platform_set)
     out["bbox"] = bbox
     out["aoi"] = aoi
     out["data"] = data
@@ -695,12 +985,29 @@ def firms_export(limit: int = Query(2000000, ge=100, le=2000000),
                  aoi: str = Query("vietnam", description="preset region"),
                  data: str = Query("sample", pattern="^(sample|raw)$"),
                  method: str = Query("stat", pattern="^(stat|ml|ts)$"),
+                 qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
+                 platform_set: str = Query("all", pattern="^(all|snpp)$"),
                  dataset: str | None = Query(None, description="session upload id")):
     # P0-06: export the FULL filtered set through the same harmonize path
     # as the dashboard so the CSV matches /calendar (P1-07: no silent cap).
     _block_raw_ml_ts(method, data, aoi)
-    if data == "raw" and not dataset:
-        full_daily = _harmonize_stream(aoi, data, bbox, method, daily_cap=2000000)["daily"]
+    stream_cells = None
+    n_rows = 0
+    if data == "raw" and not dataset and method == "stat":
+        # Stream the CSV straight from the aggregate: retaining 1.4M cell dicts
+        # only to write them out was the peak-memory path of the whole API.
+        agg, _stats = _raw_agg(aoi, bbox, qa_min, platform_set)
+        if not agg:
+            raise HTTPException(404, f"No raw data in this AOI")
+        ratios = harmonize.estimate_efficiency_ratio(agg)
+        n_rows = sum(1 for _ in harmonize.iter_cell_days(agg))
+        stream_cells = harmonize.iter_daily(agg, ratios)
+    elif data == "raw" and not dataset:
+        full_daily = _harmonize_stream(aoi, data, bbox, method, daily_cap=2000000,
+                                       qa_min=qa_min, platform_set=platform_set,
+                                       cache_result=False)["daily"]
+        n_rows = len(full_daily)
+        stream_cells = iter(full_daily)
     else:
         records = [r for r in _resolve_records(aoi, data, limit, dataset)
                    if _in_bbox(r, _parse_bbox(bbox))]
@@ -708,32 +1015,43 @@ def firms_export(limit: int = Query(2000000, ge=100, le=2000000),
             raise HTTPException(404, f"No {data} data in this AOI")
         full_daily = _harmonize_from_records(records, daily_cap=2000000,
                                              data=data, aoi=aoi, method=method,
-                                             dataset=dataset)["daily"]
-    buf = io.StringIO()
-    w = csv.DictWriter(buf, fieldnames=["cell_id", "date", "lat", "lon",
-                                        "modis_count", "viirs_count",
-                                        "modis_frp", "viirs_frp",
-                                        "harmonized_count", "harmonized_count_low",
-                                        "harmonized_count_high", "harmonized_per_km2",
-                                        "harmonized_frp", "cell_km2",
-                                        "estimate_type", "sensors", "platforms",
-                                        "platform_single", "coverage_status",
-                                        "k_used", "uncertainty_rel",
-                                        "ratio_mode", "calibration_window",
-                                        "calibration_train_end", "calibration_months",
-                                        "method", "effective_method",
-                                        "algorithm_version", "data_source"])
-    w.writeheader()
-    for c in full_daily:
-        row = {**c, "data_source": _data_source_label(data, dataset)}
-        if isinstance(row.get("calibration_window"), (list, tuple)):
-            row["calibration_window"] = json.dumps(list(row["calibration_window"]))
-        w.writerow({k: row.get(k) for k in w.fieldnames})
+                                             dataset=dataset, qa_min=qa_min,
+                                             platform_set=platform_set)["daily"]
+        n_rows = len(full_daily)
+        stream_cells = iter(full_daily)
+    fields = ["cell_id", "date", "lat", "lon",
+              "modis_count", "viirs_count", "modis_frp", "viirs_frp",
+              "harmonized_count", "harmonized_count_low",
+              "harmonized_count_high", "harmonized_per_km2",
+              "harmonized_frp", "cell_km2",
+              "estimate_type", "sensors", "platforms",
+              "platform_single", "coverage_status",
+              "k_used", "uncertainty_rel",
+              "ratio_mode", "calibration_window",
+              "calibration_train_end", "calibration_months",
+              "method", "effective_method",
+              "algorithm_version", "data_source"]
+
+    def _rows():
+        # Stream rows instead of building the whole CSV in memory.
+        buf = io.StringIO()
+        w = csv.DictWriter(buf, fieldnames=fields)
+        w.writeheader()
+        yield buf.getvalue()
+        for c in stream_cells:
+            buf.seek(0); buf.truncate(0)
+            row = {**c, "data_source": _data_source_label(data, dataset)}
+            if isinstance(row.get("calibration_window"), (list, tuple)):
+                row["calibration_window"] = json.dumps(list(row["calibration_window"]))
+            w.writerow({k: row.get(k) for k in fields})
+            yield buf.getvalue()
+
     dtag = dataset.replace(":", "_") if dataset else f"{data}_{method}"
-    return PlainTextResponse(buf.getvalue(), media_type="text/csv; charset=utf-8",
-                             headers={"Content-Disposition": f'attachment; filename="harmonized_hotspots_{aoi}_{dtag}.csv"',
-                                      "X-Row-Count": str(len(full_daily)),
-                                      "X-Data-Source": _data_source_label(data).replace("\u2014", "-")})
+    return StreamingResponse(
+        _rows(), media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="harmonized_hotspots_{aoi}_{dtag}.csv"',
+                 "X-Row-Count": str(n_rows),
+                 "X-Data-Source": _data_source_label(data).replace("\u2014", "-")})
 
 
 @app.get("/api/firms/dl-info")
@@ -863,6 +1181,8 @@ def firms_brief(aoi: str = Query("vietnam", description="preset region"),
                 bbox: str | None = Query(None, description="minLon,minLat,maxLon,maxLat"),
                 data: str = Query("sample", pattern="^(sample|raw)$"),
                 method: str = Query("stat", pattern="^(stat|ml|ts)$"),
+                qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
+                platform_set: str = Query("all", pattern="^(all|snpp)$"),
                 dataset: str | None = Query(None, description="session upload id")):
     """One-page Markdown brief (hotspot-detection activity, not fire counts).
 
@@ -874,25 +1194,28 @@ def firms_brief(aoi: str = Query("vietnam", description="preset region"),
         if not store.raw_ready(aoi):
             raise HTTPException(404, detail={"error_code": "no_raw_data",
                                              "message": f"No raw data for {aoi}"})
-        out = _harmonize_stream(aoi, data, bbox, method, daily_cap=0)
+        out = _harmonize_stream(aoi, data, bbox, method, daily_cap=0,
+                                qa_min=qa_min, platform_set=platform_set)
     else:
         records = [r for r in _resolve_records(aoi, data, 2000000, dataset)
                    if _in_bbox(r, _parse_bbox(bbox))]
         if not records:
             raise HTTPException(404, f"No {data} data in this AOI")
         out = _harmonize_from_records(records, daily_cap=0, data=data, aoi=aoi,
-                                      method=method, dataset=dataset)
+                                      method=method, dataset=dataset,
+                                      qa_min=qa_min, platform_set=platform_set)
     c, ys = out["calendar"], out["calendar"]["years"]
     L, F = out["latest"], out["forecast"]
     src = _data_source_label(data, dataset)
     eff = out.get("effective_method") or out.get("method_id")
     lines = [
-        f"# Fire-activity brief — {aoi}{f' ({bbox})' if bbox else ''}",
-        f"_Source: NASA FIRMS ({data}) — {src}._",
+        f"# Fire-activity brief: {aoi}{f' ({bbox})' if bbox else ''}",
+        f"_Source: NASA FIRMS ({data}): {src}._",
         f"_Method: requested `{method}` → effective `{eff}`._",
+        f"_Filters: QA≥{qa_min}, platform_set={platform_set}._",
         f"_Units: hotspot detections / sensor-adjusted activity index (NOT confirmed fires)._",
         "",
-        f"- Period: {ys[0]}–{ys[-1]} ({len(ys)} years, {out['daily_cells']} daily cells)",
+        f"- Period: {ys[0]} to {ys[-1]} ({len(ys)} years, {out['daily_cells']} daily cells)",
         f"- Yearly mean: {round(sum(c['row_totals']) / len(ys), 1)} detections/yr; "
         f"peak year {ys[c['row_totals'].index(max(c['row_totals']))]}",
         "- Top anomalous months (|z|>=2, MAD units): " + (
@@ -905,19 +1228,19 @@ def firms_brief(aoi: str = Query("vietnam", description="preset region"),
                      f"≥90% of days requested; missing-day histogram "
                      f"{cov.get('missing_day_histogram', {})}.")
     else:
-        lines.append("- Coverage: UNKNOWN (sample/upload — not a manifest-backed pull).")
+        lines.append("- Coverage: UNKNOWN (sample/upload: not a manifest-backed pull).")
     if L:
         lines.append(f"- Latest {L['date']}: {L['month_total']} vs same-month median {L['hist_median']} "
-                     f"(x{L['ratio']}, baseline {L['hist_years']} yrs excl. current year) — {L['verdict']}.")
+                     f"(x{L['ratio']}, baseline {L['hist_years']} yrs excl. current year): {L['verdict']}.")
     if F:
         lines.append(f"- Climatology outlook {F['year']}-{F['month']:02d}: median {F['median']} "
-                     f"(P25–P75 {F['p25']}–{F['p75']}, n={F['n_years']}). NOT a prediction.")
+                     f"(P25-P75 {F['p25']} to {F['p75']}, n={F['n_years']}). NOT a prediction.")
     lines += ["", "## Limits & safety",
               "- MODIS-only cells are 1/k upscaled ESTIMATES (coverage unknown).",
               "- harmonized_frp is null for upscaled cells (count ratio never rescales FRP).",
               "- Overpass-time and cloud/smoke bias reduced, not removed.",
               "- Platform mix (SNPP / NOAA-20 / NOAA-21) is reported, not fully corrected.",
-              "- Outlook is climatology, not a forecast — check FIRMS NRT for nowcasts.",
+              "- Outlook is climatology, not a forecast: check FIRMS NRT for nowcasts.",
               "- FIRMS active-fire data must NOT be the sole basis for life/property decisions."]
     return PlainTextResponse("\n".join(lines), media_type="text/markdown; charset=utf-8",
                              headers={"Content-Disposition": f'attachment; filename="brief_{aoi}.md"'})
@@ -1015,6 +1338,20 @@ def firms_ts_train(request: Request, payload: dict):
                          "data_source": _data_source_label(data)})
 
 
+@app.get("/api/firms/sf-status")
+def firms_sf_status(aoi: str = Query("vietnam"),
+                    data: str = Query("sample", pattern="^(sample|raw)$")):
+    """SensorFormer Lite experimental comparator (never the served default)."""
+    models, meta = sf_lite.load_artifact(data, MODEL_DIR)
+    if meta is None:
+        return {"trained": False, "method_id": sf_lite.METHOD_ID,
+                "aoi": aoi, "data": data,
+                "hint": "python -m scripts.firms.train_sf --data " + data}
+    return {"trained": True, "aoi": aoi, "data": data,
+            "runtime_available": bool(models),
+            **{k: v for k, v in meta.items() if k != "predictions"}}
+
+
 @app.get("/api/firms/ts-status")
 def firms_ts_status(aoi: str = Query("vietnam"),
                     data: str = Query("sample", pattern="^(sample|raw)$")):
@@ -1060,12 +1397,17 @@ def _backtest_from_manifest(manifest: dict, aoi: str, data: str,
                             test_years: int) -> dict:
     per = (manifest.get("per_aoi") or {}).get(aoi) or {}
     samples = [s for s in manifest.get("samples", []) if s.get("aoi") == aoi]
+    sf_models, sf_meta = sf_lite.load_artifact(data, MODEL_DIR)
+    sf_preds = (sf_meta or {}).get("predictions") or {}
     rows = []
     for s in samples:
+        sid = f"{aoi}:{int(s['year'])}-{int(s['month']):02d}"
+        sfp = sf_preds.get(sid) or {}
         rows.append({"year": s["year"], "month": s["month"],
                      "modis": s["modis"], "viirs_ref": s["viirs_ref"],
                      "ml_pred": s.get("hgb_b2res_v4"),
                      "ts_pred": s.get("ts_logratio_pool_v2"),
+                     "sf_pred": sfp.get("mid"),
                      "b2_pred": s.get("b2_seasonal_ratio")})
     return {
         "aoi": aoi, "data": data,
@@ -1073,13 +1415,24 @@ def _backtest_from_manifest(manifest: dict, aoi: str, data: str,
         "evaluation_version": manifest.get("evaluation_version"),
         "eval_unit": manifest.get("eval_unit"),
         "dataset_sha256": manifest.get("dataset_sha256"),
-        "metrics": per.get("metrics", {}),
+        "metrics": {**(per.get("metrics", {})),
+                    **({"sf_lite_v1": (sf_meta.get("per_aoi") or {}).get(aoi)}
+                       if sf_meta and (sf_meta.get("per_aoi") or {}).get(aoi)
+                       else {})},
+        "sf_lite": sf_meta,
+        "sf_lite_comparison": (sf_meta or {}).get("comparisons", {}).get("sf_vs_b2"),
+        "sf_lite_deployed": bool((sf_meta or {}).get("deployed")),
         "hgb_full_test": per.get("hgb_full_test"),
         "hgb_residual_enabled": per.get("hgb_residual_enabled"),
         "hgb_fallback_baseline": per.get("hgb_fallback_baseline"),
         "hgb_gate": per.get("hgb_gate"),
         "pooled_metrics": (manifest.get("pooled") or {}).get("metrics", {}),
         "pooled_full_month": manifest.get("pooled_full_month"),
+        "headline": manifest.get("headline"),
+        "comparisons": manifest.get("comparisons"),
+        "scored_years": manifest.get("scored_years"),
+        "candidate_holdout_years": manifest.get("candidate_holdout_years"),
+        "excluded_months": manifest.get("excluded_months"),
         "coverage_class": per.get("coverage_class"),
         "coverage": per.get("coverage"),
         "n_eval": per.get("n_eval") or 0,
@@ -1116,9 +1469,16 @@ def firms_backtest(request: Request,
         raise HTTPException(400, f"Unknown aoi {aoi!r}")
     if refresh:
         _require_admin(request)
-        res = evaluation.evaluate(data=data, test_years=test_years)
-        if not res.get("trained"):
-            raise HTTPException(422, f"Evaluation failed: {res.get('reason')}")
+        # Training a new ensemble here would update evaluation_raw.json but NOT
+        # the persisted cal_*/ts_* artifacts, so /calendar could keep serving
+        # the old model under new metrics (audit V5 P0). The offline CLI is the
+        # only path that retrains and stamps both.
+        raise HTTPException(409, detail={
+            "error_code": "refresh_requires_offline_pipeline",
+            "message": ("Rebuild with scripts.firms.train_ml + train_ts + "
+                        "evaluate (and stamp_artifacts), then restart; this GET "
+                        "does not train or mutate artifacts."),
+        })
     manifest = evaluation.load_manifest(data, MODEL_DIR)
     if manifest is None:
         raise HTTPException(503, detail={
@@ -1159,17 +1519,12 @@ def firms_xray(aoi: str = Query("vietnam"),
     if aoi not in AOIS:
         raise HTTPException(400, f"Unknown aoi {aoi!r}")
     if data == "raw":
-        # P1-12: stream 1.4M rows instead of materialising them in RAM.
-        cal_out = _harmonize_stream(aoi, data, None, "stat",
-                                    daily_cap=2000000)
-        daily_cells = cal_out["daily"]
+        # P1-12: stream 1.4M+ rows; monthly summary avoids returning 600k cells.
+        cal_out = _harmonize_stream(aoi, data, None, "stat", daily_cap=0)
         by_ym: dict[tuple[int, int], dict] = {}
-        for c in daily_cells:
-            d = str(c["date"])[:10]
-            key = (int(d[:4]), int(d[5:7]))
-            slot = by_ym.setdefault(key, {"modis": 0.0, "viirs": 0.0})
-            slot["modis"] += float(c.get("modis_count", 0) or 0)
-            slot["viirs"] += float(c.get("viirs_count", 0) or 0)
+        for ym, v in (cal_out.get("monthly") or {}).items():
+            key = (int(ym[:4]), int(ym[5:7]))
+            by_ym[key] = {"modis": v["modis"], "viirs": v["viirs"]}
         pairs = [{"year": y, "month": m, "modis": v["modis"], "viirs": v["viirs"]}
                  for (y, m), v in sorted(by_ym.items()) if v["viirs"] > 0]
     else:
@@ -1231,6 +1586,470 @@ def firms_xray(aoi: str = Query("vietnam"),
                          "months": months})
 
 
+def _analysis_for_evidence(aoi: str, data: str, method: str, bbox, qa_min: str,
+                           platform_set: str, focus_ym: str | None = None) -> dict:
+    if data == "raw":
+        if not store.raw_ready(aoi):
+            raise HTTPException(404, detail={"error_code": "no_raw_data",
+                                             "message": f"No raw data for {aoi}"})
+        return _harmonize_stream(aoi, data, bbox, method, daily_cap=2000000,
+                                 qa_min=qa_min, platform_set=platform_set,
+                                 focus_ym=focus_ym)
+    records = [r for r in _resolve_records(aoi, data, 2000000)
+               if _in_bbox(r, _parse_bbox(bbox))]
+    if not records:
+        raise HTTPException(404, f"No {data} data in this AOI")
+    return _harmonize_from_records(records, daily_cap=2000000, data=data, aoi=aoi,
+                                   method=method, qa_min=qa_min,
+                                   platform_set=platform_set)
+
+
+@app.get("/api/firms/simulate")
+def firms_simulate(aoi: str = Query("vietnam"),
+                   data: str = Query("raw", pattern="^(sample|raw)$"),
+                   year: int = Query(2025, ge=2000, le=2100),
+                   qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
+                   platform_set: str = Query("all", pattern="^(all|snpp)$"),
+                   sensors: str | None = Query(None, description="comma list, e.g. MODIS,SNPP")):
+    """Satellite Mission Simulator: recompute the calendar for sensor subsets.
+
+    One streaming pass for all sensors; each scenario recombines per-platform
+    counts already attached to the cells. It never re-runs a separate formula.
+    """
+    if aoi not in AOIS:
+        raise HTTPException(400, f"Unknown aoi {aoi!r}")
+    configs = [
+        {"label": "all_sensors", "platforms": ["MODIS", "NPP", "NOAA-20", "NOAA-21"]},
+        {"label": "modis_only", "platforms": ["MODIS"]},
+        {"label": "snpp_only", "platforms": ["MODIS", "NPP"]},
+        {"label": "no_noaa20", "platforms": ["MODIS", "NPP", "NOAA-21"]},
+        {"label": "no_noaa21", "platforms": ["MODIS", "NPP", "NOAA-20"]},
+    ]
+    if sensors:
+        alias = {"SNPP": "NPP", "NPP": "NPP", "NOAA-20": "NOAA-20",
+                 "NOAA20": "NOAA-20", "NOAA-21": "NOAA-21",
+                 "NOAA21": "NOAA-21", "MODIS": "MODIS"}
+        custom = []
+        for s in str(sensors).split(","):
+            k = alias.get(s.strip().upper())
+            if k and k not in custom:
+                custom.append(k)
+        if custom:
+            configs.append({"label": "custom", "platforms": custom})
+    if data == "raw":
+        out = _harmonize_stream(aoi, data, None, "stat", daily_cap=0,
+                                qa_min=qa_min, platform_set=platform_set,
+                                simulate_year=year, simulate_configs=configs)
+        sims = out.get("simulations") or []
+        coverage = out.get("coverage")
+    else:
+        records = _resolve_records(aoi, data, 2000000)
+        out = _harmonize_from_records(records, daily_cap=2000000, data=data,
+                                      aoi=aoi, qa_min=qa_min,
+                                      platform_set=platform_set)
+        year_daily = [c for c in out["daily"] if str(c["date"])[:4] == str(year)]
+        sims = []
+        all_cfg = next((c for c in configs if c["label"] == "all_sensors"), configs[0])
+        _, all_meta = harmonize.reconfigure_daily(
+            year_daily, all_cfg["platforms"], all_cfg["label"])
+        baseline_k = all_meta.get("k_by_month") or {}
+        for cfg in configs:
+            rd, smeta = harmonize.reconfigure_daily(
+                year_daily, cfg["platforms"], cfg["label"],
+                baseline_k=baseline_k)
+            scal = cal.build_calendar(rd)
+            total = scal["row_totals"][0] if scal["row_totals"] else 0.0
+            sims.append({**smeta, "year": year, "year_total": round(float(total), 3),
+                         "months": {str(m): scal["matrix"][0][m - 1]
+                                    for m in range(1, 13)} if scal.get("matrix") else {},
+                         "observed_cells": sum(1 for c in rd if c.get("estimate_type") == "viirs_observed"),
+                         "estimated_cells": sum(1 for c in rd if c.get("estimate_type") == "modis_upscaled_estimated"),
+                         "n_cells": len(rd), "calendar": scal})
+        base = next((s["year_total"] for s in sims if s["sensor_config"] == "all_sensors"), None)
+        for s in sims:
+            s["delta_vs_all"] = round(s["year_total"] - base, 3) if base is not None else None
+        coverage = out.get("coverage")
+    mix = ((out.get("calendar") or {}).get("platform_mix") or {}).get(str(year), {})
+    return JSONResponse({
+        "aoi": aoi, "data": data, "year": year,
+        "validation_unit": "aoi-month; simulated sensor subsets are descriptive, not forecasts",
+        "note": ("A sensor subset changes what was observed, not the true fire count. "
+                 "A missing detection is not evidence of no fire. "
+                 "Identical totals across sensor configs mean this pull does not "
+                 "contain that platform, not that the platform adds no signal."),
+        "platforms_present": sorted(mix),
+        "coverage": coverage,
+        "simulations": sims,
+    })
+
+
+@app.get("/api/firms/blind-spots")
+def firms_blind_spots(aoi: str = Query("vietnam"),
+                      data: str = Query("raw", pattern="^(sample|raw)$"),
+                      year: int = Query(2025, ge=2000, le=2100),
+                      month: int = Query(1, ge=1, le=12),
+                      qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
+                      platform_set: str = Query("all", pattern="^(all|snpp)$")):
+    """Sensor Blind Spot Explorer: day × sensor request/detection states.
+
+    `unknown` means the request ledger has no evidence that the sensor looked;
+    it is never rendered as `no fire`. `observed_empty` means requested but no
+    hotspot row was returned (still not proof of no fire, because clouds/smoke
+    and sub-pixel fires remain).
+    """
+    if aoi not in AOIS:
+        raise HTTPException(400, f"Unknown aoi {aoi!r}")
+    ym = f"{year}-{month:02d}"
+    per_source = cov.requested_days(aoi) if data == "raw" else {}
+    fam_days: dict[str, set[int]] = {"MODIS": set(), "VIIRS": set()}
+    for src, days in (per_source.get(ym) or {}).items():
+        fam = "MODIS" if src.upper().startswith("MODIS") else (
+            "VIIRS" if src.upper().startswith("VIIRS") else "OTHER")
+        fam_days.setdefault(fam, set()).update(days)
+    if data == "raw":
+        out = _harmonize_stream(aoi, data, None, "stat", daily_cap=2000000,
+                                qa_min=qa_min, platform_set=platform_set,
+                                focus_ym=ym)
+        cells = out.get("daily") or []
+        comp = (out.get("calendar", {}).get("completeness") or {}).get(ym, {})
+    else:
+        records = _resolve_records(aoi, data, 2000000)
+        out = _harmonize_from_records(records, daily_cap=2000000, data=data,
+                                      aoi=aoi, qa_min=qa_min,
+                                      platform_set=platform_set)
+        cells = [c for c in out["daily"] if str(c["date"])[:7] == ym]
+        comp = (out["calendar"].get("completeness") or {}).get(ym, {})
+    by_day: dict[int, dict[str, int]] = {}
+    for c in cells:
+        try:
+            d = int(str(c["date"])[8:10])
+        except (ValueError, IndexError):
+            continue
+        slot = by_day.setdefault(d, {"MODIS": 0, "VIIRS": 0})
+        slot["MODIS"] += int(c.get("modis_count", 0) or 0)
+        slot["VIIRS"] += int(c.get("viirs_count", 0) or 0)
+    import calendar as _cal
+    last = _cal.monthrange(year, month)[1]
+    rows = []
+    for d in range(1, last + 1):
+        modis_req = d in fam_days.get("MODIS", set()) if data == "raw" else None
+        viirs_req = d in fam_days.get("VIIRS", set()) if data == "raw" else None
+        got = by_day.get(d, {"MODIS": 0, "VIIRS": 0})
+        if data != "raw":
+            status = "unknown_coverage"
+        elif not modis_req and not viirs_req:
+            status = "not_requested"
+        elif got["MODIS"] or got["VIIRS"]:
+            status = "detected"
+        else:
+            status = "observed_empty"
+        rows.append({"day": d, "date": f"{year}-{month:02d}-{d:02d}",
+                     "modis_requested": modis_req, "viirs_requested": viirs_req,
+                     "modis_detections": got["MODIS"],
+                     "viirs_detections": got["VIIRS"],
+                     "status": status})
+    status_counts: dict[str, int] = {}
+    for r in rows:
+        status_counts[r["status"]] = status_counts.get(r["status"], 0) + 1
+    return JSONResponse({
+        "aoi": aoi, "data": data, "ym": ym,
+        "coverage": comp,
+        "coverage_class": comp.get("coverage_class", "unknown"),
+        "paired_coverage_ratio": comp.get("coverage_ratio"),
+        "coverage_metric": "paired_request_coverage",
+        "observation_footprint": "unknown",
+        "eligibility_threshold": cov.PARTIAL_THRESHOLD,
+        "status_counts": status_counts,
+        "days": rows,
+        "note": ("unknown/not_requested is not zero fire. observed_empty means only "
+                 "'data requested, no detection row returned'; it is not proof of "
+                 "cloud-free observation or of no fire. A per-cell footprint mask "
+                 "would be required for that claim."),
+    })
+
+
+@app.post("/api/firms/cross-validate")
+def firms_cross_validate(payload: dict):
+    """Correlate the harmonized activity index with a user-supplied series.
+
+    The bundled project has no MCD64A1 product; the endpoint accepts a
+    monthly burned-area series (year, month, burned_area) and returns a
+    cross-dataset consistency check, explicitly not ground-truth validation.
+    """
+    aoi = str(payload.get("aoi", "vietnam"))
+    data = str(payload.get("data", "raw"))
+    series = payload.get("series")
+    if aoi not in AOIS or data not in ("sample", "raw"):
+        raise HTTPException(400, "valid aoi and data=sample|raw required")
+    if not isinstance(series, list) or len(series) < 6:
+        return JSONResponse({
+            "available": False,
+            "reason": "no_series",
+            "required": "series: [{year, month, burned_area}] (e.g. MCD64A1 monthly totals)",
+            "note": ("No MCD64A1 product is bundled. Upload/derive a monthly "
+                     "burned-area series to run this consistency check."),
+        })
+    if data == "raw":
+        out = _harmonize_stream(aoi, data, None, "stat", daily_cap=0)
+        monthly = out.get("monthly") or {}
+    else:
+        records = _resolve_records(aoi, data, 2000000)
+        out = _harmonize_from_records(records, daily_cap=2000000, data=data, aoi=aoi)
+        monthly = {}
+        for c in out["daily"]:
+            ym = str(c["date"])[:7]
+            monthly.setdefault(ym, {"harmonized": 0.0})["harmonized"] += float(
+                c.get("harmonized_count", 0) or 0)
+    xs, ys = [], []
+    joined = []
+    for r in series:
+        try:
+            ym = f"{int(r['year'])}-{int(r['month']):02d}"
+            v = float(r["burned_area"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if ym not in monthly:
+            continue
+        a = float(monthly[ym]["harmonized"])
+        xs.append(a)
+        ys.append(v)
+        joined.append({"ym": ym, "activity_index": round(a, 2), "burned_area": v})
+    if len(xs) < 6:
+        return JSONResponse({"available": False, "reason": "insufficient_join",
+                             "n": len(xs), "joined": joined})
+    pear = spatial._pearson(xs, ys)  # noqa: SLF001 - internal helper
+    spear = spatial._spearman(xs, ys)  # noqa: SLF001
+    return JSONResponse({
+        "available": True, "aoi": aoi, "data": data, "n": len(xs),
+        "pearson": None if pear is None else round(pear, 3),
+        "spearman": None if spear is None else round(spear, 3),
+        "joined": joined,
+        "caveat": ("Burned area and hotspot detections are different quantities; "
+                   "MCD64A1 itself uses active-fire information, so a correlation "
+                   "is a consistency check, not independent ground truth."),
+    })
+
+
+@app.get("/api/firms/spatial-check")
+def firms_spatial_check(aoi: str = Query("vietnam"),
+                        data: str = Query("raw", pattern="^(sample|raw)$"),
+                        year: int = Query(2025, ge=2000, le=2100),
+                        month: int = Query(1, ge=1, le=12),
+                        res_deg: float = Query(0.25, ge=0.05, le=1.0)):
+    """Coarse co-observation consistency; explicitly NOT a spatial holdout."""
+    if aoi not in AOIS:
+        raise HTTPException(400, f"Unknown aoi {aoi!r}")
+    ym = f"{year}-{month:02d}"
+    if data == "raw":
+        out = _harmonize_stream(aoi, data, None, "stat", daily_cap=2000000,
+                                focus_ym=ym)
+        daily = out.get("daily") or []
+    else:
+        records = _resolve_records(aoi, data, 2000000)
+        out = _harmonize_from_records(records, daily_cap=2000000, data=data,
+                                      aoi=aoi)
+        daily = out["daily"]
+    return JSONResponse(spatial.coobservation(daily, year, month, res_deg))
+
+
+@app.get("/api/firms/evidence")
+def firms_evidence(aoi: str = Query("vietnam"),
+                   data: str = Query("raw", pattern="^(sample|raw)$"),
+                   method: str = Query("stat", pattern="^(stat|ml|ts)$"),
+                   year: int = Query(2025, ge=2000, le=2100),
+                   month: int = Query(1, ge=1, le=12),
+                   bbox: str | None = Query(None),
+                   qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
+                   platform_set: str = Query("all", pattern="^(all|snpp)$")):
+    """Evidence card for one AOI-month, from the same cells as /calendar."""
+    if aoi not in AOIS:
+        raise HTTPException(400, f"Unknown aoi {aoi!r}")
+    _block_raw_ml_ts(method, data, aoi)
+    out = _analysis_for_evidence(aoi, data, method, bbox, qa_min, platform_set,
+                                 focus_ym=f"{year}-{month:02d}")
+    ev = evd.build_evidence(out, out.get("daily") or [], aoi, data, method,
+                            year, month)
+    return JSONResponse(ev)
+
+
+@app.post("/api/firms/explain-month")
+def firms_explain_month(payload: dict):
+    """LLM/rule explanation of one AOI-month, grounded on an evidence card."""
+    aoi = str(payload.get("aoi", "vietnam"))
+    data = str(payload.get("data", "raw"))
+    method = str(payload.get("method", "stat"))
+    year = int(payload.get("year", 2025))
+    month = int(payload.get("month", 1))
+    if aoi not in AOIS:
+        raise HTTPException(400, f"Unknown aoi {aoi!r}")
+    if data not in ("sample", "raw") or method not in ("stat", "ml", "ts"):
+        raise HTTPException(400, "data must be sample|raw and method stat|ml|ts")
+    if not (2000 <= year <= 2100 and 1 <= month <= 12):
+        raise HTTPException(400, "year/month out of range")
+    qa_min = str(payload.get("qa_min", "all"))
+    platform_set = str(payload.get("platform_set", "all"))
+    _block_raw_ml_ts(method, data, aoi)
+    out = _analysis_for_evidence(aoi, data, method, payload.get("bbox"),
+                                 qa_min, platform_set,
+                                 focus_ym=f"{year}-{month:02d}")
+    ev = evd.build_evidence(out, out.get("daily") or [], aoi, data, method,
+                            year, month)
+    question = str(payload.get("question") or
+                   f"Giải thích tháng {year}-{month:02d} của {aoi}").strip()
+    vi = ex.is_vietnamese(question)
+    rule = evd.answer_month(ev, vi)
+    if payload.get("use_llm", True):
+        res = llm.ask_llm(question, ev, rule)
+    else:
+        res = {"answer": rule, "llm_used": False,
+               "reason": "use_llm=false; rule-based evidence answer"}
+    return JSONResponse({**res, "evidence": ev,
+                         "suggestions": [
+                             "Vì sao tổng tháng này cao/thấp?",
+                             "Bao nhiêu ô là ước lượng?",
+                             "Coverage tháng này có đủ không?",
+                             "Nền tảng vệ tinh nào đóng góp?",
+                         ]})
+
+
+@app.get("/api/firms/qa-summary")
+def firms_qa_summary(aoi: str = Query("vietnam"),
+                     data: str = Query("raw", pattern="^(sample|raw)$"),
+                     limit: int = Query(200000, ge=1000, le=2000000)):
+    """Confidence/platform mix for a bounded prefix (filter sensitivity)."""
+    if aoi not in AOIS:
+        raise HTTPException(400, f"Unknown aoi {aoi!r}")
+    rows = (store.iter_raw_rows(aoi, limit=limit) if data == "raw"
+            else store.load_records(aoi, limit))
+    by_conf: dict[str, int] = {}
+    by_sat: dict[str, int] = {}
+    by_inst: dict[str, int] = {}
+    by_qa: dict[str, int] = {}
+    total = 0
+    for r in rows:
+        try:
+            rec = FirmsRecord(**{k.lower(): v for k, v in dict(r).items()})
+        except Exception:
+            continue
+        total += 1
+        by_conf[rec.confidence] = by_conf.get(rec.confidence, 0) + 1
+        by_sat[rec.satellite] = by_sat.get(rec.satellite, 0) + 1
+        by_inst[rec.instrument] = by_inst.get(rec.instrument, 0) + 1
+        q = rec.qa()
+        by_qa[q] = by_qa.get(q, 0) + 1
+    low = by_conf.get("l", 0)
+    warnings = []
+    total_safe = total or 1
+    retained = {
+        "qa_all": 1.0,
+        "qa_nominal": round((by_conf.get("n", 0) + by_conf.get("h", 0)) / total_safe, 4),
+        "qa_high": round(by_conf.get("h", 0) / total_safe, 4),
+        "platform_snpp": round((by_inst.get("MODIS", 0) + by_sat.get("NPP", 0)) / total_safe, 4),
+    }
+    if total and low / total > 0.2:
+        warnings.append(f"{round(low / total * 100)}% low-confidence; consider qa_min=nominal")
+    if len(by_sat) > 2:
+        warnings.append("multiple VIIRS platforms: use platform_set=snpp for a comparable series")
+    return {"aoi": aoi, "data": data, "sampled_rows": total,
+            "by_confidence": by_conf, "by_satellite": by_sat,
+            "by_instrument": by_inst, "by_qa": by_qa,
+            "retained_fraction": retained,
+            "warnings": warnings,
+            "note": "bounded prefix; use /coverage for the full request ledger"}
+
+
+@app.get("/api/firms/dedup-sensitivity")
+def firms_dedup_sensitivity(aoi: str = Query("vietnam"),
+                            data: str = Query("raw", pattern="^(sample|raw)$"),
+                            limit: int = Query(200000, ge=1000, le=1000000)):
+    """Exact vs pixel-day dedup collision bound (audit P1-08)."""
+    if aoi not in AOIS:
+        raise HTTPException(400, f"Unknown aoi {aoi!r}")
+    rows = (store.iter_raw_rows(aoi, limit=limit) if data == "raw"
+            else store.load_records(aoi, limit))
+    validated = []
+    for r in rows:
+        try:
+            rec = FirmsRecord(**{k.lower(): v for k, v in dict(r).items()})
+        except Exception:
+            continue
+        validated.append(rec.model_dump(mode="json"))
+        if len(validated) >= limit:
+            break
+    out = harmonize.dedup_sensitivity(validated, limit=limit)
+    out.update({"aoi": aoi, "data": data})
+    return out
+
+
+@app.post("/api/firms/investigate")
+def firms_investigate(payload: dict):
+    """AI Scientific Investigator: deterministic tools first, LLM explains.
+
+    The response lists the tools that actually ran and the limitations. The
+    LLM never computes MAE/coverage; it receives the tool outputs and the
+    evidence card, and the grounding guard rejects invented large numbers.
+    """
+    q = str(payload.get("question", "")).strip()
+    if not q or len(q) > 1000:
+        raise HTTPException(400, "Provide question (1-1000 chars)")
+    aoi = str(payload.get("aoi", "vietnam"))
+    data = str(payload.get("data", "raw"))
+    method = str(payload.get("method", "stat"))
+    if aoi not in AOIS:
+        raise HTTPException(400, f"Unknown aoi {aoi!r}")
+    if data not in ("sample", "raw") or method not in ("stat", "ml", "ts"):
+        raise HTTPException(400, "data must be sample|raw and method stat|ml|ts")
+    year = payload.get("year")
+    month = payload.get("month")
+    focus = (f"{int(year)}-{int(month):02d}"
+             if year and month and 1 <= int(month) <= 12 else None)
+    out = _analysis_for_evidence(aoi, data, method, payload.get("bbox"),
+                                 str(payload.get("qa_min", "all")),
+                                 str(payload.get("platform_set", "all")),
+                                 focus_ym=focus)
+    facts = ex.gather_facts(out["calendar"], out["daily_cells"], out["ratios"],
+                            out.get("qa", {}).get("clean", 0),
+                            payload.get("bbox"), method=out.get("method_id"),
+                            evaluation=_evaluation_facts(aoi, data),
+                            coverage=out.get("coverage"),
+                            filters=out.get("filters"))
+    facts["data_source"] = _data_source_label(data)
+    facts["latest"] = out["latest"]
+    evidence = None
+    if focus:
+        evidence = evd.build_evidence(out, out.get("daily") or [], aoi, data,
+                                      method, int(year), int(month))
+    tools_used = ["calendar", "evaluation", "coverage"]
+    if evidence:
+        tools_used.append("evidence")
+    if any(w in q.lower() for w in ("sensor", "modis", "viirs", "platform", "cảm biến", "cam bien")):
+        tools_used.append("sensor_context")
+    rule = ex.answer(q, facts, out["critical_periods"], out["latest"], dl.describe())
+    llm_facts = {**facts, "evidence": evidence,
+                 "top_months": out["critical_periods"][:5],
+                 "tools_used": tools_used,
+                 "limitations": [
+                     "AOI-month MAE against a VIIRS reference, not fire ground truth.",
+                     "A missing detection is not proof of no fire (cloud/smoke/sub-pixel).",
+                     "Australia remains a sparse 5-day-window series.",
+                     "Cell-day estimates are not spatially validated.",
+                 ]}
+    if payload.get("use_llm", True):
+        res = llm.ask_llm(q, llm_facts, rule["answer"])
+    else:
+        res = {"answer": rule["answer"], "llm_used": False,
+               "reason": "use_llm=false; deterministic tool answer"}
+    return JSONResponse({
+        **res,
+        "tools_used": tools_used,
+        "evidence": evidence,
+        "facts": facts,
+        "suggestions": rule["suggestions"],
+        "limitations": llm_facts["limitations"],
+        "citations": (evidence or {}).get("citations", []),
+    })
+
+
 @app.get("/api/firms/llm-status")
 def firms_llm_status():
     return llm.available()
@@ -1247,22 +2066,42 @@ def firms_ask_llm(payload: dict):
     data = str(payload.get("data", "sample"))
     if data not in ("sample", "raw"):
         raise HTTPException(400, "data must be sample|raw")
-    records = [r for r in _resolve_records(aoi, data, 100000) if _in_bbox(r, bbox)]
-    if not records:
-        raise HTTPException(404, "No sample data in this AOI")
-    out = _harmonize_from_records(records, data=data, aoi=aoi)
+    method = str(payload.get("method", "stat"))
+    if method not in ("stat", "ml", "ts"):
+        raise HTTPException(400, "method must be stat|ml|ts")
+    qa_min = str(payload.get("qa_min", "all"))
+    platform_set = str(payload.get("platform_set", "all"))
+    _block_raw_ml_ts(method, data, aoi)
+    if data == "raw":
+        out = _harmonize_stream(aoi, data, payload.get("bbox") or bbox, method,
+                                daily_cap=2000, qa_min=qa_min,
+                                platform_set=platform_set)
+        n_records = out.get("qa", {}).get("clean", 0)
+    else:
+        records = [r for r in _resolve_records(aoi, data, 100000) if _in_bbox(r, bbox)]
+        if not records:
+            raise HTTPException(404, "No sample data in this AOI")
+        out = _harmonize_from_records(records, data=data, aoi=aoi, method=method,
+                                      qa_min=qa_min, platform_set=platform_set)
+        n_records = len(records)
     facts = ex.gather_facts(out["calendar"], out["daily_cells"],
-                            out["ratios"], len(records), payload.get("bbox"))
+                            out["ratios"], n_records, payload.get("bbox"),
+                            method=out.get("method_id"),
+                            evaluation=_evaluation_facts(aoi, data),
+                            coverage=out.get("coverage"),
+                            filters=out.get("filters"))
     facts["data_source"] = _data_source_label(data)
     facts["latest"] = out["latest"]
     facts["method_summary"] = (
-        "4 steps on a daily 0.05° grid: (1) standardize FIRMS rows to one schema with QA flags; "
+        "4 steps on a daily 0.05° grid: (1) standardize FIRMS rows to one schema with QA flags "
+        f"(filters qa_min={out.get('filters', {}).get('qa_min')}, platform_set={out.get('filters', {}).get('platform_set')}); "
         f"(2) k = MODIS/VIIRS = {out['ratios'].get('_fallback')} from monthly AOI totals "
-        f"({out['ratios'].get('_n_months', 0)} measured months; empirical activity ratio, not a validated calibration); "
+        f"({out['ratios'].get('_n_months', 0)} measured months; mode={out['ratios'].get('_mode')}); "
         "(3) sensor-adjusted activity index in hotspot detections (NOT fires): keep VIIRS where >=1 VIIRS "
         "detection, upscale MODIS-only cells by 1/k as ESTIMATES (coverage unknown, upscaled FRP=null); "
         f"(4) month×year calendar, z anomaly in {out['calendar'].get('z_unit', 'robust MAD units')}. "
-        f"Calibration method for this response: {out.get('method_id')}.")
+        f"Requested method `{method}` → effective `{out.get('effective_method')}`. "
+        f"Coverage verified: {(out.get('coverage') or {}).get('verified')}.")
     rule = ex.answer(q, facts, out["critical_periods"], out["latest"], dl.describe())
     res = llm.ask_llm(q, {**facts, "top_months": out["critical_periods"][:5]},
                       rule["answer"])
@@ -1280,12 +2119,30 @@ def firms_ask(payload: dict):
     data = str(payload.get("data", "sample"))
     if data not in ("sample", "raw"):
         raise HTTPException(400, "data must be sample|raw")
-    records = [r for r in _resolve_records(aoi, data, 100000) if _in_bbox(r, bbox)]
-    if not records:
-        raise HTTPException(404, "No sample data in this AOI")
-    out = _harmonize_from_records(records, data=data)
+    method = str(payload.get("method", "stat"))
+    if method not in ("stat", "ml", "ts"):
+        raise HTTPException(400, "method must be stat|ml|ts")
+    qa_min = str(payload.get("qa_min", "all"))
+    platform_set = str(payload.get("platform_set", "all"))
+    _block_raw_ml_ts(method, data, aoi)
+    if data == "raw":
+        out = _harmonize_stream(aoi, data, payload.get("bbox") or bbox, method,
+                                daily_cap=2000, qa_min=qa_min,
+                                platform_set=platform_set)
+        n_records = out.get("qa", {}).get("clean", 0)
+    else:
+        records = [r for r in _resolve_records(aoi, data, 100000) if _in_bbox(r, bbox)]
+        if not records:
+            raise HTTPException(404, "No sample data in this AOI")
+        out = _harmonize_from_records(records, data=data, aoi=aoi, method=method,
+                                      qa_min=qa_min, platform_set=platform_set)
+        n_records = len(records)
     facts = ex.gather_facts(out["calendar"], out["daily_cells"],
-                            out["ratios"], len(records), payload.get("bbox"))
+                            out["ratios"], n_records, payload.get("bbox"),
+                            method=out.get("method_id"),
+                            evaluation=_evaluation_facts(aoi, data),
+                            coverage=out.get("coverage"),
+                            filters=out.get("filters"))
     facts["data_source"] = _data_source_label(data)
     return JSONResponse(ex.answer(q, facts, out["critical_periods"],
                                   out["latest"], dl.describe()))

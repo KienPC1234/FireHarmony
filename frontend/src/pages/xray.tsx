@@ -1,123 +1,165 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ScanEye, SlidersHorizontal } from "lucide-react";
 import { api } from "@/lib/api";
 import { useLang } from "@/lib/i18n";
 import { ErrorState, Loading } from "@/components/states";
+import { XraySidebar } from "@/components/xray/XraySidebar";
+import { XrayTimelineView } from "@/components/xray/XrayTimelineView";
+import { XrayTransitionIllusionView } from "@/components/xray/XrayTransitionIllusionView";
+import { XrayBacktestLeaderboard } from "@/components/xray/XrayBacktestLeaderboard";
+
+type XrayTab = "trajectory" | "transition" | "backtest";
 
 export function XrayPage() {
-  const { t, lang } = useLang();
+  const { lang } = useLang();
+  const vi = lang === "vi";
   const [sp, setSp] = useSearchParams();
   const aoi = sp.get("aoi") || "vietnam";
   const data = sp.get("data") || "sample";
+  const [viewTab, setViewTab] = useState<XrayTab>("trajectory");
+
   const [xr, setXr] = useState<Awaited<ReturnType<typeof api.xray>> | null>(null);
   const [bt, setBt] = useState<Awaited<ReturnType<typeof api.backtest>> | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setXr(null); setBt(null); setError(null);
-    api.xray(aoi, data).then(setXr).catch(setError);
-    api.backtest(aoi, data).then(setBt).catch(() => undefined);
+    let active = true;
+    setLoading(true);
+    setError(null);
+
+    Promise.all([
+      api.xray(aoi, data).catch((err) => {
+        if (active) setError(err);
+        return null;
+      }),
+      api.backtest(aoi, data).catch(() => null),
+    ]).then(([xrayData, backtestData]) => {
+      if (!active) return;
+      if (xrayData) setXr(xrayData);
+      if (backtestData) setBt(backtestData);
+      setLoading(false);
+    });
+
+    return () => {
+      active = false;
+    };
   }, [aoi, data]);
 
-  const series = useMemo(() => (xr ? xr.months.map((m) => ({
-    t: `${m.year}-${String(m.month).padStart(2, "0")}`,
-    MODIS: m.modis_raw, VIIRS: m.viirs_ref, Adjusted: m.adjusted_stat,
-    AdjustedCalendar: m.adjusted_calendar ?? null,
-  })) : []), [xr]);
+  const handleSetAoi = (newAoi: string) => {
+    setSp({ aoi: newAoi, data });
+  };
 
-  if (error) return <ErrorState error={error} />;
-  if (!xr) return <Loading label={t("common.loading")} />;
-  const mets = xr.backtest_metrics;
+  const handleSetData = (newData: string) => {
+    setSp({ aoi, data: newData });
+  };
+
   return (
-    <div className="animate-fade-up space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-extrabold">{lang === "vi" ? "Sensor Bias X-Ray" : "Sensor Bias X-Ray"}</h1>
-        <span className="rounded bg-amber-100 px-2 py-1 font-mono text-xs text-amber-900">{xr.data_source}</span>
-        <div className="ml-auto flex gap-2 text-sm">
-          <label>AOI
-            <select value={aoi} onChange={(e) => setSp({ aoi: e.target.value, data })}
-              className="ml-1 rounded border px-2 py-1">
-              {["vietnam", "amazon", "australia"].map((a) => <option key={a} value={a}>{a}</option>)}
-            </select>
-          </label>
-          <label>Data
-            <select value={data} onChange={(e) => setSp({ aoi, data: e.target.value })}
-              className="ml-1 rounded border px-2 py-1">
-              <option value="sample">sample</option>
-              <option value="raw">raw</option>
-            </select>
-          </label>
-        </div>
-      </div>
-      <p className="max-w-3xl text-sm text-muted-foreground">
-        {lang === "vi"
-          ? `Trái: MODIS thô. Giữa: VIIRS tham chiếu (không phải ground truth cháy thật). Phải: ước lượng sau chỉnh sensor. ${xr.units}.`
-          : `Left: raw MODIS. Middle: VIIRS reference (not fire ground truth). Right: sensor-adjusted estimate. ${xr.units}.`}
-      </p>
-
-      <div className="card-glow rounded-lg border bg-card p-4">
-        <h2 className="font-bold">MODIS raw vs VIIRS reference vs adjusted</h2>
-        <div style={{ height: 300 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={series}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="t" tick={false} />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line dataKey="MODIS" stroke="#64748b" dot={false} />
-              <Line dataKey="VIIRS" stroke="#16a34a" dot={false} />
-              <Line dataKey="Adjusted" stroke="#ea580c" dot={false} />
-              <Line dataKey="AdjustedCalendar" stroke="#0ea5e9" dot={false} connectNulls={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="card-glow rounded-lg border bg-card p-4">
-          <h2 className="font-bold">{lang === "vi" ? "Sai số holdout (tháng)" : "Holdout error (monthly)"}</h2>
-          {!mets ? <p className="text-sm text-muted-foreground">n/a</p> : (
-            <table className="mt-2 w-full text-sm">
-              <thead><tr className="text-left text-muted-foreground">
-                <th>method</th><th>MAE</th><th>WAPE</th><th>bias</th>
-              </tr></thead>
-              <tbody>
-                {(["b0_raw_modis", "b1_global_ratio", "b2_seasonal_ratio", "hgb_b2res_v4", "ts_logratio_pool_v2"] as const).map((k) => (
-                  mets[k] ? (
-                    <tr key={k} className="border-t font-mono text-xs">
-                      <td>{k}</td><td>{mets[k].mae.toFixed(2)}</td>
-                      <td>{mets[k].wape.toFixed(3)}</td><td>{mets[k].bias.toFixed(2)}</td>
-                    </tr>
-                  ) : null
-                ))}
-              </tbody>
-            </table>
-          )}
-          <p className="mt-2 text-xs text-muted-foreground">
-            {lang === "vi"
-              ? "Time-travel: train năm đầu, giấu VIIRS ở năm test, dự đoán từ MODIS. VIIRS là tham chiếu sensor, không phải số vụ cháy thật."
-              : "Time-travel: train on early years, hide VIIRS in test years, predict from MODIS. VIIRS is a sensor reference, not true fire counts."}
+    <div className="animate-fade-up space-y-5 pb-12">
+      {/* Top Banner & Control Deck */}
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border/80 bg-slate-950/80 p-4 shadow-card backdrop-blur">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-950/60 shadow-inner">
+              <ScanEye className="h-5 w-5 text-cyan-400" />
+            </div>
+            <h1 className="text-xl font-bold tracking-tight text-slate-100">
+              {vi ? "Chụp X-Ray sai lệch cảm biến & Bóc tách đa thập kỷ" : "Sensor Bias X-Ray & Multi-Decadal Dissection"}
+            </h1>
+            <span className="font-mono text-xs font-semibold uppercase px-2.5 py-0.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-300">
+              {xr?.data_source ?? data.toUpperCase()}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {vi
+              ? `MODIS 1km so với VIIRS 375m tham chiếu: kiểm chứng độ trệch sensor, loại bỏ bước nhảy giả 2012 và backtest holdout độc lập.`
+              : `MODIS 1km vs VIIRS 375m reference: audit footprint bias, resolve the 2012 step-jump illusion, and test holdout accuracy.`}
           </p>
         </div>
-        <div className="card-glow rounded-lg border bg-card p-4">
-          <h2 className="font-bold">Provenance</h2>
-          <ul className="mt-2 space-y-1 font-mono text-xs">
-            <li>units: {xr.units}</li>
-            <li>evaluation: {String((xr as { evaluation_version?: string }).evaluation_version ?? "n/a")} · {String((xr as { eval_unit?: string }).eval_unit ?? "")}</li>
-            <li>hgb artifact: {xr.ml_trained ? "trained" : "missing"} · {String((xr as { effective_ml_method?: string }).effective_ml_method ?? "")}</li>
-            <li>transformer: {xr.ts_trained ? `trained (${String((xr.ts_meta as { params?: number })?.params ?? "?")} params)` : "missing"}</li>
-            <li>months: {xr.months.length}</li>
-            <li>adjusted_stat ratio source: {String((xr.months[0] as { ratio_source?: string })?.ratio_source ?? "?")}</li>
-          </ul>
-          {bt && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              train {bt.train_years[0]}–{bt.train_years[bt.train_years.length - 1]} → test {bt.test_years.join(", ")} · {bt.months.length} months
-            </p>
-          )}
+
+        {/* Global tab navigation pills */}
+        <div className="flex items-center rounded-xl border border-border/60 bg-slate-900/80 p-1 text-xs">
+          <button
+            type="button"
+            onClick={() => setViewTab("trajectory")}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition ${
+              viewTab === "trajectory"
+                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm"
+                : "text-muted-foreground hover:text-slate-200"
+            }`}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <span>{vi ? "Quỹ đạo & Độ lệch" : "Trajectory Audit"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewTab("transition")}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition ${
+              viewTab === "transition"
+                ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-sm"
+                : "text-muted-foreground hover:text-slate-200"
+            }`}
+          >
+            <span>{vi ? "Ảo ảnh bước nhảy 2012" : "2012 Sensor Illusion"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewTab("backtest")}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition ${
+              viewTab === "backtest"
+                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm"
+                : "text-muted-foreground hover:text-slate-200"
+            }`}
+          >
+            <span>{vi ? "Bảng đấu Model (Holdout)" : "Model Leaderboard"}</span>
+          </button>
         </div>
       </div>
+
+      {/* Main Cockpit Grid */}
+      {error ? (
+        <ErrorState error={error} />
+      ) : loading || !xr ? (
+        <Loading label={vi ? "Đang giải phẫu tín hiệu sensor..." : "Analyzing sensor discrepancies..."} />
+      ) : (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+          {/* Left Control Sidebar */}
+          <div className="lg:col-span-1">
+            <XraySidebar
+              aoi={aoi}
+              setAoi={handleSetAoi}
+              data={data}
+              setData={handleSetData}
+              dataSrcLabel={xr.data_source}
+              units={xr.units}
+              mlTrained={xr.ml_trained}
+              tsTrained={xr.ts_trained}
+              totalMonths={xr.months.length}
+              viewTab={viewTab}
+              setViewTab={setViewTab}
+            />
+          </div>
+
+          {/* Right Main Dissection Canvas */}
+          <div className="lg:col-span-3">
+            {viewTab === "trajectory" && (
+              <XrayTimelineView months={xr.months} units={xr.units} />
+            )}
+
+            {viewTab === "transition" && (
+              <XrayTransitionIllusionView months={xr.months} />
+            )}
+
+            {viewTab === "backtest" && (
+              <XrayBacktestLeaderboard
+                metrics={xr.backtest_metrics ?? null}
+                backtest={bt}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

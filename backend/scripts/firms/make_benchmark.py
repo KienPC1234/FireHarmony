@@ -27,7 +27,7 @@ from pathlib import Path
 BACKEND = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(BACKEND))
 
-from app.firms import evaluation, ml_cal, store  # noqa: E402
+from app.firms import coverage, evaluation, ml_cal, store  # noqa: E402
 
 BENCH_DIR = BACKEND / "data" / "firms" / "benchmark"
 AOIS = ("vietnam", "amazon", "australia")
@@ -81,6 +81,30 @@ def build() -> int:
     _write_csv(exp, ["aoi", "year", "month", "modis", "viirs"], all_pairs)
     meta["expected_pairs"] = {"file": exp.name, "rows": len(all_pairs),
                               "sha256": _sha(exp)}
+
+    # ---- monthly pairs: enough to retrain HGB/TS without raw pixels ------
+    meta["training_pairs"] = {}
+    for data in DATASETS:
+        rows = []
+        for aoi in AOIS:
+            if data == "raw":
+                pb = ml_cal.PairBuilder()
+                for r in store.iter_raw_rows(aoi, limit=None):
+                    pb.add(r)
+                pairs = pb.finalize()
+                eligible = coverage.eligible_pair_months(aoi)
+                if len(eligible) >= 24:
+                    pairs = [p for p in pairs
+                             if f"{p['year']}-{p['month']:02d}" in eligible]
+            else:
+                pairs = ml_cal.build_monthly_pairs(store.load_records(aoi, 100000))
+            for p in pairs:
+                rows.append({"aoi": aoi, **p})
+        path = BENCH_DIR / f"training_pairs_{data}.csv"
+        _write_csv(path, ["aoi", "year", "month", "modis", "viirs",
+                          "day_frac", "terra_frac"], rows)
+        meta["training_pairs"][data] = {"file": path.name, "rows": len(rows),
+                                        "sha256": _sha(path)}
 
     # ---- frozen evaluation samples (the real reproducibility layer) ------
     meta["evaluations"] = {}

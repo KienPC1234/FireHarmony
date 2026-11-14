@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import os
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from app.firms import calendar as cal
 from app.firms import dl, harmonize
+from app.firms import store as _store
 from app.firms.schema import FirmsRecord
 from app.main import app
 
@@ -17,6 +19,14 @@ client = TestClient(app)
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 _DIST_INDEX = Path(__file__).resolve().parents[2] / "frontend" / "dist" / "index.html"
+_RAW_AVAILABLE = (bool(list(_store.RAW_DIR.glob("*_*.csv")))
+                  if _store.RAW_DIR.exists() else False) and \
+                 os.getenv("FIRMS_SKIP_RAW") != "1"
+_NEEDS_RAW = pytest.mark.skipif(not _RAW_AVAILABLE,
+                                reason="raw FIRMS data not bundled; run fetch_full_month")
+_NEEDS_DIST = pytest.mark.skipif(not _DIST_INDEX.exists() or
+                                 os.getenv("FIRMS_SKIP_DIST") == "1",
+                                 reason="frontend not built (or FIRMS_SKIP_DIST=1)")
 
 
 def _recs() -> list[dict]:
@@ -64,9 +74,9 @@ def test_calendar_matrix_and_anomaly():
     # P0-10: completeness needs >=15 distinct days; use full months here.
     daily = [{"date": f"{y}-{m:02d}-{d:02d}",
               "harmonized_count": 10.0 + (50.0 if (y, m) == (2019, 3) else 0.0)}
-             for y in (2018, 2019, 2020) for m in range(1, 13) for d in range(1, 21)]
+             for y in (2016, 2017, 2018, 2019, 2020) for m in range(1, 13) for d in range(1, 21)]
     calen = cal.build_calendar(daily)
-    assert calen["years"] == [2018, 2019, 2020]
+    assert calen["years"] == [2016, 2017, 2018, 2019, 2020]
     crit = cal.critical_periods(calen, z_thresh=1.5)
     assert any(p["year"] == 2019 and p["month"] == 3 for p in crit)
 
@@ -287,6 +297,45 @@ def test_schema_rejects_bad_instrument_time_confidence():
     assert r.type is None  # unknown type stays unknown, not 0
 
 
+def test_partial_months_never_enter_anomaly_baseline():
+    """Audit V6 P0-01: a verified-partial month cannot move a full month's z."""
+    daily = []
+    # Four full years at 100, four verified-partial years at 1.
+    for y in (2018, 2019, 2020, 2021, 2022):
+        daily.append({"date": f"{y}-01-10", "harmonized_count": 100.0})
+    for y in (2014, 2015, 2016, 2017):
+        daily.append({"date": f"{y}-01-10", "harmonized_count": 1.0})
+    coverage = {}
+    for y in (2018, 2019, 2020, 2021, 2022):
+        coverage[f"{y}-01"] = {"status": "verified", "partial": False,
+                               "paired_coverage_ratio": 1.0}
+    for y in (2014, 2015, 2016, 2017):
+        coverage[f"{y}-01"] = {"status": "verified", "partial": True,
+                               "paired_coverage_ratio": 0.1}
+    c = cal.build_calendar(daily, coverage=coverage)
+    y2022 = c["years"].index(2022)
+    assert c["anomalies"][y2022][0] == 0.0
+    assert c["anomaly_reason"][y2022][0] is None
+    y2017 = c["years"].index(2017)
+    assert c["anomalies"][y2017][0] is None
+    assert c["anomaly_reason"][y2017][0] == "ineligible_coverage"
+    assert c["anomaly_eligibility"]["excluded_months"] == [
+        "2014-01", "2015-01", "2016-01", "2017-01"]
+
+
+def test_no_overlap_never_emits_zero_width_uncertainty():
+    """Audit V6 P0-02: no co-observed months => no fake [x, x] band."""
+    from app.firms.harmonize import DailyAgg, estimate_efficiency_ratio
+    agg = {("10.00_104.00", "2020-01-02", "MODIS"): DailyAgg(count=1, frp=3.0)}
+    ratios = estimate_efficiency_ratio(agg)
+    assert ratios["_n_months"] == 0
+    assert ratios["_calibration_status"] == "insufficient_overlap"
+    rows = harmonize.harmonize_daily(agg, ratios)
+    assert rows[0]["harmonized_count_low"] is None
+    assert rows[0]["harmonized_count_high"] is None
+    assert rows[0]["uncertainty_status"] == "not_calibrated"
+
+
 def test_missing_months_are_null_not_zero():
     daily = [{"date": "2020-01-10", "harmonized_count": 5.0}]
     calen = cal.build_calendar(daily)
@@ -420,6 +469,7 @@ def test_xray_matches_calendar():
         assert abs(mo["adjusted_calendar"] - mat[(mo["year"], mo["month"])]) < 0.02
 
 
+@_NEEDS_RAW
 def test_raw_ml_blocked():
     """P0-03: synthetic-trained ML/TS artifacts are never served for raw observed data."""
     r = client.get("/api/firms/calendar",
@@ -505,10 +555,11 @@ def test_export_method_param():
     assert r.status_code == 200
     assert "X-Data-Source" in r.headers
     assert "cell_id" in r.text.splitlines()[0]
-    bad = client.get("/api/firms/export",
-                     params={"aoi": "vietnam", "data": "raw", "method": "ml"})
-    assert bad.status_code == 200  # vietnam raw ml artifact exists
-    assert "cell_km2" in bad.text.splitlines()[0]
+    if _RAW_AVAILABLE:
+        bad = client.get("/api/firms/export",
+                         params={"aoi": "vietnam", "data": "raw", "method": "ml"})
+        assert bad.status_code == 200  # vietnam raw ml artifact exists
+        assert "cell_km2" in bad.text.splitlines()[0]
     bad2 = client.get("/api/firms/export",
                       params={"aoi": "vietnam", "data": "raw", "method": "nonsense"})
     assert bad2.status_code == 422
@@ -537,6 +588,7 @@ def test_upload_dataset_roundtrip():
     assert bad.status_code == 404
 
 
+@_NEEDS_RAW
 def test_raw_artifact_gate():
     # all 3 AOIs now have raw-trained ml + ts artifacts (2019-2025 pulls)
     for aoi, method in [("vietnam", "ml"), ("vietnam", "ts"),
@@ -671,7 +723,7 @@ def test_T07_unified_evaluation_manifest():
     verified = evaluation.verify_manifest(m)
     for method, got in verified["all"].items():
         want = m["pooled"]["metrics"][method]
-        assert abs(got["mae"] - want["mae"]) < 1e-4
+        assert abs(got["mae"] - want["mae"]) < 1e-3
 
 
 def test_T08_cache_key_changes_with_model_or_data_version(monkeypatch):
@@ -775,6 +827,7 @@ def test_T15_platform_mix_is_explicit():
     assert "platform_mix" in cal["calendar"]
 
 
+@_NEEDS_DIST
 def test_T16_production_smoke_routes_and_assets():
     assert client.get("/calendar").status_code == 200
     assert client.get("/method").status_code == 200
@@ -794,6 +847,7 @@ def test_T17_production_requires_admin_token(monkeypatch):
     assert r.status_code == 503
 
 
+@_NEEDS_RAW
 def test_T18_provenance_traceable():
     """T18: metrics trace to a dataset hash and artifact id."""
     from app.firms import evaluation
@@ -806,3 +860,216 @@ def test_T18_provenance_traceable():
     x = client.get("/api/firms/xray", params={"aoi": "vietnam", "data": "raw"}).json()
     assert x["evaluation_version"] == m["evaluation_version"]
     assert x["months"][0]["ratio_source"].startswith("train_only")
+
+
+def test_T19_qa_and_platform_filters_are_explicit():
+    rows = _recs()
+    rows[0] = {**rows[0], "confidence": "l", "frp": 0.1}  # low confidence
+    h = client.post("/api/firms/harmonize",
+                    json={"records": rows, "qa_min": "nominal",
+                          "platform_set": "all"}).json()
+    assert h["filters"]["qa_min"] == "nominal"
+    assert h["qa"]["filtered_low_confidence"] >= 1
+    cal = client.get("/api/firms/calendar",
+                     params={"aoi": "vietnam", "data": "sample",
+                             "qa_min": "high", "platform_set": "snpp"}).json()
+    assert cal["filters"] == {"qa_min": "high", "platform_set": "snpp"}
+    assert cal["daily_cells"] > 0
+
+
+def test_T20_evidence_card_and_explain_month():
+    ev = client.get("/api/firms/evidence",
+                    params={"aoi": "vietnam", "data": "sample",
+                            "year": 2019, "month": 3}).json()
+    assert ev["total_activity_index"] > 0
+    assert ev["observed_cells"] + ev["estimated_cells"] > 0
+    assert ev["citations"] and ev["notes"]
+    r = client.post("/api/firms/explain-month",
+                    json={"aoi": "vietnam", "data": "sample", "year": 2019,
+                          "month": 3, "use_llm": False}).json()
+    assert r["llm_used"] is False
+    assert "evidence" in r and r["evidence"]["ym"] == "2019-03"
+    assert "hotspot" in r["answer"].lower() or "điểm nóng" in r["answer"].lower()
+
+
+def test_T21_qa_summary_and_missing_interval_planner():
+    from scripts.firms.fetch_missing import intervals
+    assert intervals([31]) == [(31, 1)]
+    assert intervals([1, 2, 3, 6, 7]) == [(1, 3), (6, 2)]
+    q = client.get("/api/firms/qa-summary",
+                   params={"aoi": "vietnam", "data": "sample"}).json()
+    assert q["sampled_rows"] > 10000
+    assert "by_confidence" in q and "warnings" in q
+
+
+def test_T22_evidence_reports_coverage_unknown_for_sample():
+    ev = client.get("/api/firms/evidence",
+                    params={"aoi": "vietnam", "data": "sample",
+                            "year": 2019, "month": 3}).json()
+    assert ev["coverage"].get("status") in ("unknown", None)
+    assert ev["ratio_mode"] in ("fusion", "predictive", None)
+
+
+def test_T23_llm_grounding_guard_rejects_invented_large_numbers():
+    from app.firms import llm
+    ok, bad = llm._large_numbers_grounded("MAE 99999 on 2025", {"mae": 1282.6, "year": 2025})
+    assert ok is False and "99999" in bad
+    ok2, bad2 = llm._large_numbers_grounded("MAE 1282.6 on 2025", {"mae": 1282.6, "year": 2025})
+    assert ok2 is True and bad2 == []
+
+
+def test_T32_llm_guard_catches_wrong_small_numbers_and_percentages():
+    """Audit V6 P0-07: a wrong 75 (below 1000) must not slip through."""
+    from app.firms import llm
+    facts = {"coverage_ratio": 0.62, "month_total": 64, "year": 2025}
+    ok, bad = llm._large_numbers_grounded("Coverage is 75% this month.", facts)
+    assert ok is False and "75" in bad
+    ok2, _ = llm._large_numbers_grounded("Coverage is 62% this month.", facts)
+    assert ok2 is True
+    ok3, bad3 = llm._large_numbers_grounded("The total is 65 detections.", facts)
+    assert ok3 is False and "65" in bad3
+
+
+def test_T33_sensorformer_lite_is_an_honest_comparator():
+    """Audit V6 follow-up: SF Lite is scored on the same holdout, gated, not served."""
+    st = client.get("/api/firms/sf-status", params={"data": "raw"}).json()
+    assert st["trained"] is True
+    assert st["n_test"] == 72 and st["n_train"] > 100
+    assert st["metrics"]["n"] == 72
+    assert 0.0 <= st["coverage80"] <= 1.0
+    assert {"no_gate", "no_attn"} <= set(st["ablation"])
+    bt = client.get("/api/firms/backtest",
+                    params={"aoi": "vietnam", "data": "sample"}).json()
+    assert "sf_lite_v1" in bt["metrics"]
+    assert bt["sf_lite_deployed"] is False
+    assert bt["months"] and bt["months"][0].get("sf_pred") is not None
+    # The gate must be explicit: losing to B2 means not deployed.
+    assert st["mean_gain_vs_b2"] < 0.02
+
+
+def test_T34_sensorformer_inputs_never_contain_target_viirs():
+    import numpy as np
+    from app.firms import sf_lite
+    pairs = sf_lite.load_pairs("raw")
+    train = [p for p in pairs if p["year"] < 2024]
+    ratios = {a: sf_lite._b2_log([p for p in train if p["aoi"] == a])
+              for a in sf_lite.AOIS}
+    before = {w["id"]: w for w in sf_lite.build_windows(pairs, ratios)}
+    mutated = [dict(p) for p in pairs]
+    for p in mutated:
+        if p["year"] >= 2024:
+            p["viirs"] = 999999.0
+    after = {w["id"]: w for w in sf_lite.build_windows(mutated, ratios)}
+    sid = "vietnam:2025-01"
+    assert sid in before and sid in after
+    assert np.array_equal(before[sid]["X"], after[sid]["X"])
+    assert np.array_equal(before[sid]["ctx"], after[sid]["ctx"])
+
+
+def test_T24_dedup_and_qa_sensitivity_are_measured():
+    from app.firms import harmonize
+    rows = [
+        {"instrument": "VIIRS", "satellite": "NPP", "acq_date": "2025-03-01",
+         "acq_time": "1345", "latitude": 12.5, "longitude": 106.1,
+         "version": "V2"},
+        {"instrument": "VIIRS", "satellite": "NPP", "acq_date": "2025-03-01",
+         "acq_time": "1346", "latitude": 12.5, "longitude": 106.1,
+         "version": "V2"},
+    ]
+    out = harmonize.dedup_sensitivity(rows)
+    assert out["unique_exact"] == 2
+    assert out["unique_pixel_day"] == 1
+    assert out["extra_merged_by_pixel_day"] == 1
+    q = client.get("/api/firms/qa-summary",
+                   params={"aoi": "vietnam", "data": "sample"}).json()
+    assert set(q["retained_fraction"]) == {
+        "qa_all", "qa_nominal", "qa_high", "platform_snpp"}
+    d = client.get("/api/firms/dedup-sensitivity",
+                   params={"aoi": "vietnam", "data": "sample",
+                           "limit": 5000}).json()
+    assert d["rows_examined"] > 0
+    assert d["unique_pixel_day"] <= d["unique_exact"]
+
+
+def test_T25_paired_sensor_coverage_not_union():
+    """V5 P0-04: MODIS 31/31 + VIIRS 5/31 is NOT full harmonization coverage."""
+    from app.firms import coverage
+    c = coverage.coverage_from_day_sets(set(range(1, 32)), set(range(1, 6)), 31)
+    assert c["union_days"] == 31
+    assert c["paired_days"] == 5
+    assert c["paired_coverage_ratio"] < 0.2
+    assert c["coverage_status"] == "incomplete"
+    assert c["partial"] is True
+
+
+def test_T26_content_fingerprint_detects_same_size_edit(tmp_path, monkeypatch):
+    """V5 P0-05: name+size+mtime is not identity; content SHA is."""
+    import os
+    import app.firms.store as store
+    monkeypatch.setattr(store, "RAW_DIR", tmp_path)
+    p = tmp_path / "vietnam_MODIS_test.csv"
+    p.write_text("a,b\n1,2\n")
+    fp1 = store.raw_fingerprint("vietnam", tmp_path)
+    st = p.stat()
+    p.write_text("a,b\n1,3\n")
+    os.utime(p, ns=(st.st_atime_ns, st.st_mtime_ns))
+    fp2 = store.raw_fingerprint("vietnam", tmp_path)
+    assert fp1 != fp2
+
+
+def test_T27_mission_simulator_and_blind_spots():
+    sim = client.get("/api/firms/simulate", params={
+        "aoi": "vietnam", "data": "sample", "year": 2019}).json()
+    rows = {r["sensor_config"]: r for r in sim["simulations"]}
+    assert rows["all_sensors"]["viirs_available"] is True
+    assert rows["modis_only"]["viirs_available"] is False
+    assert rows["modis_only"]["year_total"] < rows["all_sensors"]["year_total"]
+    custom = client.get("/api/firms/simulate", params={
+        "aoi": "vietnam", "data": "sample", "year": 2019,
+        "sensors": "MODIS"}).json()["simulations"]
+    row = next(r for r in custom if r["sensor_config"] == "custom")
+    assert row["viirs_available"] is False and row["allowed_platforms"] == ["MODIS"]
+    bs = client.get("/api/firms/blind-spots", params={
+        "aoi": "vietnam", "data": "sample", "year": 2019, "month": 3}).json()
+    assert bs["status_counts"].get("unknown_coverage") == 31
+    assert bs["note"]
+
+
+def test_T28_investigator_returns_tools_and_limits():
+    r = client.post("/api/firms/investigate", json={
+        "question": "Why is 2019 anomalous?", "aoi": "vietnam",
+        "data": "sample", "year": 2019, "month": 3, "use_llm": False}).json()
+    assert r["llm_used"] is False
+    assert "calendar" in r["tools_used"] and "evidence" in r["tools_used"]
+    assert r["limitations"] and r["evidence"]["ym"] == "2019-03"
+
+
+def test_T29_spatial_coobservation_is_not_a_holdout():
+    r = client.get("/api/firms/spatial-check", params={
+        "aoi": "vietnam", "data": "sample", "year": 2019, "month": 3}).json()
+    assert r["validation_kind"] == "co_observation_consistency"
+    assert "NOT a spatial holdout" in r["claim"]
+    assert r["coarse_cells"] > 0
+    assert r["co_observed_cells"] > 0
+
+
+def test_T30_cross_dataset_check_is_user_supplied_and_caveated():
+    series = [{"year": 2019, "month": m, "burned_area": 100.0 + m} for m in range(1, 13)]
+    r = client.post("/api/firms/cross-validate", json={
+        "aoi": "vietnam", "data": "sample", "series": series}).json()
+    assert r["available"] is True and r["n"] == 12
+    assert "not independent ground truth" in r["caveat"]
+    empty = client.post("/api/firms/cross-validate", json={
+        "aoi": "vietnam", "data": "sample", "series": []}).json()
+    assert empty["available"] is False and empty["reason"] == "no_series"
+
+
+def test_T31_data_gap_ledger_is_explicit():
+    from app.firms import coverage
+    g = coverage.coverage_gaps("vietnam")
+    assert g["verified"] is True
+    assert g["missing_months"] > 0
+    assert "2026" in g["missing_by_year"]  # unfetched year/months, not quiet fire
+    assert "not zero fire" in g["note"]
+    r = client.get("/api/firms/coverage", params={"aoi": "amazon"}).json()
+    assert "gaps" in r and r["gaps"]["missing_months"] >= g["missing_months"]

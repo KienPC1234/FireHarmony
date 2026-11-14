@@ -384,6 +384,9 @@ def artifact_compat(model, meta: dict, expected_fingerprint: str | None = None) 
         fv = meta.get("feature_version") or getattr(model, "_feature_version", None)
         if fv and fv != ml_v4.FEATURE_VERSION:
             return False, f"feature_version_mismatch:{fv}!={ml_v4.FEATURE_VERSION}"
+        av = meta.get("algorithm_version")
+        if av and av != ml_v4.ALGORITHM_VERSION:
+            return False, f"algorithm_version_mismatch:{av}!={ml_v4.ALGORITHM_VERSION}"
     fp = meta.get("data_fingerprint")
     if expected_fingerprint is not None:
         if not fp:

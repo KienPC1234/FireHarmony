@@ -53,7 +53,9 @@ module.exports = {
       watch: false,
       // Single process holds the harmonized series in memory; keep headroom
       // for torch when CrossSensorCalibrator trains on overlap months.
-      max_memory_restart: "3G",
+      // Raw stat calendar now peaks ~1.1 GB; raw ML/TS still materialise the
+      // full fused cell list for monthly rescaling, so keep headroom above 4 GB.
+      max_memory_restart: "6G",
       restart_delay: 2000,
       kill_timeout: 5000,
       time: true,

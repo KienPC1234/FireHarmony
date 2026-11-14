@@ -9,12 +9,12 @@ describe("numeric helpers", () => {
   });
   it("formats percents and counts", () => {
     expect(pct(0.237)).toBe("24%");
-    expect(pct(null)).toBe("—");
+    expect(pct(null)).toBe("-");
     expect(compact(13500)).toBe("13.5k");
     expect(num(1234567)).toBe("1,234,567");
   });
   it("formats bytes once", () => {
     expect(formatBytes(1500)).toBe("1.5 KB");
-    expect(formatBytes(undefined)).toBe("—");
+    expect(formatBytes(undefined)).toBe("-");
   });
 });

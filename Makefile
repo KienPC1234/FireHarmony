@@ -3,7 +3,7 @@ PY      := .venv/bin/python
 BACKEND := backend
 PORT    ?= 8000
 
-.PHONY: help install sample fetch ingest test-backend test dev demo build pm2-start clean
+.PHONY: help install sample fetch fetch-missing ingest test-backend test-clean test-full test e2e dev demo build pm2-start clean
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -20,6 +20,9 @@ venv:
 fetch:  ## download real FIRMS CSVs (needs FIRMS_MAP_KEY; vars: AOI_BBOX SOURCES DAYS AOI)
 	cd $(BACKEND) && ../$(PY) -m scripts.firms.fetch_firms --bbox "$${AOI_BBOX:-104,10,109,16}" --days $${DAYS:-5} --sources "$${SOURCES:-VIIRS_SNPP_NRT,MODIS_NRT}" --aoi "$${AOI:-custom}"
 
+fetch-missing:  ## fetch only manifest-missing days (vars: AOI START_YEAR END_YEAR)
+	cd $(BACKEND) && ../$(PY) -m scripts.firms.fetch_missing --aoi "$${AOI:-vietnam}" --start-year "$${START_YEAR:-2019}" --end-year "$${END_YEAR:-2025}" --workers 2
+
 ingest:  ## ingest a FIRMS CSV server-side (vars: FILE AOI=custom SOURCE=file)
 	curl -fsS -X POST "http://127.0.0.1:$(PORT)/api/firms/ingest?aoi=$${AOI:-custom}&source=$${SOURCE:-file}" -F "file=@$(FILE)"
 
@@ -28,6 +31,15 @@ sample:  ## generate the deterministic FIRMS sample CSV
 
 test-backend:  ## firms tests only (no network/GPU)
 	cd $(BACKEND) && ../$(PY) -m pytest tests/test_firms.py -q
+
+test-clean:  ## clean-source profile: skip raw-data and SPA tests
+	cd $(BACKEND) && FIRMS_SKIP_RAW=1 FIRMS_SKIP_DIST=1 ../$(PY) -m pytest tests/test_firms.py -q
+
+test-full:  ## full profile: sample + raw (needs data/firms/raw) + SPA build
+	cd $(BACKEND) && ../$(PY) -m pytest tests/test_firms.py -q
+
+e2e:  ## HTTP smoke against a running server (vars: BASE)
+	cd $(BACKEND) && ../$(PY) -m scripts.e2e_smoke --base "$${BASE:-http://127.0.0.1:8000}"
 
 test:  ## backend tests + frontend lint/unit/build
 	cd $(BACKEND) && ../$(PY) -m pytest tests -q

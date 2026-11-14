@@ -66,3 +66,10 @@ vgcore.*
 backend/data/firms/cache/
 backend/data/firms/models/backtest_*.json
 backend/data/firms/request_ledger.jsonl
+
+# ===== Transformer weights (tiny, required for ?method=ts serving) =====
+# The global *.pt rule above is for large checkpoints; these six 400 KB
+# state_dicts are part of the reproducible release and are checksummed in
+# backend/data/firms/models/TS_WEIGHTS.sha256.
+!backend/data/firms/models/ts_*.pt
+!backend/data/firms/models/sf_lite*.pt

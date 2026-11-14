@@ -14,25 +14,43 @@
 
 | AOI | raw rows | manifest months | months ≥90% of days requested | coverage class |
 |---|---|---|---|---|
-| vietnam | 1,387,361 | 85 (2019-01 … 2026-11) | 73 | full-month |
-| amazon | 4,460,272 | 85 | 72 | full-month |
-| australia | 1,656,892 | 85 | 0 | **sparse 5-day windows only** |
+| vietnam | 3,411,143 | 169 (2012-01 … 2026-11) | 168 | full-month |
+| amazon | 4,653,546 | 85 | 84 | full-month |
+| australia | 1,700,959 | 85 | 1 | **sparse 5-day windows only** |
 
 The first full-month fetcher requested days 1,6,11,16,21,26 × 5 days, which
-covers 1–30 and **never day 31**. `coverage.missing_day_histogram` reports that
-gap explicitly (49 months per AOI); those months are 30/31 = 96.8% covered, so
-they remain usable but are not described as 100%. The fixed fetcher derives
-windows from `calendar.monthrange`, so a re-fetch covers day 31 and leap
-Februaries. Australia still has only the old one-window-per-month pulls; every
-australia month is flagged `partial`, and its numbers are a 5-day-window
-comparison, not a monthly total. The "full-month pooled" rows below therefore
-use vietnam + amazon only.
+covers 1–30 and **never day 31**. `fetch_missing.py` now diffs the manifest
+against every calendar day and fetched only the gaps: vietnam and amazon are
+at **168/169 full months** for vietnam (2012–2025 after the early-year backfill) and **84/85** for amazon.
+Australia is still one 5-day window per month (0/85 months with ≥90% paired days); its numbers
+are a 5-day-window comparison, not a monthly total. The "full-month pooled"
+rows below therefore use vietnam + amazon only.
+
+## Scientific guards (audit V6)
+
+- **Anomaly eligibility.** A month enters median/MAD, leave-one-year-out and
+  column climatology only when its manifest coverage is verified and its
+  `paired_coverage_ratio >= 0.90`. Partial months keep their observed value in
+  the matrix but get `anomaly=null`/`anomaly_reason="ineligible_coverage"`.
+  With fewer than three eligible other years, the cell returns
+  `insufficient_comparable_history` rather than falling back to a baseline that
+  contains the year being scored.
+- **Uncertainty.** `harmonized_count_low/high` is emitted only with at least
+  three co-observed months and a positive monthly-ratio IQR. Otherwise both are
+  null and `uncertainty_status="not_calibrated"`; k=0.35 remains a labeled
+  fallback, never a zero-width interval.
+- **Transformer artifacts.** Six `ts_*.pt` state dicts ship with the release,
+  pinned in `backend/data/firms/models/TS_WEIGHTS.sha256`. `/api/health`
+  advertises `ts` only when torch and the weight+metadata files both exist.
+- **Raw subset.** `data/firms/raw_subset/vietnam_2025-01` contains 16 untouched
+  NASA CSVs + checksums; `rebuild_subset` reproduces 49,638 clean rows,
+  20,306 cell-days and 54,563.23 for that month.
 
 ## Unified evaluation protocol
 
 `evaluation.py` freezes one sample set:
 
-1. holdout years are chosen once (`test_years=2` → 2025 + NRT 2026-11);
+1. holdout years are the last two complete years in the manifest (`scored_years=[2024, 2025]`); 2026 NRT is excluded as partial and context-missing;
 2. B1/B2 ratios and the HGB residual are fit on train years only;
 3. the pooled Transformer is trained on the same train years;
 4. only AOI-months where **every** method has a prediction enter the table;
@@ -43,39 +61,104 @@ use vietnam + amazon only.
 `eval_unit = "aoi-month (VIIRS hotspot detections, not fires)"`. The calendar
 allocates the monthly prediction only to MODIS-only cells, so the month total
 equals the prediction by construction; `ml_meta.conservation_max_abs_error`
-measures that identity at serving time.
+measures that identity at serving time. The headline table uses the default
+filters `qa_min=all` and `platform_set=all`; `/api/firms/qa-summary` and the
+Calendar filter selects expose how the answer changes when low-confidence rows
+are dropped or only SNPP VIIRS is kept.
 
-## Real unified table (train 2019–2024 → test 2025, n=36)
+## Real unified table
 
-| Method | pooled MAE | vietnam | amazon | australia |
-|---|---|---|---|---|
-| B0 raw MODIS | 10262.5 | 8665.2 | 9670.2 | 12452.3 |
-| B1 global ratio | 2037.7 | 2426.8 | 2019.8 | **1666.3** |
-| B2 seasonal ratio | 1282.6 | **867.6** | **1255.1** | 1725.1 |
-| `ml_b2res_v4` (gated) | **1263.0** | 867.6 | 1255.1 | 1666.3 |
-| `ts_logratio_pool_v2` | 1798.0 | 1225.4 | 2338.2 | 1830.5 |
+The block below is generated from the evaluation artifact by
+`python -m scripts.firms.render_docs`; `--check` is part of CI. Do not edit it
+by hand.
 
-Full-month pooled only (vietnam + amazon, n=24):
+<!-- BEGIN GENERATED METRICS -->
+_Generated from `evaluation_raw.json` · `eval-v2` · pair_table_hash `b359387bc92e7e1c`._
 
-| Method | MAE |
-|---|---|
-| B2 seasonal ratio | **1061.4** |
-| `ml_b2res_v4` (abstains to B2) | 1061.4 |
-| `ts_logratio_pool_v2` | 1781.8 |
-| B1 global ratio | 2223.3 |
-| B0 raw MODIS | 9167.7 |
+Candidate holdout years: `[2024, 2025]` · scored years: `[2024, 2025]` · excluded months (no 12-month context): `[]`.
 
-Read the losses honestly:
+**Headline — full-month AOIs only ['vietnam', 'amazon'] (n=48)**
 
-- **The gated HGB wins pooled by 1.5%** (1263.0 vs 1282.6). It does that only
-  because the gate serves B1 for australia and B2 for vietnam/amazon — the
-  learned residual itself is disabled on all three AOIs. This is a baseline
-  selector, not evidence that the residual works.
-- **The Transformer does not beat B2.** It beats B1 pooled (1798 vs 2038) but
-  loses to B2 on every AOI and by 68% on the full-month pool. Its earlier,
-  larger “win” came from a different test set; the unified protocol replaced it.
-- B2 wins vietnam and amazon; B1 wins australia; the gate wins pooled. No
-  single method wins every region.
+| Method | MAE | WAPE | Bias | n |
+|---|---:|---:|---:|---:|
+| `b0_raw_modis` | 21623.4 | 0.758 | -21623.4 | 48 |
+| `b1_global_ratio` | 5294.6 | 0.186 | -3718.5 | 48 |
+| `b2_seasonal_ratio` | 2746.0 | 0.096 | -222.9 | 48 |
+| `hgb_b2res_v4` | 2746.0 | 0.096 | -222.9 | 48 |
+| `ts_logratio_pool_v2` | 2934.4 | 0.103 | -845.8 | 48 |
+
+_Australia has 0/85 months with >=90% paired MODIS/VIIRS days; it is a sparse stress test, not a comparable monthly series._
+
+**All-AOI pooled (n=72)**
+
+| Method | MAE | WAPE | Bias | n |
+|---|---:|---:|---:|---:|
+| `b0_raw_modis` | 18220.6 | 0.764 | -18220.6 | 72 |
+| `b1_global_ratio` | 4095.5 | 0.172 | -2163.0 | 72 |
+| `b2_seasonal_ratio` | 2386.9 | 0.100 | +90.0 | 72 |
+| `hgb_b2res_v4` | 2396.4 | 0.101 | +167.4 | 72 |
+| `ts_logratio_pool_v2` | 2573.9 | 0.108 | -196.6 | 72 |
+
+| AOI | coverage class | months ≥90% paired days | months |
+|---|---|---:|---:|
+| vietnam | full_month | 168 | 169 |
+| amazon | full_month | 84 | 85 |
+| australia | sparse_window | 0 | 85 |
+
+| comparison | ΔMAE (A−B) | 95% bootstrap CI | P(A better) | n |
+|---|---:|---|---:|---:|
+| hgb_vs_b2 | +9.5 | [-59.4, +89.0] | 0.38 | 72 |
+| hgb_vs_b1 | -1699.1 | [-3244.4, -450.1] | 1.00 | 72 |
+| ts_vs_b2 | +186.9 | [-258.3, +620.9] | 0.19 | 72 |
+| ts_vs_b1 | -1521.6 | [-2964.7, -379.6] | 1.00 | 72 |
+
+_Bootstrap unit: AOI-month block; it is not a claim of independent hotspot observations._
+
+**Walk-forward HGB gate folds (expanding window, count MAE)**
+
+| AOI | test year | B1 | B2 | residual |
+|---|---:|---:|---:|---:|
+| vietnam | 2015 | 5426.5 | 2466.09 | 2930.99 |
+| vietnam | 2016 | 7811.86 | 4731.46 | 4831.95 |
+| vietnam | 2017 | 3496.16 | 1115.02 | 1282.03 |
+| vietnam | 2018 | 3765.74 | 547.55 | 971.72 |
+| vietnam | 2019 | 4972.09 | 1768.35 | 1737.8 |
+| vietnam | 2020 | 6756.34 | 2430.08 | 2443.56 |
+| vietnam | 2021 | 4115.81 | 1311.58 | 1632.17 |
+| vietnam | 2022 | 2856.38 | 1902.84 | 2165.56 |
+| vietnam | 2023 | 3754.8 | 865.28 | 696.74 |
+| amazon | 2022 | 7649.42 | 4434.51 | 4350.69 |
+| amazon | 2023 | 4977.64 | 2662.11 | 2863.9 |
+| australia | 2022 | 1726.91 | 2035.6 | 1840.71 |
+| australia | 2023 | 1191.68 | 1907.94 | 1552.37 |
+
+**Per-AOI metrics**
+
+| AOI | b0_raw_modis | b1_global_ratio | b2_seasonal_ratio | hgb_b2res_v4 | ts_logratio_pool_v2 |
+|---|---:|---:|---:|---:|---:|
+| vietnam | 11112.1 | 3493.2 | 844.2 | 844.2 | 1329.6 |
+| amazon | 32134.6 | 7095.9 | 4647.7 | 4647.7 | 4539.1 |
+| australia | 11415.2 | 1697.3 | 1668.8 | 1697.3 | 1852.8 |
+<!-- END GENERATED METRICS -->
+
+How to read it:
+
+- The headline is the full-month pool (vietnam + amazon). Australia is a sparse
+  5-day-window stress test and is excluded from the headline ranking.
+- HGB is allowed to touch the output only when its blocked-CV gate beats the
+  **best** baseline on the majority of folds. Otherwise the served output is
+  B1/B2 and `residual_enabled=false`.
+- The Transformer is reported even when it loses: it narrowly wins amazon,
+  but loses to B2 on vietnam and australia and on the headline pool. A losing
+  model is evidence, not a marketing claim.
+- The bootstrap CI resamples AOI-month rows independently (2,000 draws), not
+  hotspots and not whole years. Seasonal/year correlation can make it
+  optimistic; it is not a year-block or region-year bootstrap. A CI that
+  includes 0 means the improvement is not established.
+- On the current manifest the HGB−B2 CI includes 0, so the defensible claim is
+  “the gate is a safety rule, not a win”; on the current data it abstains on
+  all AOIs, so the served output is B1/B2. The Transformer−B2 CI also includes
+  0; it is not significantly different from B2 on this sample.
 
 ## Architectures
 
@@ -88,9 +171,10 @@ Read the losses honestly:
 - `blocked_cv_compare` scores B1, B2 and the residual on identical expanding
   folds; abstains unless all three gate conditions hold: ≥2% mean gain, a
   majority of folds, and no regression on the latest fold.
-- On the real data the gate **abstains** for all three AOIs:
-  `residual_enabled=false`, `fallback_baseline=b2_seasonal_ratio` (vietnam,
-  amazon) or `b1_global_ratio` (australia).
+- On the current data (including the 2012–2013 backfill for vietnam) the gate
+  **abstains for all three AOIs**: the residual does not beat the best
+  baseline on a majority of folds, so the served output is B2 (or B1 where CV
+  selects it). Adding early years made the baseline stronger, not the model.
 - Artifacts carry `feature_version`, `algorithm_version`, `data_fingerprint`.
 
 ### `ts_logratio_pool_v2` (PyTorch, 17,793 params)
@@ -99,9 +183,26 @@ Read the losses honestly:
 - pooled 3-AOI training with an AOI embedding (219 windows vs 73 per AOI);
 - early stopping on the last **training** year, GELU, dropout 0.1, grad clip,
   AdamW, 5-seed ensemble; on the unified sample the seed range is
-  **1704.4–1986.0**, and even the best seed loses to B2 (1282.6);
+  **2547.6–2975.8** and the ensemble 2573.9 loses to B2 2386.9; the comparison
+  CI includes 0, so no gain is established;
 - months without 12 consecutive MODIS months are not scored; the API returns
   `months_scored`, `months_missing_context`, and a per-month effective method.
+
+### `sf_lite_v1` (SensorFormer Lite, experimental — not served)
+
+- Temporal CNN (2 conv layers) + one attention layer + sensor/context gate,
+  residual on the B2 log-ratio, quantile heads 0.1/0.5/0.9.
+- Inputs: 12-month MODIS window + month phase + day/Terra fraction + AOI
+  embedding. The target month's VIIRS is never an input (`T34`).
+- Fit on train years only (195 windows), validated on 2023, scored on the same
+  72 holdout IDs. 5 seeds, 15,395 parameters.
+- **Result: pooled MAE 2,452.0 vs B2 2,386.9**; SF−B2 Δ = +65.1, CI
+  [−76.6, +226.5]; mean gain −2.7%. Gate **OFF**, `deployed=false`, B2 remains
+  the served default. Australia is the only AOI where it wins narrowly.
+- Ablation: `no_gate` 2,512.7; `no_attn` 2,446.8. The gate helps vs no-gate,
+  but attention does not justify itself at this sample size.
+- Empirical 80% interval coverage on the holdout: 80.6% (median width 9,033).
+- Full protocol and limits: `docs/SENSORFORMER.md`.
 
 ## Spatial transfer — the honest weak spot
 
@@ -111,9 +212,9 @@ protocol that can detect a model that only memorised a region.
 
 | Held out | Transformer MAE | B1 MAE | B0 raw MODIS | Verdict |
 |---|---|---|---|---|
-| vietnam | 4192.9 | 3450.5 | 10778.6 | loses to B1 |
-| amazon | 20445.3 | 24319.1 | 7061.0 | beats B1, loses badly to raw MODIS |
-| australia | 4693.5 | 5611.0 | 11828.2 | beats B1 |
+| vietnam | 3917.8 | 4399.5 | 5456.7 | beats B1 and raw MODIS |
+| amazon | 10118.3 | 17004.8 | 6548.4 | beats B1, loses to raw MODIS |
+| australia | 5501.3 | 5279.0 | 10940.7 | loses to B1, beats raw MODIS |
 
 Spatial transfer is not reliable, so the served model is the temporally
 trained pooled model; the LOO table is published as a limitation, not a win.
@@ -129,7 +230,7 @@ WAPE and bias. Missing months stay null, never zero.
 ```bash
 cd backend
 ../.venv/bin/python -m scripts.firms.download_and_verify --aoi vietnam \
-    --bbox 104,10,109,16 --start-year 2019 --end-year 2025 --workers 4
+    --bbox 104,10,109,16 --start-year 2012 --end-year 2025 --workers 4
 ../.venv/bin/python -m scripts.firms.train_ml --aoi vietnam --data raw --test-years 2
 ../.venv/bin/python -m scripts.firms.train_ts --aoi vietnam --data raw --test-years 2
 ../.venv/bin/python -m scripts.firms.evaluate --data raw --test-years 2

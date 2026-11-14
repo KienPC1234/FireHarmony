@@ -73,10 +73,16 @@
  "unified_eval": {
   "evaluation_version": "eval-v2",
   "dataset_sha256": "e1c2e99a59b7b572",
-  "test_years": [
+  "pair_table_hash": "e1c2e99a59b7b572",
+  "candidate_holdout_years": [
    2024,
    2025
   ],
+  "scored_years": [
+   2024,
+   2025
+  ],
+  "excluded_months": [],
   "n_eval": 24,
   "eval_unit": "aoi-month (VIIRS hotspot detections, not fires)",
   "metrics": {
@@ -131,9 +137,9 @@
     "n": 72
    },
    "hgb_b2res_v4": {
-    "mae": 10.1916,
-    "wape": 0.143375,
-    "bias": -0.3212,
+    "mae": 9.7082,
+    "wape": 0.136575,
+    "bias": -0.6888,
     "n": 72
    },
    "ts_logratio_pool_v2": {
@@ -142,6 +148,47 @@
     "bias": -1.7953,
     "n": 72
    }
+  },
+  "headline": {
+   "scope": "full-month AOIs only",
+   "aois": [
+    "vietnam",
+    "amazon"
+   ],
+   "n_eval": 48,
+   "metrics": {
+    "b0_raw_modis": {
+     "mae": 52.5833,
+     "wape": 0.727587,
+     "bias": -52.5833,
+     "n": 48
+    },
+    "b1_global_ratio": {
+     "mae": 9.8799,
+     "wape": 0.136707,
+     "bias": -0.0677,
+     "n": 48
+    },
+    "b2_seasonal_ratio": {
+     "mae": 10.3105,
+     "wape": 0.142665,
+     "bias": 1.0583,
+     "n": 48
+    },
+    "hgb_b2res_v4": {
+     "mae": 9.8799,
+     "wape": 0.136707,
+     "bias": -0.0677,
+     "n": 48
+    },
+    "ts_logratio_pool_v2": {
+     "mae": 9.9383,
+     "wape": 0.137514,
+     "bias": -0.0428,
+     "n": 48
+    }
+   },
+   "why": "Australia has 0/85 months with >=90% paired MODIS/VIIRS days; it is a sparse stress test, not a comparable monthly series."
   },
   "pooled_full_month": {
    "aois": [
@@ -169,9 +216,9 @@
      "n": 48
     },
     "hgb_b2res_v4": {
-     "mae": 10.605,
-     "wape": 0.14674,
-     "bias": 0.4838,
+     "mae": 9.8799,
+     "wape": 0.136707,
+     "bias": -0.0677,
      "n": 48
     },
     "ts_logratio_pool_v2": {
@@ -180,6 +227,60 @@
      "bias": -0.0428,
      "n": 48
     }
+   }
+  },
+  "comparisons": {
+   "hgb_vs_b2": {
+    "method_a": "hgb_b2res_v4",
+    "method_b": "b2_seasonal_ratio",
+    "delta_mae": -0.287,
+    "ci95": [
+     -1.1771,
+     0.5512
+    ],
+    "prob_a_better": 0.749,
+    "n": 72,
+    "n_boot": 2000,
+    "unit": "AOI-month block bootstrap (not independent hotspots)"
+   },
+   "hgb_vs_b1": {
+    "method_a": "hgb_b2res_v4",
+    "method_b": "b1_global_ratio",
+    "delta_mae": -0.5782,
+    "ci95": [
+     -1.515,
+     0.272
+    ],
+    "prob_a_better": 0.905,
+    "n": 72,
+    "n_boot": 2000,
+    "unit": "AOI-month block bootstrap (not independent hotspots)"
+   },
+   "ts_vs_b2": {
+    "method_a": "ts_logratio_pool_v2",
+    "method_b": "b2_seasonal_ratio",
+    "delta_mae": 0.0217,
+    "ci95": [
+     -0.9709,
+     1.0043
+    ],
+    "prob_a_better": 0.4935,
+    "n": 72,
+    "n_boot": 2000,
+    "unit": "AOI-month block bootstrap (not independent hotspots)"
+   },
+   "ts_vs_b1": {
+    "method_a": "ts_logratio_pool_v2",
+    "method_b": "b1_global_ratio",
+    "delta_mae": -0.2694,
+    "ci95": [
+     -0.7646,
+     0.2333
+    ],
+    "prob_a_better": 0.8655,
+    "n": 72,
+    "n_boot": 2000,
+    "unit": "AOI-month block bootstrap (not independent hotspots)"
    }
   },
   "rank": [
@@ -207,46 +308,49 @@
   "best_method": "b1_global_ratio",
   "coverage_class": "full_month",
   "coverage": {
-   "months": 85,
-   "full_months": 73,
-   "partial_months": 12,
+   "months": 101,
+   "full_months": 99,
+   "complete_months": 99,
+   "partial_months": 2,
    "missing_day_histogram": {
-    "1": 11,
-    "2": 11,
-    "3": 11,
-    "4": 11,
-    "5": 11,
-    "6": 12,
-    "7": 12,
-    "8": 12,
-    "9": 11,
-    "10": 11,
-    "11": 11,
-    "12": 11,
+    "1": 1,
+    "2": 1,
+    "3": 1,
+    "4": 1,
+    "5": 1,
+    "6": 2,
+    "7": 2,
+    "8": 2,
+    "9": 1,
+    "10": 1,
     "14": 1,
     "15": 1,
     "16": 1,
     "17": 1,
-    "18": 12,
-    "19": 12,
-    "20": 12,
-    "21": 12,
-    "22": 12,
-    "23": 12,
-    "24": 12,
-    "25": 12,
-    "26": 12,
-    "27": 12,
-    "28": 12,
-    "29": 11,
-    "30": 11,
-    "31": 49
+    "18": 1,
+    "19": 1,
+    "20": 1,
+    "21": 2,
+    "22": 2,
+    "23": 2,
+    "24": 2,
+    "25": 2,
+    "26": 2,
+    "27": 2,
+    "28": 2,
+    "29": 2,
+    "30": 2
    },
    "verified": true
   },
-  "ts_unified_seed_mae_range": null,
+  "ts_unified_seed_mae_range": [
+   9.89,
+   10.41
+  ],
   "note": "Every method in `pooled`/`per_aoi` is scored on the exact same sample IDs. `hgb_full_test` covers all monthly test pairs and is reported separately because the Transformer lacks a 12-month context for some of them."
  },
  "eval_manifest_id": "eval-v2:e1c2e99a59b7b572",
- "metrics_scope": "training_split; use unified_eval for the published table"
+ "metrics_scope": "training_split; use unified_eval for the published table",
+ "weights_file": "ts_vietnam.pt",
+ "weights_sha256": "8e664ac219da42493ebfb7c8db552e4e997537da62c504238b18d0ade2733965"
 }
