@@ -1,4 +1,4 @@
-# STAN architecture (TorchView)
+# STAN architecture
 
 STAN = **S**patial-**T**emporal **A**nchor **N**etwork: a small negative-binomial
 count model that predicts a **residual on the HTS anchor**, not the level.
@@ -12,8 +12,22 @@ count model that predicts a **residual on the HTS anchor**, not the level.
 
 ![STAN architecture](stan_architecture.svg)
 
-- Clean layout (Graphviz source): [`stan_architecture.dot`](stan_architecture.dot)
+The figure is drawn as three converging streams instead of one long column:
+
+1. **Seasonal conditioning** (`month` → embedding → FiLM `gamma, beta`) modulates
+   every timestep of the backbone; the same embedding also feeds the query.
+2. **Temporal backbone** (`x` → linear → FiLM → 3 × dilated causal TCN) emits the
+   `K, V` sequence `(B, 12, 96)`.
+3. **Static context** `(B, 9)` descends the right lane and both forms the single
+   target query and skips straight into the concatenation.
+
+The right-hand panels carry the tensor flow and the parameter budget, so the
+diagram itself only shows what changes the dataflow.
+
+- Source (TikZ, Times New Roman via XeLaTeX): [`stan_architecture.tex`](stan_architecture.tex)
+- Rebuild SVG + PNG: `docs/render_stan_figure.sh`
 - Full auto-generated TorchView graph: [`stan_torchview.dot`](stan_torchview.dot)
+- Legacy Graphviz layout (not the committed image): [`stan_architecture.dot`](stan_architecture.dot)
 - PNG for slides: [`stan_architecture.png`](stan_architecture.png)
 
 Regenerate the TorchView DOT:
@@ -37,8 +51,16 @@ open("../docs/stan_torchview.dot", "w").write(g.visual_graph.source)
 PY
 ```
 
-Render either DOT with Graphviz (`dot -Tsvg`). The committed SVG was rendered
-with Graphviz 16 via `@viz-js/viz` (WASM), so no system binary is required.
+Regenerate the architecture figure:
+
+```bash
+docs/render_stan_figure.sh          # xelatex + pdftocairo -> svg, png, pdf
+```
+
+The committed SVG/PNG come from `stan_architecture.tex` (XeLaTeX, Times New
+Roman, TikZ cards). `stan_architecture.dot` is the earlier Graphviz layout and
+`stan_torchview.dot` is the auto-generated TorchView graph; neither is used for
+the committed image. Render those with Graphviz (`dot -Tsvg`) or `@viz-js/viz`.
 
 ## Shapes (TorchView trace, batch B)
 

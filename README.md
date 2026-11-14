@@ -77,10 +77,14 @@ Every response includes `X-Elapsed-Ms`; use `make prewarm` (`AOI=... METHODS=...
 
 ![STAN architecture](docs/stan_architecture.svg)
 
-*STAN (`stan_safe_v1`), the single served model: 171,362 parameters, NB2 count
-loss, residual on the HTS anchor, 12-month MODIS window, forecast-safe context
-(no same-month neighbour VIIRS). Clean graph: `docs/stan_architecture.dot`;
-full auto-generated TorchView graph: `docs/stan_torchview.dot`; details:
+*STAN (`stan_safe_v1`), the served model: 171,362 parameters, NB2 count loss,
+residual on the HTS anchor, 12-month MODIS window, forecast-safe context (no
+same-month neighbour VIIRS). The figure reads as three converging streams —
+seasonal conditioning (`month` → embedding → FiLM), the causal TCN backbone
+(`K, V`), and the forecast-safe context that forms the single target query — plus
+the tensor-shape table and parameter budget. Source: `docs/stan_architecture.tex`
+(rebuild with `docs/render_stan_figure.sh`); full auto-generated TorchView graph:
+`docs/stan_torchview.dot`; details:
 [`docs/STAN_ARCHITECTURE.md`](docs/STAN_ARCHITECTURE.md).*
 
 <!-- BEGIN GENERATED README METRICS -->
