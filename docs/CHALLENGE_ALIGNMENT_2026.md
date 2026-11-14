@@ -6,7 +6,7 @@ This is a verification record, not proof of NASA submission or acceptance.
 ## Correct challenge for the implemented application
 
 Harmonization of MODIS and VIIRS Hot Spots:
-https://www.spaceappschallenge.org/2026/challenges/modis-and-viirs-hot-spots/
+https://www.spaceappschallenge.org/2026/challenges/harmonization-of-modis-and-viirs-hot-spots/
 
 The official problem asks for a web app combining active-fire hotspots from
 MODIS and VIIRS into a burning activity calendar, with user-selected areas,
