@@ -116,13 +116,13 @@ test("Calendar keeps ?ym=2026-11 on 2026 instead of resetting it", async ({
   await page.waitForLoadState("networkidle");
   // The month is retained in the URL (not dropped to "all") ...
   await expect(page).toHaveURL(/ym=2026-11/);
-  // ... and 2026 stays selectable in the month control.
-  // NOTE: header holds two comboboxes (month period + date range); target
-  // the month control by its accessible name, not by a bare select index.
-  const selector = page
-    .locator('[data-fh-page="calendar"] header')
-    .getByRole("combobox", { name: /Period|Kỳ/ });
-  await expect(selector).toHaveValue("2026-11", { timeout: 15000 });
+  // ... and the map timeline displays the retained observation month.
+  // The header's period select intentionally disappears when only one
+  // period exists; the year selector and timeline label remain accessible.
+  const timeline = page.locator('[data-ui-review="calendar-scrubber"]');
+  await expect(timeline.getByRole("combobox", { name: "Target Year" }))
+    .toHaveValue("2026");
+  await expect(timeline.getByText("2026-11")).toBeVisible();
 });
 
 test("Calendar empty polygon shows the inline empty state, not raw-unavailable", async ({
