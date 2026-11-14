@@ -66,3 +66,33 @@ test("Custom AOI without an uploaded dataset does not invent daily observations"
   await expect(page.locator("#evidence-matrix")).toHaveCount(0);
   await expect(page.locator("#evidence-verdict")).toHaveCount(0);
 });
+
+
+test("Synthetic detections never turn unknown acquisition coverage into zero coverage", async ({ page }) => {
+  // The deterministic sample has generated detections but no satellite
+  // request ledger: requested fields and paired ratio are null, not false/0.
+  await page.goto("/evidence?aoi=vietnam&data=sample&ym=2025-02&mode=research", {
+    waitUntil: "domcontentloaded",
+  });
+  const verdict = page.locator("#evidence-verdict");
+  const matrix = page.locator("#evidence-matrix");
+  await expect(matrix).toBeVisible({ timeout: 25_000 });
+  await expect(verdict).toContainText(/Insufficient Evidence|Chưa đủ bằng chứng/);
+  // The legitimate 90% eligibility *threshold* may still be displayed.
+  // What must disappear is an invented 0/28 measured paired-coverage rate.
+  await expect(verdict).not.toContainText(/0\s*\/\s*28\s*(?:days|ngày)/);
+
+  const requestCard = page.getByText(/Data Request Days|Số ngày yêu cầu dữ liệu/).locator("..");
+  const pairCard = page.getByText(/Comparable Paired Days|Số ngày đối chiếu khả dụng/).locator("..");
+  await expect(requestCard).toContainText(/Insufficient Evidence|Chưa đủ bằng chứng/);
+  await expect(pairCard).toContainText(/Insufficient Evidence|Chưa đủ bằng chứng/);
+
+  // February 7 is a sample day with no generated detections. "?" means
+  // missing request-ledger knowledge; "-" incorrectly implies no request.
+  const noDetectionModis = matrix.locator("tbody tr").first().getByRole("button").nth(6);
+  await expect(noDetectionModis).toHaveText("?");
+  await noDetectionModis.click();
+  const inspector = page.getByTestId("evidence-day-inspector");
+  await expect(inspector).toBeVisible();
+  await expect(inspector).toContainText(/Insufficient Evidence|Chưa đủ bằng chứng/);
+});

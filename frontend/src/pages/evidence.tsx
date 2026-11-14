@@ -99,8 +99,8 @@ export function EvidencePage() {
   const [selectedDayState, setSelectedDay] = useState<{
     requestKey: string;
     day: number;
-    modisReq: boolean;
-    viirsReq: boolean;
+    modisReq: boolean | null;
+    viirsReq: boolean | null;
     modisDetect: number;
     viirsDetect: number;
   } | null>(null);
@@ -174,13 +174,23 @@ export function EvidencePage() {
   ).length;
   const requestDays = days.filter((d) => d.modis_requested || d.viirs_requested).length;
 
-  const coverageRatio = spots?.paired_coverage_ratio ?? (daysInMonth > 0 ? pairedDays / daysInMonth : 0);
+  // Synthetic detections deliberately have null request flags; they do not
+  // establish NASA file requests or actual sensor overpass coverage.
+  const requestLedgerKnown = days.length > 0 && days.every(
+    (d) => typeof d.modis_requested === "boolean" && typeof d.viirs_requested === "boolean",
+  );
+  const pairedRatio = spots?.paired_coverage_ratio;
+  const coverageKnown = requestLedgerKnown && typeof pairedRatio === "number"
+    && Number.isFinite(pairedRatio);
+  const coverageRatio = coverageKnown ? pairedRatio : 0;
   // Month-ledger flags from /blind-spots: NRT pull and/or verified-partial
   // coverage for the requested period (e.g. 2026 NRT months in raw).
   const ledger = spots?.coverage ?? null;
   const threshold = spots?.eligibility_threshold ?? 0.9;
   const eligibility =
-    coverageRatio >= threshold
+    !coverageKnown
+      ? "UNKNOWN"
+      : coverageRatio >= threshold
       ? "ELIGIBLE"
       : coverageRatio >= 0.3
       ? "PARTIAL"
@@ -296,7 +306,9 @@ export function EvidencePage() {
                       : "border-amber-500/30 bg-amber-950/20 text-amber-200",
                   )}
                 >
-                  {eligibility === "ELIGIBLE"
+                  {eligibility === "UNKNOWN"
+                    ? t("common.unknown")
+                    : eligibility === "ELIGIBLE"
                     ? t("evidence.eligible_title")
                     : eligibility === "PARTIAL"
                     ? t("evidence.partial_title")
@@ -309,7 +321,9 @@ export function EvidencePage() {
           <div className="flex items-center gap-2 font-mono text-xs">
             <span className="text-slate-400">{t("evidence.paired_coverage")}</span>
             <span className="font-bold text-white">
-              {pairedDays} / {daysInMonth} {t("evidence.days_unit")} ({Math.round(coverageRatio * 100)}%)
+              {coverageKnown
+                ? pairedDays + " / " + daysInMonth + " " + t("evidence.days_unit") + " (" + Math.round(coverageRatio * 100) + "%)"
+                : t("common.unknown")}
             </span>
             <span className="text-slate-600 hidden sm:inline">|</span>
             <span className="text-slate-400 hidden sm:inline">{t("evidence.threshold")}</span>
@@ -328,7 +342,9 @@ export function EvidencePage() {
         </div>
 
         <p className="text-xs text-slate-300 leading-relaxed font-sans">
-          {eligibility === "ELIGIBLE"
+          {eligibility === "UNKNOWN"
+            ? data === "sample" ? t("common.synthetic_desc") : t("common.unknown")
+            : eligibility === "ELIGIBLE"
             ? t("evidence.verdict_eligible", {
                 pct: (coverageRatio * 100).toFixed(0),
                 threshold: (threshold * 100).toFixed(0),
@@ -404,7 +420,7 @@ export function EvidencePage() {
                 {t("evidence.request_days")}
               </span>
               <div className="text-2xl font-bold font-mono text-blue-400">
-                {requestDays} / {daysInMonth}
+                {requestLedgerKnown ? requestDays + " / " + daysInMonth : t("common.unknown")}
               </div>
               <p className="text-xs text-slate-400">
                 {t("evidence.request_days_hint")}
@@ -437,7 +453,7 @@ export function EvidencePage() {
                     : "text-rose-400"
                 )}
               >
-                {pairedDays} / {daysInMonth}
+                {coverageKnown ? pairedDays + " / " + daysInMonth : t("common.unknown")}
               </div>
               <p className="text-xs text-slate-400">
                 {t("evidence.paired_days_hint")}
@@ -479,6 +495,10 @@ export function EvidencePage() {
                   <div className="h-3 w-3 rounded bg-slate-700" />
                   <span className="text-slate-400">{t("evidence.not_requested")}</span>
                 </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="h-3 w-3 rounded border border-slate-500 bg-slate-800" />
+                  <span className="text-slate-300">? · {t("common.unknown")}</span>
+                </div>
               </div>
             </div>
 
@@ -513,8 +533,8 @@ export function EvidencePage() {
                               setSelectedDay({
                                 requestKey,
                                 day: i + 1,
-                                modisReq: Boolean(active),
-                                viirsReq: Boolean(days[i]?.viirs_requested),
+                                modisReq: active ?? null,
+                                viirsReq: days[i]?.viirs_requested ?? null,
                                 modisDetect: dayData?.modis_detections ?? 0,
                                 viirsDetect: days[i]?.viirs_detections ?? 0,
                               })
@@ -532,7 +552,7 @@ export function EvidencePage() {
                               count: dayData ? dayData.modis_detections : 0,
                             })}
                           >
-                            {hasDetect ? dayData?.modis_detections : active ? "R" : "-"}
+                            {hasDetect ? dayData?.modis_detections : active ? "R" : active == null ? "?" : "-"}
                           </button>
                         </td>
                       );
@@ -556,8 +576,8 @@ export function EvidencePage() {
                               setSelectedDay({
                                 requestKey,
                                 day: i + 1,
-                                modisReq: Boolean(days[i]?.modis_requested),
-                                viirsReq: Boolean(active),
+                                modisReq: days[i]?.modis_requested ?? null,
+                                viirsReq: active ?? null,
                                 modisDetect: days[i]?.modis_detections ?? 0,
                                 viirsDetect: dayData?.viirs_detections ?? 0,
                               })
@@ -575,7 +595,7 @@ export function EvidencePage() {
                               count: dayData ? dayData.viirs_detections : 0,
                             })}
                           >
-                            {hasDetect ? dayData?.viirs_detections : active ? "R" : "-"}
+                            {hasDetect ? dayData?.viirs_detections : active ? "R" : active == null ? "?" : "-"}
                           </button>
                         </td>
                       );
@@ -618,7 +638,7 @@ export function EvidencePage() {
 
           {/* Day Detail Inspector Modal/Drawer if clicked */}
           {selectedDay && (
-            <div className="rounded-xl border border-cyan-500/40 bg-[#111C2E] p-4 text-xs space-y-3">
+            <div data-testid="evidence-day-inspector" className="rounded-xl border border-cyan-500/40 bg-[#111C2E] p-4 text-xs space-y-3">
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                 <span className="font-bold text-white text-sm">
                   {t("evidence.day_audit_title", {
@@ -640,7 +660,7 @@ export function EvidencePage() {
                 <div className="rounded-lg bg-slate-900 p-2.5 border border-slate-800">
                   <span className="text-slate-400 text-xs block font-sans">{t("evidence.modis_requested_label")}</span>
                   <span className="text-blue-300 font-bold">
-                    {selectedDay.modisReq ? t("evidence.granule_yes") : t("evidence.granule_no")}
+                    {selectedDay.modisReq == null ? t("common.unknown") : selectedDay.modisReq ? t("evidence.granule_yes") : t("evidence.granule_no")}
                   </span>
                 </div>
                 <div className="rounded-lg bg-slate-900 p-2.5 border border-slate-800">
@@ -650,7 +670,7 @@ export function EvidencePage() {
                 <div className="rounded-lg bg-slate-900 p-2.5 border border-slate-800">
                   <span className="text-slate-400 text-xs block font-sans">{t("evidence.viirs_requested_label")}</span>
                   <span className="text-teal-300 font-bold">
-                    {selectedDay.viirsReq ? t("evidence.granule_yes") : t("evidence.granule_no")}
+                    {selectedDay.viirsReq == null ? t("common.unknown") : selectedDay.viirsReq ? t("evidence.granule_yes") : t("evidence.granule_no")}
                   </span>
                 </div>
                 <div className="rounded-lg bg-slate-900 p-2.5 border border-slate-800">
