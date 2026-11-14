@@ -10,8 +10,8 @@ test("home loads with stats and i18n toggle", async ({ page }) => {
 });
 
 test("calendar matrix really renders 12 month columns and opens the inspector", async ({ page }) => {
-  await page.goto("/calendar?aoi=amazon");
-  await expect(page.getByText(/SYNTHETIC DEMO|MÔ PHỎNG TỔNG HỢP/)).toBeVisible({ timeout: 30_000 });
+  await page.goto("/calendar?aoi=amazon&data=sample&mode=research");
+  await expect(page.getByRole("status", { name: /Dữ liệu mẫu|Sample data|Synthetic demo/i })).toBeVisible({ timeout: 30_000 });
 
   await page.getByRole("button", { name: /Năm × tháng|Year × month|Ma trận|Matrix/ }).click();
   const matrix = page.locator("table").first();
@@ -20,7 +20,7 @@ test("calendar matrix really renders 12 month columns and opens the inspector", 
   // year + 12 months + total = 14 header cells
   await expect(matrix.locator("thead th")).toHaveCount(14);
   const monthCells = matrix.getByRole("button", {
-    name: /\d{4}-\d{2}: .*(detections|No data)/,
+    name: /\d{4}-\d{2}: .*(detections|lượt phát hiện|No data|Không có dữ liệu)/i,
   });
   expect(await monthCells.count()).toBeGreaterThan(100);
 
@@ -33,8 +33,8 @@ test("calendar matrix really renders 12 month columns and opens the inspector", 
 
 test("navigation keeps aoi and data context", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === "mobile", "desktop primary nav only");
-  await page.goto("/calendar?aoi=amazon&data=sample");
-  await page.getByRole("link", { name: /Evidence|Bằng chứng/ }).first().click();
+  await page.goto("/calendar?aoi=amazon&data=sample&mode=research");
+  await page.locator('[data-fh-rail] nav a[href^="/evidence?"]').first().click();
   await expect(page).toHaveURL(/aoi=amazon/);
   await expect(page).toHaveURL(/data=sample/);
 });
@@ -62,8 +62,8 @@ test("raw 404 is explained and never silently switches to synthetic", async ({ p
   await page.waitForTimeout(1200);
   expect(sampleRequested).toBe(false);
 
-  await page.getByRole("button", { name: /Use synthetic demo|Dùng dữ liệu mô phỏng|Dữ liệu mô phỏng|Synthetic demo/i }).click();
-  await expect(page.getByText(/SYNTHETIC DEMO|MÔ PHỎNG TỔNG HỢP/)).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: /Dữ liệu mẫu|Sample data|Use synthetic demo|Dùng dữ liệu mô phỏng|Synthetic demo/i }).click();
+  await expect(page.getByRole("status", { name: /Dữ liệu mẫu|Sample data|Synthetic demo/i })).toBeVisible({ timeout: 30_000 });
   expect(sampleRequested).toBe(true);
 });
 
