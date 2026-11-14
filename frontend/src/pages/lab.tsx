@@ -47,8 +47,27 @@ export function LabPage() {
   // Same filter keys as /calendar so Lab tools quote the same cells.
   const qaMin = sp.get("qa_min") || "all";
   const platformSet = sp.get("platform_set") || "all";
-  const [year, setYear] = useState(2025);
-  const [month, setMonth] = useState(3);
+  // The URL is the single temporal context shared with Calendar/Evidence.
+  // Keep a valid historic month; never replace it with a default silently.
+  const requestedYm = sp.get("ym");
+  const activeYm = requestedYm && /^(?:19|20)\d{2}-(0[1-9]|1[0-2])$/.test(requestedYm)
+    ? requestedYm : "2025-03";
+  const year = Number(activeYm.slice(0, 4));
+  const month = Number(activeYm.slice(5, 7));
+  const setYear = (nextYear: number) => {
+    setSp((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("ym", String(nextYear) + "-" + String(month).padStart(2, "0"));
+      return next;
+    }, { replace: true });
+  };
+  const setMonth = (nextMonth: number) => {
+    setSp((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("ym", String(year) + "-" + String(nextMonth).padStart(2, "0"));
+      return next;
+    }, { replace: true });
+  };
   const [sensors, setSensors] = useState<string[]>(["MODIS", "SNPP", "NOAA-20", "NOAA-21"]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -135,7 +154,10 @@ export function LabPage() {
         .finally(() => {
           if (active) setBusy(false);
         });
-    } else if (tab === "simulator" && !sim) {
+    } else if (tab === "simulator") {
+      // Period/sensors may have changed since the previous response.
+      setSim(null);
+      setErr("");
       setBusy(true);
       api.simulate(aoi, dsrc, year, sensors, qaMin, platformSet)
         .then((res) => {
@@ -147,7 +169,9 @@ export function LabPage() {
         .finally(() => {
           if (active) setBusy(false);
         });
-    } else if (tab === "blindspots" && !spots) {
+    } else if (tab === "blindspots") {
+      setSpots(null);
+      setErr("");
       setBusy(true);
       api.blindSpots(aoi, dsrc, year, month, qaMin, platformSet)
         .then((res) => {
@@ -159,7 +183,9 @@ export function LabPage() {
         .finally(() => {
           if (active) setBusy(false);
         });
-    } else if (tab === "spatial" && !spatialRes) {
+    } else if (tab === "spatial") {
+      setSpatialRes(null);
+      setErr("");
       setBusy(true);
       api.spatialCheck(aoi, dsrc, year, month)
         .then((res) => {

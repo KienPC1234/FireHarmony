@@ -94,7 +94,13 @@ export function LabSidebar({
               onChange={(e) => setYear(Number(e.target.value))}
               className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-xs text-white focus:outline-none min-h-[40px]"
             >
-              {Array.from({ length: 14 }, (_, i) => 2012 + i).map((y) => (
+              {Array.from(
+                // Show the full MODIS-era context, including years before VIIRS
+                // launch. A missing sensor response must be labeled unknown,
+                // never silently moved to 2012 or the default year.
+                { length: Math.max(new Date().getFullYear(), year, 2025) - Math.min(2001, year) + 1 },
+                (_, i) => Math.min(2001, year) + i,
+              ).map((y) => (
                 <option key={y} value={y}>
                   {y}
                 </option>

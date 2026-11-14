@@ -72,6 +72,8 @@ export function InvestigatorPage() {
 
   useEffect(() => {
     let active = true;
+    // Never display telemetry from the previous AOI/month while reloading.
+    setTelemetry(null);
     Promise.allSettled([
       api.calendar(25000, undefined, aoi, data, method, undefined, qaMin, platformSet),
       api.blindSpots(aoi, data, year, month, qaMin, platformSet),
@@ -86,7 +88,9 @@ export function InvestigatorPage() {
         if (yIdx >= 0 && mIdx >= 0 && cal.calendar.anomalies[yIdx]?.[mIdx] !== undefined) {
           zScore = cal.calendar.anomalies[yIdx][mIdx];
         }
-        kRatio = cal.ratios?.[`${month}`] ?? 2.18;
+        const measuredRatio = cal.ratios?.[String(month)];
+        kRatio = typeof measuredRatio === "number" && Number.isFinite(measuredRatio)
+          ? measuredRatio : null;
       }
       let pairedCoverageRatio: number | null = null;
       let coDays: number | null = null;
@@ -284,12 +288,16 @@ export function InvestigatorPage() {
   const zVal = telemetry?.zScore ?? null;
   const isExtreme = zVal !== null && zVal >= 2.0;
   const isElevated = zVal !== null && zVal >= 1.0 && zVal < 2.0;
-  const gaugeColor = isExtreme
+  const gaugeColor = zVal === null
+    ? "bg-slate-500"
+    : isExtreme
     ? "bg-rose-500"
     : isElevated
     ? "bg-amber-500"
     : "bg-emerald-500";
-  const gaugeTextColor = isExtreme
+  const gaugeTextColor = zVal === null
+    ? "text-slate-300"
+    : isExtreme
     ? "text-rose-400"
     : isElevated
     ? "text-amber-400"
@@ -555,7 +563,9 @@ export function InvestigatorPage() {
               <div className="flex items-center gap-2 pt-1">
                 <div className={cn("h-2.5 w-2.5 rounded-full shrink-0", gaugeColor)} />
                 <span className="text-xs text-slate-300 font-mono">
-                  {isExtreme
+                  {zVal === null
+                    ? t("common.unknown")
+                    : isExtreme
                     ? t("ai.anomaly_extreme")
                     : isElevated
                     ? t("ai.anomaly_elevated")
@@ -573,7 +583,9 @@ export function InvestigatorPage() {
               <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
                 <span className="text-slate-400 font-sans">{t("ai.k_ratio_label")}</span>
                 <span className="text-cyan-300 font-bold">
-                  {telemetry?.kRatio ? `${telemetry.kRatio.toFixed(2)}x` : "2.18x"}
+                  {telemetry?.kRatio !== null && telemetry?.kRatio !== undefined
+                    ? telemetry.kRatio.toFixed(2) + "x"
+                    : t("common.unknown")}
                 </span>
               </div>
               <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
@@ -581,13 +593,15 @@ export function InvestigatorPage() {
                 <span className="text-teal-300 font-bold">
                   {telemetry?.coDays !== null && telemetry?.coDays !== undefined
                     ? `${telemetry.coDays} days`
-                    : "Verified Archive"}
+                    : t("common.unknown")}
                 </span>
               </div>
               <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
                 <span className="text-slate-400 font-sans">{t("ai.integrity_status")}</span>
                 <span className="text-emerald-400 font-bold">
-                  {telemetry?.coverageClass ? telemetry.coverageClass.toUpperCase() : "STANDARD ARCHIVE"}
+                  {telemetry?.coverageClass
+                    ? telemetry.coverageClass.toUpperCase()
+                    : t("common.unknown")}
                 </span>
               </div>
             </div>
