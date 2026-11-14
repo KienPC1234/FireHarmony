@@ -373,7 +373,7 @@ export function Layout() {
 
       {/* Mobile Drawer Navigation (Sheet) */}
       {mobileMenuOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
+        <div className="lg:hidden fixed inset-0 z-[2000] flex">
           <div
             className="fixed inset-0 bg-black/75 backdrop-blur-sm"
             onClick={() => setMobileMenuOpen(false)}
