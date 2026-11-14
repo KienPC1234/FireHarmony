@@ -57,6 +57,22 @@ def firms_stan_status():
                               if k != "predictions"}}
 
 
+def _hts_candidate_status(meta: dict) -> str:
+    """Describe the model-specific B2 comparison, not a different 72-row eval."""
+    try:
+        hts_mae = float(meta["hts_mae"])
+        b2_mae = float(meta["b2_mae"])
+    except (KeyError, ValueError, TypeError):
+        return "candidate: model-specific benchmark incomplete"
+    if meta.get("gate", {}).get("passed") and hts_mae < b2_mae:
+        return "candidate: validation gate passed; not served by default"
+    if hts_mae < b2_mae:
+        return "candidate: point estimate improves B2; statistical gate not passed"
+    if hts_mae > b2_mae:
+        return "candidate: point estimate underperforms B2; no established gain"
+    return "candidate: point estimate equals B2; no established gain"
+
+
 @router.get("/api/firms/hts-status")
 def firms_hts_status():
     from app.main import MODEL_DIR
@@ -69,7 +85,12 @@ def firms_hts_status():
     meta = _json.loads(p.read_text(encoding="utf-8"))
     return {"trained": True, "candidate": True, "served": False,
             "series": hts.status(MODEL_DIR),
-            **{k: v for k, v in meta.items() if k != "predictions"}}
+            **{k: v for k, v in meta.items() if k != "predictions"},
+            # Stale artifact text must never claim a win when numeric MAE
+            # shows a loss. This metadata refers to the model-specific
+            # cohort, not the served-series evaluation in evaluation_raw.json.
+            "status": _hts_candidate_status(meta),
+            "evaluation_protocol": "model_specific_candidate_holdout"}
 
 
 @router.get("/api/firms/backtest")

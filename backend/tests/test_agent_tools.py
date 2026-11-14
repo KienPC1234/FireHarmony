@@ -1,6 +1,7 @@
 """Tests for Ask AI Tool Agent (`agent_tools.py`), help guide (`help_data.py`), and SSE streaming."""
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -118,6 +119,20 @@ def test_investigate_stream_raw_stan_no_409():
         },
     )
     assert resp.status_code == 200
-    assert "event: error" not in resp.text
-    assert "event: tool" in resp.text
-    assert "event: done" in resp.text
+    # A clean GitHub Actions checkout contains no NASA RAW archive. In that
+    # environment the correct honest behavior is an explicit SSE 404, *not*
+    # fabricated sample data. A 409 method conflict would still be a bug.
+    error_lines = [
+        line.removeprefix("data: ")
+        for line in resp.text.splitlines()
+        if line.startswith("data: ") and '"status"' in line
+    ]
+    if "event: error" in resp.text:
+        assert len(error_lines) == 1, resp.text
+        error = json.loads(error_lines[0])
+        assert error.get("status") == 404, error
+        assert "No raw data for vietnam" in str(error.get("message")), error
+        assert "event: done" not in resp.text  # no successful AI answer
+    else:
+        assert "event: tool" in resp.text
+        assert "event: done" in resp.text

@@ -58,8 +58,28 @@ export function ResearchContextProvider({ children }: { children: React.ReactNod
   // A shared URL is an explicit source-of-truth selection. If method is
   // omitted, choose a method supported by that feed, rather than silently
   // switching a synthetic demo request to a slow NASA raw request.
-  const method = (searchParams.get("method") as CalibMethod)
-    || (dataFeed === "sample" ? "k_ratio" : "stan");
+  const requestedMethod = searchParams.get("method") as CalibMethod | null;
+  // The demo feed has no STAN or HTS tiles: never expose an incompatible
+  // method, even for a manually edited or shared research URL.
+  const unsupportedSampleMethod = dataFeed === "sample"
+    && (requestedMethod === "stan" || requestedMethod === "hts_anchor");
+  const method: CalibMethod = unsupportedSampleMethod
+    ? "k_ratio"
+    : requestedMethod || (dataFeed === "sample" ? "k_ratio" : "stan");
+
+  // Keep the browser URL in sync with the effective method. Preserve AOI,
+  // month and research mode, and avoid redirecting an intentional raw feed.
+  React.useEffect(() => {
+    if (!unsupportedSampleMethod) return;
+    setSearchParams((prev) => {
+      if (prev.get("data") !== "sample") return prev;
+      const selected = prev.get("method");
+      if (selected !== "stan" && selected !== "hts_anchor") return prev;
+      const next = new URLSearchParams(prev);
+      next.set("method", "k_ratio");
+      return next;
+    }, { replace: true });
+  }, [unsupportedSampleMethod, setSearchParams]);
 
   // Functional update with a fixed identity: closing over `searchParams` would
   // recreate this callback (and every setX wrapper) on each URL sync, and any

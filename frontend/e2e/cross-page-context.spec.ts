@@ -74,12 +74,31 @@ test("Calendar month picker updates URL before navigating to Evidence", async ({
   test.setTimeout(50000);
   await page.setViewportSize({ width: 1440, height: 900 });
   await sampleApi(page);
-  await page.goto("/calendar?" + contextQuery(), { waitUntil: "domcontentloaded" });
+  // UI-only test fixture: July/August have valid zero-valued cells. An
+  // August-only date range would intentionally place the timeline in daily
+  // mode and cannot be used to test switching to July.
+  const servedMonths = [...emptyMonths];
+  servedMonths[6] = 0;
+  servedMonths[7] = 0;
+  await page.route("**/api/firms/calendar?*", (r) =>
+    r.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({
+        ...sampleCalendar,
+        calendar: { ...sampleCalendar.calendar, matrix: [servedMonths] },
+      }),
+    }));
+  const periodQuery = new URLSearchParams(selection);
+  periodQuery.delete("from");
+  periodQuery.delete("to");
+  await page.goto("/calendar?" + periodQuery.toString(), { waitUntil: "domcontentloaded" });
   await expect(page.locator('[data-fh-page="calendar"] h1')).toBeVisible();
-  // Use the map's 12-month scrubber: unlike the header's capped daily-slice
-  // selector, it offers all months from the returned calendar year.
-  // Target the month row, independent of responsive column-class changes.
-  const months = page.locator('[data-ui-review="calendar-scrubber"] .grid button');
+  // The month row is intentionally collapsed to leave map space.
+  // Expand it through the accessible control before selecting a month.
+  const timeline = page.locator('[data-ui-review="calendar-scrubber"]');
+  await expect(timeline).toBeVisible();
+  await timeline.getByRole("button", { name: "Toggle timeline details" }).click();
+  const months = timeline.locator(".grid button");
   await expect(months).toHaveCount(12);
   await months.nth(6).click(); // July (month 7)
   await expect(page).toHaveURL(/ym=2024-07/);

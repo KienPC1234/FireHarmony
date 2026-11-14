@@ -10,6 +10,9 @@ const E2E_API_CMD =
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
+  // Limit resource contention in shared CI where full browser suites and a
+  // single Python API process run together (desktop + mobile projects).
+  workers: 2,
   retries: 0,
   reporter: "list",
   use: {

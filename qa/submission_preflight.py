@@ -306,6 +306,53 @@ def verify_model_alignment(root: Path) -> Check:
                      "Cannot reconcile evaluation to served model series",
                      {"exception": type(exc).__name__})
 
+def verify_protocol_cohorts(root: Path) -> Check:
+    """Keep model-specific holdouts separate from the served-series evaluation."""
+    paths = {
+        "served": root / "backend/data/firms/models/evaluation_raw.json",
+        "stan": root / "backend/data/firms/models/stan_safe_raw.json",
+        "hts": root / "backend/data/firms/models/hts_anchor_raw.json",
+    }
+    missing = [name for name, path in paths.items() if not path.is_file()]
+    if missing:
+        return Check("MODEL_PROTOCOL_COHORTS", "BLOCKED", "Model evaluation files missing",
+                     {"missing": missing})
+    try:
+        before = {name: digest(path) for name, path in paths.items()}
+        data = {name: json.loads(path.read_text(encoding="utf-8"))
+                for name, path in paths.items()}
+        served, stan, hts = data["served"], data["stan"]["official"], data["hts"]
+        counts = {
+            "served_series": int(served["n_eval"]),
+            "stan_model_specific": int(stan["n"]),
+            "hts_model_specific": int(hts["n_test"]),
+        }
+        problems = []
+        if counts["served_series"] != len(served["samples"]):
+            problems.append("served n differs from evaluation rows")
+        if counts["stan_model_specific"] != int(stan["metrics"]["n"]):
+            problems.append("STAN official n differs from its metrics")
+        if counts["hts_model_specific"] != int(hts["metrics"]["n"]):
+            problems.append("HTS n differs from its metrics")
+        if counts["stan_model_specific"] != sum(int(r["stan"]["n"]) for r in stan["per_aoi"].values()):
+            problems.append("STAN n differs from per-AOI rows")
+        if counts["hts_model_specific"] != sum(int(r["n"]) for r in hts["per_aoi"].values()):
+            problems.append("HTS n differs from per-AOI rows")
+        if any(digest(paths[k]) != v for k, v in before.items()):
+            problems.append("model files changed mid-check")
+        distinct = len(set(counts.values())) > 1
+        status = "BLOCKED" if problems else "WARN" if distinct else "PASS"
+        detail = ("Cohort metadata conflicts" if problems else
+                  "Separate model-specific and served-series holdouts; do not compare MAEs across cohorts"
+                  if distinct else "All cohort counts match")
+        return Check("MODEL_PROTOCOL_COHORTS", status, detail,
+                     {"sample_counts": counts, "distinct": distinct, "problems": problems,
+                      "sha256": before})
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        return Check("MODEL_PROTOCOL_COHORTS", "BLOCKED",
+                     "Cohort verification failed", {"exception": type(exc).__name__})
+
+
 def verify_release(root: Path) -> Check:
     p = root / "frontend/dist/index.html"
     if not p.is_file():
@@ -377,13 +424,14 @@ def audit(root: Path, *, public_url: str | None = None,
           repository_url: str | None = None) -> dict[str, Any]:
     checks = [
         *basic_files(root), verify_demo_pack(root),
-        verify_benchmark(root), verify_model_alignment(root), verify_release(root),
+        verify_benchmark(root), verify_model_alignment(root),
+        verify_protocol_cohorts(root), verify_release(root),
         verify_public(root, public_url),
         *submission_evidence(root, project_url, video_url, repository_url),
     ]
     evaluations = {check.id: check for check in checks}
     saved_eval = evaluations["MODEL_EVAL"].evidence.get("artifact_sha256")
-    aligned_eval = evaluations["MODEL_ARTIFACT_ALIGNMENT"].evidence.get("eval_sha256")
+    aligned_eval = (evaluations["MODEL_ARTIFACT_ALIGNMENT"].evidence.get("artifact_sha256") or {}).get("evaluation")
     if saved_eval and aligned_eval and saved_eval != aligned_eval:
         checks.append(Check(
             "MODEL_EVAL_SNAPSHOT_STABILITY", "BLOCKED",

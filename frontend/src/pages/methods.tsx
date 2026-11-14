@@ -367,7 +367,7 @@ export function MethodsPage() {
           {/* Clear Summary Matrix: Models & Execution Scopes */}
           <div className="rounded-2xl border border-slate-800 bg-[#0B1220] p-5 shadow-sm space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
-              <h2 className="text-sm font-bold text-white">
+              <h2 id="methods-scope-matrix-title" className="text-sm font-bold text-white">
                 {vi
                   ? "Tổng hợp 3 tầng mô hình & phạm vi áp dụng"
                   : "Three-Tier Harmonization Matrix & Execution Scope"}
@@ -376,7 +376,12 @@ export function MethodsPage() {
                 {vi ? "Unknown-Day Safe · Không nội suy 0 giả" : "Unknown-Day Safe · No Zero Imputation"}
               </span>
             </div>
-            <div className="overflow-x-auto">
+            <div
+              role="region"
+              aria-labelledby="methods-scope-matrix-title"
+              tabIndex={0}
+              className="overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
+            >
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-400">

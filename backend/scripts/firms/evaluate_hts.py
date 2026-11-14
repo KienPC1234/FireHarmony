@@ -119,8 +119,12 @@ def main() -> dict:
         "gate": {"rule": ">=2% mean gain AND HTS-B2 CI upper < 0",
                  "passed": gate_pass},
         "deployed": bool(gate_pass),
-        "status": ("candidate: consistent point gain, CI includes 0"
-                   if not gate_pass else "passes gate"),
+        "status": ("passes gate" if gate_pass
+                   else ("candidate: point estimate underperforms B2; no established gain"
+                         if gain < 0 else
+                         "candidate: point estimate improves B2; statistical gate not passed"
+                         if gain > 0 else
+                         "candidate: point estimate equals B2; no established gain")),
         "dataset_sha256": hashlib.sha256(
             (BENCH / "tile_pairs_raw.csv").read_bytes()).hexdigest(),
         "predictions": {s["id"]: {"hts": round(float(s["hts"]), 4),

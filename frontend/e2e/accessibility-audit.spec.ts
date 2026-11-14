@@ -61,7 +61,7 @@ for (const viewport of [
         .analyze();
       const issues = violations.map((v) => ({
         id: v.id, impact: v.impact,
-        targets: v.nodes.slice(0, 4).map((node) => node.target)
+        targets: v.nodes.slice(0, 4).map((node) => ({ target: node.target, diagnostics: node.any.map((c) => c.data) }))
       }));
       expect(issues, JSON.stringify(issues, null, 2)).toEqual([]);
       expect(await page.evaluate(() =>
@@ -73,7 +73,7 @@ for (const viewport of [
 
 test("evidence and laboratory filters have accessible names", async ({ page }) => {
   await page.goto("/evidence?aoi=vietnam&data=sample");
-  await expect(page.locator("#evidence-area-select")).toHaveAccessibleName(/Vùng|Khu vực|Area/);
+  await expect(page.locator("#evidence-area-select")).toHaveAccessibleName(/Vùng|Khu vực|Area|AOI/i);
   await expect(page.locator("#evidence-month-input")).toHaveAccessibleName(/Tháng|Month/);
   await page.goto("/lab?aoi=vietnam&data=sample&tab=simulator");
   await expect(page.locator("#lab-year-select")).toHaveAccessibleName(/Năm|Year/);
@@ -86,6 +86,10 @@ test("calendar icon-only scenarios tab has accessible name on phone", async ({ p
     status: 200, contentType: "application/json", body: JSON.stringify(calendarFixture)
   }));
   await page.goto("/calendar?aoi=vietnam&data=sample&method=k_ratio");
+  // Scenarios belong to Research mode. Open the mobile menu to switch modes
+  // instead of assuming research-only controls exist in Explore mode.
+  await page.getByRole("button", { name: "Toggle navigation menu" }).click();
+  await page.locator("[data-fh-sheet]").getByRole("button", { name: /Nghiên cứu|Research/i }).click();
   const tabs = page.locator('[data-fh-page="calendar"] header button[aria-pressed]');
   await expect(tabs).toHaveCount(3);
   const scenarios = tabs.last();
