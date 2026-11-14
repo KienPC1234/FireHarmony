@@ -27,7 +27,7 @@ confirmed fires. VIIRS is a sensor reference, not fire ground truth.
 ```bash
 make install
 make sample          # deterministic synthetic sample (offline demo)
-make test-backend    # 69 tests, no network needed
+make test-backend    # 84 tests, no network needed
 make dev             # API :8000 + Vite :5173
 make demo            # build frontend and serve API+SPA on :8000
 ```
@@ -72,6 +72,16 @@ _Generated from `evaluation_raw.json` (eval-v2); headline = full-month AOIs ['vi
 
 HGB−B2 ΔMAE +9.5, 95% CI [-59.4, +89.0] — CI includes 0 means the gain is not established.
 <!-- END GENERATED README METRICS -->
+
+**Tile hierarchy is the strongest candidate (not yet deployed).** Aggregating
+the existing raw pull at 1-degree tiles gives 3,924 training windows instead of
+231. A hierarchical tile-seasonal anchor (HTS) reaches MAE **2,230.7 vs B2
+2,386.9** on the 72 holdout rows (−6.5%; all three AOIs improve; CI
+[−362, +44], so the gate does not pass). A region-agnostic TileFormer trained on
+CUDA does not beat that anchor, and scaling 22k → 258k parameters still loses.
+It is served as `method=hts` on raw data (candidate badge required, no sample
+fallback) and exposed at `/api/firms/hts-status`. Evidence and limits:
+`docs/TILE_HIERARCHY.md`.
 
 **No model wins every region.** The HGB gate abstains on the current data and
 serves the best baseline (B2/B1); B2 is the pooled point-estimate winner and
@@ -128,14 +138,15 @@ The committed `backend/data/firms/benchmark/evaluation_samples_*.csv` files are
 the exact evaluation sample IDs; `make_benchmark --check` recomputes every
 published MAE/WAPE/bias to 1e-6 without needing the ~820 MB raw pulls.
 
-## SensorFormer Lite (experimental)
+## SensorFormer (single served architecture)
 
-`sf_lite_v1` is a sensor-aware residual calibrator: a small temporal CNN + one
-attention layer + context gate on top of B2, with quantile heads. It is scored
-on the same 72 AOI-month holdout and **loses to B2** (2,452 vs 2,387 MAE), so
-the gate keeps B2 served. The loss, the 80% interval coverage (80.6%) and the
-ablations are published in `docs/SENSORFORMER.md`; the API exposes
-`/api/firms/sf-status`. This is an experiment, not the default model.
+`sf_lite_v1` is the only model in the runtime and UI: a seasonal B2 anchor plus
+a small temporal CNN + one attention layer + context gate, with monotone
+quantile heads. It is scored on the same 72 AOI-month holdout and **loses to the
+anchor** (2,458 vs 2,387 MAE), so its gate is closed and the calendar serves the
+anchor only. The loss, the 80% band (86.1% empirical coverage) and the ablations
+are published in `docs/SENSORFORMER.md`; the API exposes `/api/firms/sf-status`.
+HGB/TS/SRF are archived negative results, not user-selectable models.
 
 ## Satellite Fire Intelligence Lab (`/lab`)
 

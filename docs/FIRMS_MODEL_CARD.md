@@ -188,21 +188,55 @@ How to read it:
 - months without 12 consecutive MODIS months are not scored; the API returns
   `months_scored`, `months_missing_context`, and a per-month effective method.
 
-### `sf_lite_v1` (SensorFormer Lite, experimental — not served)
+### `sf_lite_v1` (SensorFormer — single served architecture, gate OFF)
 
-- Temporal CNN (2 conv layers) + one attention layer + sensor/context gate,
-  residual on the B2 log-ratio, quantile heads 0.1/0.5/0.9.
-- Inputs: 12-month MODIS window + month phase + day/Terra fraction + AOI
-  embedding. The target month's VIIRS is never an input (`T34`).
-- Fit on train years only (195 windows), validated on 2023, scored on the same
-  72 holdout IDs. 5 seeds, 15,395 parameters.
-- **Result: pooled MAE 2,452.0 vs B2 2,386.9**; SF−B2 Δ = +65.1, CI
-  [−76.6, +226.5]; mean gain −2.7%. Gate **OFF**, `deployed=false`, B2 remains
-  the served default. Australia is the only AOI where it wins narrowly.
-- Ablation: `no_gate` 2,512.7; `no_attn` 2,446.8. The gate helps vs no-gate,
-  but attention does not justify itself at this sample size.
-- Empirical 80% interval coverage on the holdout: 80.6% (median width 9,033).
-- Full protocol and limits: `docs/SENSORFORMER.md`.
+- Seasonal anchor (B2) + residual network: temporal CNN (2 conv layers) + one
+  attention layer + context gate; monotone quantile heads 0.1/0.5/0.9.
+- Inputs: 12-month MODIS window + month phase + day/Terra fractions + AOI
+  embedding. The target month's VIIRS is never an input (`T34`), and the
+  constant `observed` flag was removed because FIRMS CSV has no observation
+  footprint.
+- Two-phase protocol: B2 and the net fit on `< 2023` for epoch selection
+  (validation 2023, eval mode, count-space MAE); then both re-fit on `< 2024`
+  with that epoch budget and scored once on 72 holdout IDs. `T36` pins the
+  leak-free 2023 baseline.
+- **Result: pooled MAE 2,458.5 vs anchor 2,386.9**; Δ = +71.6, AOI-month CI
+  [−46.7, +213.4], year-block CI [+33.9, +109.2]; mean gain −3.0%. Gate
+  **OFF**; the calendar serves the anchor only and labels the gate state.
+- Per-seed holdout MAE 2,296.9–2,588.6 across 5 seeds.
+- Ablation: `no_gate` 2,631.6; `no_attn` 2,524.7. The gate helps vs no-gate,
+  but attention does not justify itself at 231 windows.
+- Empirical 80% band coverage 86.1%; mean width 8,894, median 4,296;
+  zero quantile crossings by construction.
+- Weights SHA-256 is verified on load (`T38`); status separates model artifact
+  from live NASA data (`T39`). Full protocol and limits: `docs/SENSORFORMER.md`.
+
+### `hts_anchor_v1` (hierarchical tile-seasonal anchor — candidate)
+
+- Aggregates the raw pull at 1-degree tiles: 42,327 tile-months, 10,315 with
+  ≥20 MODIS and ≥20 VIIRS, 1,060 tiles, 3,924 windows with 12-month context.
+- Per-tile monthly log-ratio shrunk toward B2: `w = n/(n+3)`; sparse tiles fall
+  back to the tile mean, then B2. One global level factor fit on 2023 (0.997).
+- **Result on the official 72 rows: MAE 2,230.7 vs B2 2,386.9 (−156.2, −6.5%)**;
+  Vietnam 790.9, Amazon 4,297.1, Australia 1,604.1 — all three improve.
+- CI **[−362.0, +44.0]**, P(better) 0.93; year-block CI [−366.9, +54.5]. The
+  gate (≥2% and CI upper < 0) is **not passed**, so this is a candidate, not a
+  deployed win.
+- Artifact: `models/hts_anchor_raw.json`; monthly serving targets:
+  `models/hts_series_raw.json` (`scripts.firms.build_hts_series`).
+- Served only as `method=hts` on raw data; responses mark it candidate with
+  `gate_passed=false`. The synthetic sample returns 409 (no tiles).
+
+### `tileformer_v1` (region-agnostic residual — rejected)
+
+- 12-month tile window + dilated CNN + one transformer layer + smooth
+  geographic basis (no AOI one-hot), gated residual on HTS, monotone quantiles.
+- Tile-level MAE 141.6 vs HTS 137.0; AOI-aggregate MAE 1,419 vs 1,218.
+- Capacity sweep d=32/64/128 (22,574 → 258,254 params) improves tile MAE
+  143.2 → 139.5 but never beats HTS; aggregate error stays worse.
+- Leave-one-region-out: Vietnam +134, Amazon +1,458, Australia −3.5 aggregate
+  MAE versus HTS. Region transfer is not solved.
+- `deployed=false`. Full evidence: `docs/TILE_HIERARCHY.md`.
 
 ## Spatial transfer — the honest weak spot
 

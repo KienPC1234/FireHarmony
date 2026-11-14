@@ -3,7 +3,7 @@ PY      := .venv/bin/python
 BACKEND := backend
 PORT    ?= 8000
 
-.PHONY: help install sample fetch fetch-missing ingest test-backend test-clean test-full test e2e dev demo build pm2-start clean
+.PHONY: help install sample fetch fetch-missing ingest test-backend test-clean test-full test check-fast check-release e2e dev demo build pm2-start clean
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -37,6 +37,13 @@ test-clean:  ## clean-source profile: skip raw-data and SPA tests
 
 test-full:  ## full profile: sample + raw (needs data/firms/raw) + SPA build
 	cd $(BACKEND) && ../$(PY) -m pytest tests/test_firms.py -q
+
+check-fast:  ## dev loop: clean tests, no raw 40-min suite (~1 min)
+	cd $(BACKEND) && FIRMS_SKIP_RAW=1 FIRMS_SKIP_DIST=1 ../$(PY) -m pytest tests/test_firms.py -q
+
+check-release:  ## before shipping: full tests + release gate (slow)
+	cd $(BACKEND) && ../$(PY) -m pytest tests/test_firms.py -q
+	cd $(BACKEND) && ../$(PY) -m scripts.firms.check_release
 
 e2e:  ## HTTP smoke against a running server (vars: BASE)
 	cd $(BACKEND) && ../$(PY) -m scripts.e2e_smoke --base "$${BASE:-http://127.0.0.1:8000}"

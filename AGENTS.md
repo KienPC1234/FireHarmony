@@ -29,7 +29,9 @@ Roots: `backend/app/firms/` (schema/harmonize/calendar/dl),
 ```bash
 make install      # python + frontend deps
 make sample       # generate deterministic FIRMS sample CSV
-make test-backend # 6 firms tests (no network/GPU)
+make test-backend # full firms suite (raw tests can take ~40 min)
+make check-fast   # dev loop: clean profile, ~1 min, no raw/SPA tests
+make check-release# before shipping: full suite + release gate
 make dev          # API :8000 + Vite :5173
 make demo         # build SPA, serve API + SPA on :8000
 ```

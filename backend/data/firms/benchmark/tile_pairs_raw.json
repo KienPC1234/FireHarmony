@@ -1,0 +1,12 @@
+{
+ "rows": 42327,
+ "strong_rows": 10315,
+ "tiles": 1060,
+ "aois": [
+  "vietnam",
+  "amazon",
+  "australia"
+ ],
+ "tile_deg": 1.0,
+ "sha256": "324e84959ae73fb833cad81003fcc9d9e4a0377eb028f3824ed87951220b833d"
+}

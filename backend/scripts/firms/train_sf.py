@@ -3,9 +3,10 @@
     python -m scripts.firms.train_sf --data raw
     python -m scripts.firms.train_sf --data sample --epochs 160
 
-Writes sf_lite_<tag>.pt + .json. The model is an experimental comparator: it is
-never wired into the calendar serving path, and `deployed` stays false unless
-it beats B2 by the gated rule in app.firms.sf_lite.
+Writes sf_lite_<tag>.pt + .json. This is the single served architecture:
+SensorFormer = seasonal anchor + gated residual. The calendar serves the anchor
+until the gate opens (>=2% mean gain and CI upper < 0), so a losing model is
+never silently substituted for the anchor.
 """
 from __future__ import annotations
 

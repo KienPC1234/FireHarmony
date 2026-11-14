@@ -1,0 +1,156 @@
+{
+ "validation": {
+  "w12_gate-4": {
+   "val_mae": 1180.82,
+   "lambda": {
+    "vietnam": 1.0,
+    "amazon": 0.0,
+    "australia": 0.0
+   },
+   "cfg": {
+    "d": 32,
+    "win": 12,
+    "lr": 0.002,
+    "epochs": 180
+   }
+  },
+  "w12_gate0": {
+   "val_mae": 1120.43,
+   "lambda": {
+    "vietnam": 0.0,
+    "amazon": 0.0,
+    "australia": 1.0
+   },
+   "cfg": {
+    "d": 32,
+    "win": 12,
+    "lr": 0.002,
+    "epochs": 180,
+    "gate_init": 0.0
+   }
+  },
+  "w12_head": {
+   "val_mae": 1179.46,
+   "lambda": {
+    "vietnam": 1.0,
+    "amazon": 0.1,
+    "australia": 0.0
+   },
+   "cfg": {
+    "d": 32,
+    "win": 12,
+    "lr": 0.002,
+    "epochs": 180,
+    "per_aoi_head": true
+   }
+  },
+  "w9_gate-4": {
+   "val_mae": 1182.05,
+   "lambda": {
+    "vietnam": 1.0,
+    "amazon": 0.0,
+    "australia": 0.0
+   },
+   "cfg": {
+    "d": 32,
+    "win": 9,
+    "lr": 0.002,
+    "epochs": 180
+   }
+  },
+  "w9_gate0": {
+   "val_mae": 1117.62,
+   "lambda": {
+    "vietnam": 0.0,
+    "amazon": 0.0,
+    "australia": 1.0
+   },
+   "cfg": {
+    "d": 32,
+    "win": 9,
+    "lr": 0.002,
+    "epochs": 180,
+    "gate_init": 0.0
+   }
+  },
+  "w9_head": {
+   "val_mae": 1180.57,
+   "lambda": {
+    "vietnam": 1.0,
+    "amazon": 0.1,
+    "australia": 0.0
+   },
+   "cfg": {
+    "d": 32,
+    "win": 9,
+    "lr": 0.002,
+    "epochs": 180,
+    "per_aoi_head": true
+   }
+  },
+  "w9_balanced": {
+   "val_mae": 1182.74,
+   "lambda": {
+    "vietnam": 0.0,
+    "amazon": 0.4,
+    "australia": 0.0
+   },
+   "cfg": {
+    "d": 32,
+    "win": 9,
+    "lr": 0.002,
+    "epochs": 180,
+    "balanced": true
+   }
+  }
+ },
+ "holdout": {
+  "best": "w9_gate0",
+  "cfg": {
+   "d": 32,
+   "win": 9,
+   "lr": 0.002,
+   "epochs": 180,
+   "gate_init": 0.0
+  },
+  "lambda": {
+   "vietnam": 0.0,
+   "amazon": 0.0,
+   "australia": 1.0
+  },
+  "holdout": {
+   "mae": 2385.56,
+   "b2_mae": 2386.91,
+   "ci": {
+    "method_a": "srf",
+    "method_b": "b2_seasonal_ratio",
+    "delta_mae": -1.3565,
+    "ci95": [
+     -37.206,
+     37.0202
+    ],
+    "prob_a_better": 0.5035,
+    "n": 72,
+    "n_boot": 2000,
+    "unit": "AOI-month row bootstrap (not independent hotspots)"
+   },
+   "per_aoi": {
+    "vietnam": {
+     "mae": 844.16,
+     "b2_mae": 844.16,
+     "lambda": 0.0
+    },
+    "amazon": {
+     "mae": 4647.74,
+     "b2_mae": 4647.74,
+     "lambda": 0.0
+    },
+    "australia": {
+     "mae": 1664.77,
+     "b2_mae": 1668.84,
+     "lambda": 1.0
+    }
+   }
+  }
+ }
+}

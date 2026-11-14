@@ -46,12 +46,14 @@ python -m scripts.firms.rebuild_subset       # raw subset, checksum-pinned
 ## SensorFormer Lite (follow-up experiment)
 
 The audit's P0-05 concern led to a deliberately small hybrid rather than a
-larger Transformer: `sf_lite_v1` (temporal CNN + one attention layer + sensor/
-context gate + quantile heads) was trained on MODIS-only windows and scored on
-the same 72 holdout IDs. It **lost to B2** (pooled 2,452 vs 2,387 MAE; gate
-OFF, not served). Ablations show the gate helps vs no-gate (2,513) while
-attention does not (no-attn 2,447). Empirical 80% interval coverage is 80.6%.
-Full evidence: `docs/SENSORFORMER.md`.
+larger Transformer: `sf_lite_v1` (temporal CNN + one attention layer + context
+gate + monotone quantile heads) was trained on MODIS-only windows and scored on
+the same 72 holdout IDs. It **lost to the anchor** (pooled 2,458 vs 2,387 MAE;
+gate OFF, anchor-only serving). Ablations show the gate helps vs no-gate (2,632)
+while attention does not (no-attn 2,525). Empirical 80% band coverage is 86.1%.
+Audit-2 fixed the 2023 B2 leak, eval-mode early stopping, the fake `observed`
+feature, width labeling, artifact hashing and status separation; full evidence:
+`docs/SENSORFORMER.md` and `docs/AUDIT2_RESPONSE.md`.
 
 ## Still OPEN (not presented as solved)
 
@@ -73,7 +75,7 @@ Full evidence: `docs/SENSORFORMER.md`.
 
 ## Verification snapshot
 
-- Backend: 69 tests, including the new P0-01/P0-02/P0-07 regressions.
+- Backend: 84 tests, including the new P0-01/P0-02/P0-07 regressions.
 - `make_benchmark --check`, `evaluate --data raw|sample --verify`,
   `render_docs --check`, `check_env`, `rebuild_subset`: OK.
 - Frontend: typecheck/lint/build, Playwright 4/4.

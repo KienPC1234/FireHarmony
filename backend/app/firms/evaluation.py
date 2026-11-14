@@ -76,30 +76,48 @@ def _counts(modis: float, log_ratio: float) -> float:
 
 
 def _delta_ci(samples: list[dict], method_a: str, method_b: str,
-              n_boot: int = 2000, seed: int = 7) -> dict | None:
-    """Month-block bootstrap of ΔMAE (A − B); negative means A is better."""
+              n_boot: int = 2000, seed: int = 7,
+              block: str | None = None) -> dict | None:
+    """Bootstrap of ΔMAE (A − B); negative means A is better.
+
+    Default resamples AOI-month rows. `block="year"` resamples whole years, which
+    respects within-year correlation but is coarse when only two years exist.
+    """
     rows = [s for s in samples if s.get(method_a) is not None and s.get(method_b) is not None]
     if len(rows) < 8:
         return None
     rng = np.random.default_rng(seed)
-    y = np.array([s["viirs_ref"] for s in rows], dtype=float)
-    pa = np.array([s[method_a] for s in rows], dtype=float)
-    pb = np.array([s[method_b] for s in rows], dtype=float)
+    y_all = np.array([s["viirs_ref"] for s in rows], dtype=float)
+    pa_all = np.array([s[method_a] for s in rows], dtype=float)
+    pb_all = np.array([s[method_b] for s in rows], dtype=float)
     deltas = []
-    for _ in range(n_boot):
-        idx = rng.integers(0, len(rows), len(rows))
-        deltas.append(float(np.mean(np.abs(pa[idx] - y[idx])) -
-                            np.mean(np.abs(pb[idx] - y[idx]))))
+    if block:
+        keys = sorted({s.get(block) for s in rows}, key=str)
+        groups = {k: [i for i, s in enumerate(rows) if s.get(block) == k]
+                  for k in keys}
+        for _ in range(n_boot):
+            pick = rng.integers(0, len(keys), len(keys))
+            idx = np.array([i for p in pick for i in groups[keys[p]]], dtype=int)
+            deltas.append(float(np.mean(np.abs(pa_all[idx] - y_all[idx])) -
+                                np.mean(np.abs(pb_all[idx] - y_all[idx]))))
+        unit = (f"{block}-block cluster bootstrap ({len(keys)} blocks; "
+                "coarse, respects within-block correlation)")
+    else:
+        for _ in range(n_boot):
+            idx = rng.integers(0, len(rows), len(rows))
+            deltas.append(float(np.mean(np.abs(pa_all[idx] - y_all[idx])) -
+                                np.mean(np.abs(pb_all[idx] - y_all[idx]))))
+        unit = "AOI-month row bootstrap (not independent hotspots)"
     deltas = np.array(deltas)
     return {
         "method_a": method_a, "method_b": method_b,
-        "delta_mae": round(float(np.mean(np.abs(pa - y)) -
-                                 np.mean(np.abs(pb - y))), 4),
+        "delta_mae": round(float(np.mean(np.abs(pa_all - y_all)) -
+                                 np.mean(np.abs(pb_all - y_all))), 4),
         "ci95": [round(float(np.percentile(deltas, 2.5)), 4),
                  round(float(np.percentile(deltas, 97.5)), 4)],
         "prob_a_better": round(float(np.mean(deltas < 0)), 4),
         "n": len(rows), "n_boot": n_boot,
-        "unit": "AOI-month row bootstrap (not independent hotspots)",
+        "unit": unit,
     }
 
 

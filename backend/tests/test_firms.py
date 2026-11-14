@@ -931,13 +931,20 @@ def test_T32_llm_guard_catches_wrong_small_numbers_and_percentages():
 
 
 def test_T33_sensorformer_lite_is_an_honest_comparator():
-    """Audit V6 follow-up: SF Lite is scored on the same holdout, gated, not served."""
+    """Audit V6 + audit-2: SF is scored on the same holdout, gated, not served."""
     st = client.get("/api/firms/sf-status", params={"data": "raw"}).json()
     assert st["trained"] is True
+    assert st["model_artifact_available"] is True
+    assert st["artifact_verified"] is True
+    assert st["artifact"]["hash_ok"] is True
     assert st["n_test"] == 72 and st["n_train"] > 100
     assert st["metrics"]["n"] == 72
     assert 0.0 <= st["coverage80"] <= 1.0
     assert {"no_gate", "no_attn"} <= set(st["ablation"])
+    # Audit-2 P1: mean and median width are different statistics, both stored.
+    assert st["mean_interval_width"] >= st["median_interval_width"] > 0
+    assert st["quantile_crossings"] == 0
+    assert len(st["per_seed_mae"]) == 5
     bt = client.get("/api/firms/backtest",
                     params={"aoi": "vietnam", "data": "sample"}).json()
     assert "sf_lite_v1" in bt["metrics"]
@@ -945,6 +952,12 @@ def test_T33_sensorformer_lite_is_an_honest_comparator():
     assert bt["months"] and bt["months"][0].get("sf_pred") is not None
     # The gate must be explicit: losing to B2 means not deployed.
     assert st["mean_gain_vs_b2"] < 0.02
+    assert st["metrics"]["mae"] > st["b2_mae"]
+    # Predictions are monotone quantiles by construction.
+    from app.firms import sf_lite
+    _, meta = sf_lite.load_artifact("raw")
+    for p in meta["predictions"].values():
+        assert p["low"] <= p["mid"] <= p["high"]
 
 
 def test_T34_sensorformer_inputs_never_contain_target_viirs():
@@ -964,6 +977,201 @@ def test_T34_sensorformer_inputs_never_contain_target_viirs():
     assert sid in before and sid in after
     assert np.array_equal(before[sid]["X"], after[sid]["X"])
     assert np.array_equal(before[sid]["ctx"], after[sid]["ctx"])
+    # Audit-2 P1: the constant `observed` flag was removed, not faked.
+    assert "observed" not in sf_lite.FEATURES
+    assert before[sid]["X"].shape == (12, len(sf_lite.FEATURES))
+
+
+def test_T36_sensorformer_selection_split_has_no_2023_leak():
+    """Audit-2 P0: 2023 validation must not enter the B2 features/labels."""
+    import math
+    import numpy as np
+    from app.firms import sf_lite
+    pairs = sf_lite.load_pairs("raw")
+    sel = [p for p in pairs if p["year"] < 2023]
+    ratios = {a: sf_lite._b2_log([p for p in sel if p["aoi"] == a])
+              for a in sf_lite.AOIS}
+    ws = {w["id"]: w for w in sf_lite.build_windows(pairs, ratios)}
+    row = ws["vietnam:2023-06"]
+    manual = float(np.median([
+        math.log((p["viirs"] + 1.0) / (p["modis"] + 1.0))
+        for p in sel if p["aoi"] == "vietnam" and p["month"] == 6
+        and p["modis"] > 0]))
+    assert abs(row["b2_log"] - manual) < 1e-9
+    # The old buggy cutoff (<2024) differs, so this test would have caught it.
+    leaky = {a: sf_lite._b2_log([p for p in pairs
+                                 if p["aoi"] == a and p["year"] < 2024])
+             for a in sf_lite.AOIS}
+    leaky_row = {w["id"]: w for w in sf_lite.build_windows(pairs, leaky)}["vietnam:2023-06"]
+    assert abs(leaky_row["b2_log"] - manual) > 1e-6
+
+
+def test_T37_sensorformer_early_stopping_runs_in_eval_mode():
+    """Audit-2 P0: dropout must be off while validation picks the epoch."""
+    from app.firms import sf_lite
+    pairs = sf_lite.load_pairs("sample")
+    ratios = {a: sf_lite._b2_log([p for p in pairs
+                                  if p["aoi"] == a and p["year"] < 2023])
+              for a in sf_lite.AOIS}
+    ws = sf_lite.build_windows(pairs, ratios)
+    fit = [w for w in ws if w["year"] < 2023]
+    val = [w for w in ws if w["year"] == 2023]
+    model, best_epoch, best_mae = sf_lite._fit(7, fit, val, epochs=2)
+    assert model.training is False
+    assert best_epoch >= 1 and best_mae > 0
+    a = sf_lite._val_mae(model, val)
+    b = sf_lite._val_mae(model, val)
+    assert a == b  # no dropout noise in the selection metric
+
+
+def test_T38_sf_artifact_hash_mismatch_is_rejected(tmp_path):
+    """Audit-2 P1: never load weights that do not match metadata."""
+    import shutil
+    from app.firms import sf_lite
+    src = sf_lite._pairs_path("raw").parent.parent / "models"
+    shutil.copy(src / "sf_lite_raw.json", tmp_path / "sf_lite_raw.json")
+    shutil.copy(src / "sf_lite_raw.pt", tmp_path / "sf_lite_raw.pt")
+    st = sf_lite.artifact_status("raw", tmp_path)
+    assert st["available"] is True and st["hash_ok"] is True
+    with (tmp_path / "sf_lite_raw.pt").open("ab") as fh:
+        fh.write(b"tampered")
+    st = sf_lite.artifact_status("raw", tmp_path)
+    assert st["available"] is False
+    assert st["reason"] == "weights_sha256_mismatch"
+    assert sf_lite.load_artifact("raw", tmp_path) == (None, None)
+
+
+def test_T39_sf_status_separates_artifact_from_live_data():
+    """Audit-2 P1: a trained artifact does not imply raw NASA data is present."""
+    st = client.get("/api/firms/sf-status", params={"data": "raw"}).json()
+    assert st["model_artifact_available"] is True
+    assert isinstance(st["live_data_available"], bool)
+    assert "artifact" in st and "feature_version" in st
+
+
+def test_T35_custom_srf_is_archived_and_ties_b2():
+    """The custom transformer must not be presented as a winner."""
+    from app.firms import srf
+    models, meta = srf.load_artifact("raw")
+    assert models is not None and meta is not None
+    assert meta["method_id"] == "srf_v1"
+    assert meta["n_test"] == 72
+    assert meta["deployed"] is False
+    assert meta["mean_gain_vs_b2"] < 0.02
+    assert meta["comparisons"]["srf_vs_b2"]["ci95"][0] < 0 < meta["comparisons"]["srf_vs_b2"]["ci95"][1]
+
+
+def test_T40_hierarchical_tile_anchor_beats_b2_on_official_holdout():
+    """Tile-month hierarchy is the strongest candidate: all 3 AOIs improve."""
+    import json
+    meta = json.loads((BACKEND_DIR / "data/firms/models/hts_anchor_raw.json")
+                      .read_text(encoding="utf-8"))
+    assert meta["method_id"] == "hts_anchor_v1"
+    assert meta["n_test"] == 72
+    assert meta["hts_mae"] < meta["b2_mae"] * 0.97
+    for aoi, row in meta["per_aoi"].items():
+        assert row["hts_mae"] < row["b2_mae"], aoi
+    ci = meta["comparisons"]["hts_vs_b2"]["ci95"]
+    assert ci[0] < meta["comparisons"]["hts_vs_b2"]["delta_mae"] < ci[1]
+    # Point gain is real; statistical gate is not passed because the CI includes 0.
+    assert meta["gate"]["passed"] is False
+    assert meta["mean_gain_vs_b2"] > 0.02
+
+
+def test_T41_tileformer_residual_does_not_beat_the_hierarchical_anchor():
+    import json
+    meta = json.loads((BACKEND_DIR / "data/firms/models/tileformer_raw.json")
+                      .read_text(encoding="utf-8"))
+    assert meta["n_train"] > 2500 and meta["n_test"] > 500
+    assert meta["params"] > 50000
+    assert meta["tile_metrics"]["model"]["mae"] >= meta["tile_metrics"]["anchor"]["mae"]
+    assert meta["aggregate"]["delta_mae"] > 0
+    assert meta["deployed"] is False
+    assert meta["gate"]["passed"] is False
+    # The band is honest but not a calibrated interval.
+    assert 0.5 <= meta["coverage80"] <= 1.0
+
+
+def test_T42_tile_dataset_matches_its_manifest():
+    import hashlib
+    import json
+    bench = BACKEND_DIR / "data/firms/benchmark"
+    meta = json.loads((bench / "tile_pairs_raw.json").read_text(encoding="utf-8"))
+    p = bench / "tile_pairs_raw.csv"
+    assert meta["rows"] == sum(1 for _ in p.open(encoding="utf-8")) - 1
+    assert meta["rows"] > 40000 and meta["tiles"] > 900
+    assert hashlib.sha256(p.read_bytes()).hexdigest() == meta["sha256"]
+
+
+def test_T43_more_capacity_does_not_close_the_gap():
+    """d32 -> d128 triples parameters but still loses to the anchor."""
+    import json
+    base = BACKEND_DIR / "data/firms/models"
+    d32 = json.loads((base / "tileformer_d32.json").read_text(encoding="utf-8"))
+    d64 = json.loads((base / "tileformer_raw.json").read_text(encoding="utf-8"))
+    d128 = json.loads((base / "tileformer_d128.json").read_text(encoding="utf-8"))
+    assert d32["params"] < d64["params"] < d128["params"]
+    assert d128["tile_metrics"]["model"]["mae"] < d32["tile_metrics"]["model"]["mae"]
+    assert d128["tile_metrics"]["model"]["mae"] > d128["tile_metrics"]["anchor"]["mae"]
+    for d in (d32, d64, d128):
+        assert d["aggregate"]["delta_mae"] > 0
+
+
+def test_T44_hts_status_is_a_candidate_not_a_served_win():
+    st = client.get("/api/firms/hts-status").json()
+    assert st["trained"] is True
+    assert st["candidate"] is True and st["served"] is False
+    assert st["n_test"] == 72
+    assert st["hts_mae"] < st["b2_mae"]
+    assert st["gate"]["passed"] is False
+
+
+def test_T45_hts_requires_raw_and_corrects_only_estimated_cells():
+    from app.firms import hts
+    r = client.get("/api/firms/calendar",
+                   params={"aoi": "vietnam", "data": "sample", "method": "hts"})
+    assert r.status_code == 409
+    # Observed VIIRS cells keep their count; MODIS-only cells are rescaled to
+    # the monthly target (conservation is checked by the caller).
+    cells = [
+        {"date": "2025-01-02", "harmonized_count": 10.0,
+         "estimate_type": "viirs_observed"},
+        {"date": "2025-01-03", "harmonized_count": 5.0,
+         "estimate_type": "modis_upscaled_estimated"},
+        {"date": "2025-01-04", "harmonized_count": 5.0,
+         "estimate_type": "modis_upscaled_estimated"},
+    ]
+    out, diag = hts.apply_monthly(cells, {"2025-01": 30.0})
+    assert out[0]["harmonized_count"] == 10.0
+    assert out[1]["estimate_type"] == "hts_predicted"
+    total = sum(c["harmonized_count"] for c in out)
+    assert abs(total - 30.0) < 1e-6
+    assert diag["months_scored"] == 1 and diag["gate_passed"] is False
+
+
+def test_T46_hts_series_is_expanding_and_hash_pinned():
+    import hashlib
+    import json
+    base = BACKEND_DIR / "data/firms/models"
+    series = json.loads((base / "hts_series_raw.json").read_text(encoding="utf-8"))
+    assert series["months"]["vietnam"] > 150
+    assert series["months"]["amazon"] > 80
+    assert series["series"]["vietnam"]["2024-01"]["cutoff"] == 2024
+    assert series["series"]["vietnam"]["2020-06"]["cutoff"] == 2020
+    tile = BACKEND_DIR / "data/firms/benchmark/tile_pairs_raw.csv"
+    assert hashlib.sha256(tile.read_bytes()).hexdigest() == series["dataset_sha256"]
+
+
+@_NEEDS_RAW
+def test_T47_hts_evidence_serves_a_candidate_month():
+    ev = client.get("/api/firms/evidence",
+                    params={"aoi": "vietnam", "data": "raw", "method": "hts",
+                            "year": 2025, "month": 1}).json()
+    assert ev["method_id"] == "hts_anchor_v1"
+    assert ev["effective_method"] == "hts_anchor_v1"
+    st = client.get("/api/firms/hts-status").json()
+    assert st["series"]["available"] is True
+    assert st["served"] is False and st["candidate"] is True
 
 
 def test_T24_dedup_and_qa_sensitivity_are_measured():
