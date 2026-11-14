@@ -96,10 +96,9 @@ test("explicit raw/STAN stays raw with no synthetic fallback", async ({ page }) 
   const requests = await mockCalendar(page);
   await page.goto("/calendar?aoi=vietnam&data=raw&method=stan&ym=2024-08", { waitUntil: "domcontentloaded" });
   await expect(page.locator("[data-fh-feed]")).toContainText(/NASA quan sát|NASA Observed/);
-  await page.waitForTimeout(700);
+  await expect.poll(() => requests.length, { timeout: 15_000 }).toBeGreaterThan(0);
   expect(params(page).get("data")).toBe("raw");
   expect(params(page).get("method")).toBe("stan");
-  expect(requests.length).toBeGreaterThan(0);
   expect(requests.every((req) => req.feed === "raw" && req.method === "stan"), JSON.stringify(requests)).toBe(true);
 });
 
