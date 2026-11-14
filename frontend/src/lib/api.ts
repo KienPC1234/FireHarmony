@@ -25,6 +25,19 @@ const dataTimeout = (data?: string) => (data === "raw" ? RAW_TIMEOUT_MS : DEFAUL
 
 type RequestInitWithTimeout = RequestInit & { timeoutMs?: number };
 
+async function readBody(res: Response): Promise<unknown> {
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    // Proxies and gateways answer with HTML/plain text on 502/504; keep that
+    // body so the caller still sees status + text instead of a SyntaxError.
+    if (!res.ok) return text;
+    throw new ApiError(res.status, "Malformed JSON response from the API", text);
+  }
+}
+
 async function request<T>(path: string, init?: RequestInitWithTimeout): Promise<T> {
   let res: Response;
   const { timeoutMs = DEFAULT_TIMEOUT_MS, ...rest } = init ?? {};
@@ -49,8 +62,7 @@ async function request<T>(path: string, init?: RequestInitWithTimeout): Promise<
   } finally {
     clearTimeout(timeoutId);
   }
-  const text = await res.text();
-  const body = text ? (JSON.parse(text) as unknown) : null;
+  const body = await readBody(res);
   if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`, body);
   return body as T;
 }
@@ -512,8 +524,7 @@ export const api = {
     } catch (e) {
       throw new ApiError(0, "Cannot reach the API. Is the backend running on :8000?", e);
     }
-    const text = await res.text();
-    const body = text ? (JSON.parse(text) as unknown) : null;
+    const body = await readBody(res);
     if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`, body);
     return body as UploadDatasetResponse;
   },

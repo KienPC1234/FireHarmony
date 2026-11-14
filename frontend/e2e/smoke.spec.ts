@@ -70,7 +70,7 @@ test("raw 404 is explained and never silently switches to synthetic", async ({ p
 test("nav deep links carry aoi + xray page loads backtest", async ({ page }) => {
   await page.goto("/xray?aoi=vietnam");
   await expect(page.getByRole("heading", { name: /x-ray/i })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText(/VIIRS/i).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("main").getByText(/VIIRS/i).first()).toBeVisible({ timeout: 30_000 });
 });
 
 test("lab simulator runs a sensor subset on sample data", async ({ page }) => {

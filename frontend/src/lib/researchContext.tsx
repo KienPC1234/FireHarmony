@@ -37,11 +37,10 @@ export function ResearchContextProvider({ children }: { children: React.ReactNod
   const [searchParams, setSearchParams] = useSearchParams();
 
   const aoi = (searchParams.get("aoi") as AoiId) || "vietnam";
-  const dataFeed = (searchParams.get("data") as DataFeedKind) || "sample";
+  const dataFeed = (searchParams.get("data") as DataFeedKind) || "raw";
   const mode = (searchParams.get("mode") as ExperienceMode) || "explore";
   const yearMonth = searchParams.get("ym");
-  const method = (searchParams.get("method") as CalibMethod)
-    || (dataFeed === "raw" ? "stan" : "k_ratio");
+  const method = (searchParams.get("method") as CalibMethod) || "stan";
   const qaMin = searchParams.get("qa") || "nominal";
 
   const updateParams = React.useCallback((updates: Record<string, string | null>) => {

@@ -17,12 +17,24 @@ def series_path(model_dir: Path | None = None) -> Path:
     return (model_dir or MODEL_DIR) / SERIES_FILE
 
 
+_HTS_CACHE: tuple[float, str, dict] | None = None
+
+
 def load_series(model_dir: Path | None = None) -> dict | None:
+    global _HTS_CACHE
     p = series_path(model_dir)
     if not p.exists():
         return None
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
+        mtime = p.stat().st_mtime
+    except OSError:
+        return None
+    if _HTS_CACHE is not None and _HTS_CACHE[0] == mtime and _HTS_CACHE[1] == str(p):
+        return _HTS_CACHE[2]
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+        _HTS_CACHE = (mtime, str(p), data)
+        return data
     except (OSError, json.JSONDecodeError):
         return None
 

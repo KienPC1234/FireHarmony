@@ -1,0 +1,530 @@
+/* FireHarmony mission-control visual layer.
+ * Exclusively presentation: no fabricated metrics, no data transforms,
+ * no dependence on the archive or model availability.
+ * Applies to the shared shell, leaving GIS canvases and data semantics intact.
+ */
+[data-fh-shell="mission"] {
+  --fh-ink: #070d18;
+  --fh-panel: #111d31;
+  --fh-deep: #0c1526;
+  --fh-line: rgba(86, 144, 197, 0.19);
+  --fh-line-strong: rgba(68, 208, 249, 0.38);
+  --fh-cyan: #53defa;
+  --fh-muted: #94a9c2;
+  --fh-shadow: 0 18px 42px rgba(0, 4, 14, 0.27), 0 2px 8px rgba(0, 4, 14, 0.18);
+  background: #060b14;
+}
+
+[data-fh-header] {
+  position: relative;
+  z-index: 41;
+  height: 66px;
+  min-height: 66px;
+  border-bottom: 1px solid rgba(68, 188, 243, 0.18);
+  background:
+    radial-gradient(ellipse 44% 140% at 45% -42%, rgba(36, 147, 207, 0.14), transparent 88%),
+    linear-gradient(105deg, #0c192c 0%, #0a1425 58%, #0c1728 100%);
+  box-shadow: 0 6px 30px rgba(0, 4, 14, 0.33);
+}
+
+[data-fh-header]::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  bottom: -1px;
+  left: 16px;
+  width: min(34vw, 330px);
+  height: 1px;
+  background: linear-gradient(90deg, rgba(60, 212, 252, 0.0), #3ed6fa 35%, transparent);
+  opacity: 0.85;
+}
+
+[data-fh-brand] {
+  gap: 11px;
+  padding: 3px 6px 3px 3px;
+  border-radius: 14px;
+}
+
+.fh-brand-insignia {
+  display: grid;
+  place-items: center;
+  width: 43px;
+  height: 43px;
+  border: 1px solid rgba(81, 169, 224, 0.25);
+  border-radius: 13px;
+  background: linear-gradient(150deg, rgba(44, 99, 151, 0.28), rgba(9, 21, 40, 0.65));
+  box-shadow: inset 0 1px rgba(255,255,255,0.06), 0 0 20px rgba(19,134,223,0.11);
+}
+
+[data-fh-brand] > div:last-child > span:first-child {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+
+[data-fh-header] :is(button, a) {
+  transition-property: color, border-color, background-color, box-shadow, transform;
+  transition-duration: 160ms;
+  transition-timing-function: var(--ease-out);
+}
+
+[data-fh-header] :is(button, a):active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: 100ms;
+}
+
+[data-fh-header] button {
+  border-color: rgba(105, 153, 203, 0.2);
+}
+
+[data-fh-header] button:hover {
+  border-color: rgba(88, 203, 248, 0.41);
+}
+
+[data-fh-header] [aria-pressed="true"] {
+  box-shadow: inset 0 0 12px rgba(44, 196, 245, 0.09);
+}
+
+[data-fh-rail] {
+  position: relative;
+  width: 234px;
+  min-width: 234px;
+  padding: 26px 12px 18px;
+  border-right: 1px solid rgba(68, 149, 207, 0.17);
+  background:
+    radial-gradient(ellipse 210px 280px at 0% 0%, rgba(42, 141, 189, 0.09), transparent 95%),
+    linear-gradient(180deg, #0d192b, #0a1424 70%, #0a1321);
+  box-shadow: inset -1px 0 rgba(13, 32, 54, 0.7);
+}
+
+[data-fh-rail] > div:first-child {
+  margin-bottom: 15px;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: #829cb5;
+}
+
+[data-fh-rail] nav {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+[data-fh-rail-item] {
+  position: relative;
+  gap: 12px;
+  border-radius: 12px;
+  min-height: 47px;
+  overflow: hidden;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.006em;
+  transition: color 160ms var(--ease-out), background-color 160ms var(--ease-out), border-color 160ms var(--ease-out), transform 160ms var(--ease-out);
+}
+
+[data-fh-rail-item]:active {
+  transform: scale(0.97);
+  transition-duration: 100ms;
+}
+
+[data-fh-rail-item][aria-current="page"] {
+  color: #b4f4ff;
+  border-color: rgba(83, 222, 250, 0.34);
+  background: linear-gradient(90deg, rgba(24, 148, 199, 0.2), rgba(27, 84, 135, 0.1));
+  box-shadow: inset 0 1px rgba(148, 232, 255, 0.14), 0 6px 16px rgba(0, 6, 20, 0.22);
+}
+
+.fh-rail-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 29px;
+  height: 29px;
+  border-radius: 8px;
+  color: #89a8c4;
+  background: rgba(77, 129, 183, 0.07);
+}
+
+[data-fh-rail-item][aria-current="page"] .fh-rail-icon {
+  color: #66e4ff;
+  background: rgba(57, 174, 227, 0.16);
+}
+
+[data-fh-rail] > div:last-child {
+  border-color: rgba(75, 149, 192, 0.21);
+  border-radius: 14px;
+  padding: 14px 13px;
+  background: linear-gradient(154deg, #172b43, #101c2e);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.035), 0 8px 22px rgba(0, 6, 18, 0.23);
+}
+
+/* Northern-glow atmospheric depth; never covers Leaflet tiles. */
+[data-fh-main] {
+  --fh-content-max: 1500px;
+  background-color: var(--fh-ink);
+  background-image:
+    radial-gradient(ellipse 70% 45% at 60% -15%, rgba(28, 118, 176, 0.11), transparent 92%),
+    linear-gradient(180deg, rgba(11, 20, 36, 0.45) 0%, rgba(7, 13, 24, 0) 100%);
+  background-attachment: local;
+}
+
+[data-fh-main]:not([data-fh-page="calendar"]) > div:first-child {
+  max-width: var(--fh-content-max);
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-top: 26px;
+}
+
+[data-fh-main]:not([data-fh-page="calendar"]) h1 {
+  font-size: clamp(21px, 2vw, 27px);
+  line-height: 1.23;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  color: #f5fbff;
+  text-wrap: balance;
+}
+
+[data-fh-main]:not([data-fh-page="calendar"]) h2,
+[data-fh-main]:not([data-fh-page="calendar"]) h3 {
+  letter-spacing: -0.014em;
+}
+
+[data-fh-main] :is(section, div)[class*="rounded-2xl"][class*="bg-[#111C2E]"] {
+  border-color: var(--fh-line);
+  background: linear-gradient(152deg, rgba(22, 38, 61, 0.96), rgba(14, 26, 44, 0.97));
+  box-shadow: var(--fh-shadow), inset 0 1px rgba(153, 203, 236, 0.035);
+}
+
+[data-fh-main] :is(section, div)[class*="rounded-2xl"][class*="bg-[#0B1220]"] {
+  border-color: rgba(82, 150, 194, 0.19);
+  background: linear-gradient(148deg, #102037, #0b1424);
+  box-shadow: 0 12px 35px rgba(0, 6, 19, 0.26), inset 0 1px rgba(255, 255, 255, 0.025);
+}
+
+[data-fh-main] :is(section, div)[class*="rounded-xl"][class*="bg-slate-900"] {
+  border-color: rgba(77, 141, 185, 0.17);
+}
+
+[data-fh-main] :is(button, a)[class*="rounded"] {
+  transition-property: transform, background-color, border-color, color, box-shadow;
+  transition-duration: 160ms;
+  transition-timing-function: var(--ease-out);
+}
+
+[data-fh-main] :is(button, a)[class*="rounded"]:active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: 100ms;
+}
+
+[data-fh-main] :is(button, a)[aria-pressed="true"] {
+  box-shadow: inset 0 1px rgba(130, 217, 249, 0.08), 0 3px 14px rgba(6, 41, 73, 0.15);
+}
+
+/* Hero & Workspace Header Entrance (@starting-style, once on load) */
+[data-enter] {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 240ms var(--ease-enter), transform 240ms var(--ease-enter);
+
+  @starting-style {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* Mobile Sheet & Origin-Aware Popover Entrances */
+[data-fh-sheet] {
+  transform: translateX(0);
+  transition: transform 220ms var(--ease-drawer);
+
+  @starting-style {
+    transform: translateX(100%);
+  }
+}
+
+[data-fh-popover] {
+  opacity: 1;
+  transform: scale(1);
+  transform-origin: top right;
+  transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out);
+
+  @starting-style {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+/* Fine-pointer gated hover micro-interactions (emil-design-eng + taste-skill) */
+[data-fh-card-link] {
+  transition: transform 180ms var(--ease-out), border-color 180ms var(--ease-out), box-shadow 180ms var(--ease-out);
+}
+
+[data-fh-arrow] {
+  transition: transform 150ms var(--ease-out), color 150ms var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  [data-fh-card-link]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 28px rgba(0, 6, 18, 0.34), inset 0 1px rgba(153, 203, 236, 0.06);
+  }
+
+  [data-fh-card-link]:hover [data-fh-arrow] {
+    transform: translateX(3px);
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .group:hover .group-hover\:scale-105,
+  .group:hover .group-hover\:scale-110,
+  .hover\:scale-110:hover {
+    transform: none !important;
+  }
+}
+
+[data-fh-main] :is(input, select, textarea) {
+  accent-color: #53defa;
+}
+
+[data-fh-main] :is(input, select, textarea):focus-visible {
+  border-color: #46cff2;
+  box-shadow: 0 0 0 3px rgba(40, 187, 235, 0.12);
+}
+
+/* Each workspace is styled through the shell, without owning any page code. */
+[data-fh-main]:is([data-fh-page="lab"], [data-fh-page="evidence"], [data-fh-page="investigator"], [data-fh-page="methods"], [data-fh-page="home"]) > div:first-child > div:first-child {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(81, 164, 207, 0.25);
+  background:
+    radial-gradient(ellipse 50% 120% at 100% 0%, rgba(27, 174, 206, 0.12), transparent 92%),
+    linear-gradient(122deg, #142641 0%, #111e33 58%, #0e1a2d 100%);
+  box-shadow: 0 20px 48px rgba(0, 6, 18, 0.3), inset 0 1px rgba(255, 255, 255, 0.065);
+}
+
+[data-fh-main]:is([data-fh-page="lab"], [data-fh-page="evidence"], [data-fh-page="investigator"], [data-fh-page="methods"], [data-fh-page="home"]) > div:first-child > div:first-child::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  top: 0;
+  right: 0;
+  width: min(32%, 240px);
+  height: 75%;
+  border-top: 1px solid rgba(90, 211, 245, 0.19);
+  border-right: 1px solid rgba(90, 211, 245, 0.13);
+  border-radius: 0 15px 0 0;
+  background:
+    linear-gradient(135deg, transparent 60%, rgba(64, 156, 207, 0.045) 60.5%, transparent 61%);
+}
+
+[data-fh-main]:is([data-fh-page="lab"], [data-fh-page="evidence"], [data-fh-page="investigator"], [data-fh-page="methods"], [data-fh-page="home"]) > div:first-child > div:first-child > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Sensor laboratory: one primary canvas and a clear instrument rail. */
+[data-fh-main][data-fh-page="lab"] #lab-results > div:first-child,
+[data-fh-main][data-fh-page="lab"] #lab-filters > aside > div:first-child {
+  border-color: rgba(75, 155, 206, 0.27);
+  box-shadow: 0 16px 36px rgba(0, 4, 16, 0.24);
+}
+
+[data-fh-main][data-fh-page="lab"] [aria-label="Research task groups"] > button,
+[data-fh-main][data-fh-page="lab"] [aria-label="Nhóm nhiệm vụ kiểm chứng"] > button {
+  border-radius: 12px;
+  background: rgba(13, 29, 48, 0.72);
+}
+
+[data-fh-main][data-fh-page="lab"] [aria-label="Research task groups"] > button[aria-pressed="true"],
+[data-fh-main][data-fh-page="lab"] [aria-label="Nhóm nhiệm vụ kiểm chứng"] > button[aria-pressed="true"] {
+  background: linear-gradient(145deg, rgba(15, 82, 118, 0.58), rgba(12, 48, 82, 0.56));
+  border-color: rgba(56, 204, 243, 0.47);
+}
+
+/* Evidence: clearly separate conclusions, scope and day-by-day provenance. */
+[data-fh-main][data-fh-page="evidence"] #evidence-verdict {
+  border-color: rgba(57, 197, 223, 0.24);
+  background: linear-gradient(126deg, #102238, #0b1727 90%);
+}
+
+[data-fh-main][data-fh-page="evidence"] #evidence-matrix {
+  border-color: rgba(77, 166, 212, 0.24);
+  overflow-x: auto;
+}
+
+[data-fh-main][data-fh-page="evidence"] #evidence-matrix button {
+  min-width: 30px;
+  min-height: 30px;
+}
+
+/* Investigator: a readable assistant canvas and evidence telemetry column. */
+[data-fh-main][data-fh-page="investigator"] #ai-conversation {
+  border-color: rgba(65, 152, 211, 0.3);
+  background: linear-gradient(165deg, #14243b, #101c2e);
+  scrollbar-color: rgba(97, 186, 218, 0.5) rgba(12, 26, 45, 0.6);
+}
+
+[data-fh-main][data-fh-page="investigator"] #ai-telemetry > div {
+  border-color: rgba(62, 146, 191, 0.25);
+}
+
+[data-fh-main][data-fh-page="investigator"] #ai-conversation + form {
+  box-shadow: 0 11px 27px rgba(2, 11, 23, 0.28);
+}
+
+/* Methods: readable section switcher, technical tables and formulas. */
+[data-fh-main][data-fh-page="methods"] nav[aria-label] {
+  border-color: rgba(64, 161, 215, 0.29);
+  box-shadow: 0 8px 24px rgba(0, 4, 16, 0.22);
+}
+
+[data-fh-main][data-fh-page="methods"] table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+[data-fh-main][data-fh-page="methods"] :is(th, td) {
+  border-color: rgba(80, 139, 177, 0.19);
+}
+
+/* Compact devices keep the same language without sacrificing map space. */
+@media (max-width: 1279px) {
+  [data-fh-header] { height: 60px; min-height: 60px; }
+}
+
+@media (max-width: 767px) {
+  [data-fh-header] {
+    height: 58px;
+    min-height: 58px;
+    padding-left: 11px;
+    padding-right: 11px;
+  }
+  .fh-brand-insignia { width: 37px; height: 37px; border-radius: 11px; }
+  [data-fh-brand] > div:last-child > span:first-child { font-size: 15px; }
+  [data-fh-main]:not([data-fh-page="calendar"]) > div:first-child {
+    padding-left: 13px;
+    padding-right: 13px;
+    padding-top: 16px;
+  }
+  [data-fh-main]:not([data-fh-page="calendar"]) h1 {
+    font-size: 21px;
+  }
+  [data-fh-main] :is(section, div)[class*="rounded-2xl"][class*="bg-[#111C2E]"] {
+    box-shadow: 0 8px 22px rgba(0, 5, 17, 0.2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-fh-shell="mission"] *, [data-fh-shell="mission"] *::before,
+  [data-fh-shell="mission"] *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    transition-property: opacity, color, background-color, border-color !important;
+    transition-duration: 120ms !important;
+    transform: none !important;
+  }
+}
+
+/* Phase 4: adaptable analytical workspace, intentionally scoped to the shell. */
+[data-fh-rail] {
+  transition: width 180ms var(--ease-out), min-width 180ms var(--ease-out), padding 180ms var(--ease-out);
+}
+
+.fh-rail-toolbar {
+  min-height: 38px;
+}
+
+.fh-rail-toggle {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(96, 158, 196, 0.24);
+  border-radius: 10px;
+  color: #a5bdd6;
+  background: rgba(53, 118, 165, 0.10);
+  transition: background-color 160ms var(--ease-out), color 160ms var(--ease-out), border-color 160ms var(--ease-out), transform 160ms var(--ease-out);
+}
+
+.fh-rail-toggle:active {
+  transform: scale(0.97);
+  transition-duration: 100ms;
+}
+
+.fh-rail-toggle:hover {
+  color: #dffaff;
+  background: rgba(43, 167, 213, 0.18);
+  border-color: rgba(80, 210, 247, 0.48);
+}
+
+.fh-rail-toggle:focus-visible {
+  outline: 2px solid #69e6ff;
+  outline-offset: 3px;
+}
+
+[data-fh-rail][data-fh-collapsed="true"] {
+  width: 74px;
+  min-width: 74px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+[data-fh-rail][data-fh-collapsed="true"] .fh-rail-toolbar {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+[data-fh-rail][data-fh-collapsed="true"] .fh-rail-heading-text,
+[data-fh-rail][data-fh-collapsed="true"] > div:last-child {
+  display: none;
+}
+
+[data-fh-rail][data-fh-collapsed="true"] [data-fh-rail-item] {
+  justify-content: center;
+  gap: 0;
+  min-height: 48px;
+  padding: 7px;
+}
+
+[data-fh-rail][data-fh-collapsed="true"] .fh-rail-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+}
+
+[data-fh-rail] .fh-rail-label:not(.sr-only) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-fh-header] .font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* More legible scientific cards at 1280-1920 px without altering numbers or axes. */
+@media (min-width: 1280px) {
+  [data-fh-main]:not([data-fh-page="calendar"]) > div:first-child {
+    padding-top: 30px;
+  }
+
+  [data-fh-main]:not([data-fh-page="calendar"]) > div:first-child > div {
+    scroll-margin-top: 18px;
+  }
+
+  [data-fh-main] :is(section, div)[class*="rounded-2xl"][class*="bg-[#111C2E]"] {
+    border-color: rgba(83, 154, 204, 0.23);
+  }
+}
+
+/* Do not animate viewport geometry when motion is reduced. */
+@media (prefers-reduced-motion: reduce) {
+  [data-fh-rail] {
+    transition: none !important;
+  }
+}
+

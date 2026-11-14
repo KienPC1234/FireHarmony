@@ -43,7 +43,7 @@ export function LabPage() {
     TASK_GROUPS.find((g) => g.tabs.includes(tab))?.id ?? "compare";
 
   const aoi = sp.get("aoi") || "vietnam";
-  const dsrc = sp.get("data") || "sample";
+  const dsrc = sp.get("data") || "raw";
   const [year, setYear] = useState(2025);
   const [month, setMonth] = useState(3);
   const [sensors, setSensors] = useState<string[]>(["MODIS", "SNPP", "NOAA-20", "NOAA-21"]);
@@ -63,9 +63,17 @@ export function LabPage() {
 
   const [burned, setBurned] = useState("");
   const [protocolExpanded, setProtocolExpanded] = useState(false);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   const updateUrl = (newTab: Tab, newAoi: string, newData: string) => {
-    setSp({ tab: newTab, aoi: newAoi, data: newData });
+    // Preserve research mode, month, method and date scope when switching lab tools.
+    setSp((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("tab", newTab);
+      next.set("aoi", newAoi);
+      next.set("data", newData);
+      return next;
+    });
   };
 
   const handleTabChange = (newTab: Tab) => {
@@ -295,7 +303,7 @@ export function LabPage() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6 max-w-7xl mx-auto w-full space-y-6 pb-24">
       {/* 1. Top Header Banner */}
-      <div className="rounded-2xl border border-slate-800 bg-[#111C2E] p-4 sm:p-5 shadow-sm space-y-4">
+      <div data-enter className="rounded-2xl border border-slate-800 bg-[#111C2E] p-4 sm:p-5 shadow-sm space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-950/60 shadow-sm">
@@ -320,7 +328,8 @@ export function LabPage() {
         </div>
 
         {/* 2. Three Structured Mission Task Groups */}
-        <div className="grid gap-2 sm:grid-cols-3 border-t border-slate-800 pt-3">
+        <div aria-label={vi ? "Nhóm nhiệm vụ kiểm chứng" : "Research task groups"}
+          className="flex snap-x gap-2 overflow-x-auto border-t border-slate-800 pt-3 sm:grid sm:grid-cols-3">
           {TASK_GROUPS.map((g) => {
             const isGroupActive = activeGroup === g.id;
             return (
@@ -330,7 +339,7 @@ export function LabPage() {
                 onClick={() => handleGroupChange(g.id)}
                 aria-pressed={isGroupActive}
                 className={cn(
-                  "flex flex-col items-start p-3 rounded-xl border text-left transition min-h-[64px]",
+                  "flex min-w-[220px] snap-start flex-col items-start rounded-xl border p-3 text-left transition min-h-[64px] sm:min-w-0",
                   isGroupActive
                     ? "border-cyan-500/50 bg-cyan-950/30 shadow-sm"
                     : "border-slate-800 bg-slate-900/60 hover:bg-slate-800 hover:text-white",
@@ -383,7 +392,7 @@ export function LabPage() {
       <GlobalContextBar />
 
       {/* 5. Guided Experiment Protocol Bar (Collapsible to save vertical viewport) */}
-      <div className="rounded-xl border border-slate-800 bg-[#0B1220] overflow-hidden text-xs">
+      <div id="lab-protocol" className="scroll-mt-16 rounded-xl border border-slate-800 bg-[#0B1220] overflow-hidden text-xs">
         <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-900/60">
           <div className="flex items-center gap-2 min-w-0">
             <HelpCircle className="h-4 w-4 text-cyan-400 shrink-0" />
@@ -395,6 +404,8 @@ export function LabPage() {
           <button
             type="button"
             onClick={() => setProtocolExpanded(!protocolExpanded)}
+            aria-expanded={protocolExpanded}
+            aria-controls="lab-protocol-details"
             className="flex items-center gap-1 font-semibold text-cyan-400 hover:text-cyan-300 transition shrink-0"
           >
             <span>{protocolExpanded ? (vi ? "Thu gọn" : "Collapse") : (vi ? "Xem quy thức & giới hạn" : "View Protocol & Limits")}</span>
@@ -403,7 +414,7 @@ export function LabPage() {
         </div>
 
         {protocolExpanded && (
-          <div className="grid gap-3 sm:grid-cols-3 p-4 border-t border-slate-800/80 bg-slate-950/40 text-slate-300">
+          <div id="lab-protocol-details" className="grid gap-3 sm:grid-cols-3 p-4 border-t border-slate-800/80 bg-slate-950/40 text-slate-300">
             <div>
               <span className="font-semibold text-white block mb-0.5">
                 {vi ? "1. Câu hỏi khoa học:" : "1. Research Question:"}
@@ -427,9 +438,21 @@ export function LabPage() {
       </div>
 
       {/* 6. Main Layout: Left Controls + Right Canvas */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-        {/* Left Control Sidebar */}
-        <div className="lg:col-span-1">
+      {tab === "xray" && (
+      <div className="lg:hidden">
+        <button type="button" id="lab-filter-toggle"
+          onClick={() => setShowMobileFilters((value) => !value)}
+          aria-expanded={tab !== "xray" || showMobileFilters}
+          aria-controls="lab-filters"
+          className="flex w-full min-h-[44px] items-center justify-between rounded-xl border border-slate-700 bg-[#111C2E] px-4 py-2.5 text-sm font-semibold text-slate-200">
+          <span>{vi ? "Bộ lọc & điều khiển thử nghiệm" : "Experiment filters & controls"}</span>
+          <ChevronDown className={cn("h-4 w-4 transition-transform", (tab !== "xray" || showMobileFilters) && "rotate-180")} aria-hidden="true" />
+        </button>
+      </div>
+      )}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4 lg:gap-6">
+        {/* Hide redundant sensor controls on mobile X-Ray until explicitly expanded. */}
+        <div id="lab-filters" className={cn("lg:col-span-1 scroll-mt-16", tab === "xray" && !showMobileFilters && "hidden lg:block")}>
           <LabSidebar
             aoi={aoi}
             setAoi={handleAoiChange}
@@ -448,7 +471,7 @@ export function LabPage() {
         </div>
 
         {/* Right Canvas */}
-        <div className="lg:col-span-3 space-y-4">
+        <div id="lab-results" className="min-w-0 lg:col-span-3 space-y-4 scroll-mt-16">
           {err && (
             <div className="flex items-center gap-2 rounded-xl border border-rose-500/40 bg-rose-950/20 p-3.5 text-xs text-rose-300">
               <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400" />

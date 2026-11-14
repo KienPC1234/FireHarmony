@@ -19,6 +19,7 @@ import { api, describeError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/lib/i18n";
 import { GlobalContextBar } from "@/components/GlobalContextBar";
+import { SectionQuickNav } from "@/components/common/SectionQuickNav";
 import { ReasoningPipelineIllustration } from "@/components/illustrations";
 
 interface ChatMessage {
@@ -47,7 +48,7 @@ export function InvestigatorPage() {
 
   const [sp] = useSearchParams();
   const aoi = sp.get("aoi") || "vietnam";
-  const data = sp.get("data") || "sample";
+  const data = sp.get("data") || "raw";
   const ymParam = sp.get("ym") || "2025-03";
 
   const [yearStr, monthStr] = ymParam.split("-");
@@ -161,7 +162,7 @@ export function InvestigatorPage() {
           method,
           year,
           month,
-          use_llm: false,
+          use_llm: true,
         },
         {
           onMeta: (meta) => {
@@ -261,7 +262,7 @@ export function InvestigatorPage() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6 max-w-7xl mx-auto w-full space-y-6 pb-24">
       {/* 1. Top Header Banner */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-[#111C2E] p-4 sm:p-5 shadow-sm">
+      <div data-enter className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-[#111C2E] p-4 sm:p-5 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-950/60 shadow-sm">
             <MessagesSquare className="h-5 w-5 text-cyan-400" />
@@ -293,13 +294,20 @@ export function InvestigatorPage() {
 
       {/* 2. Global Context Bar */}
       <GlobalContextBar />
+      <SectionQuickNav title={t("ai.title")}
+        items={[
+          { id: "ai-questions", label: t("ai.chip_anomaly") },
+          { id: "ai-conversation", label: t("ai.title") },
+          { id: "ai-telemetry", label: t("ai.telemetry_nav") },
+        ]}
+      />
 
       {/* 3. Main 2-Panel Layout (Chat 60% vs Grounding Telemetry Stack 40%) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Chat Stream & Interactive Scenarios (7 cols on lg = ~58%) */}
         <div className="lg:col-span-7 space-y-4">
           {/* Context-driven Inquiries: Visual Cards */}
-          <div className="space-y-2">
+          <div id="ai-questions" className="scroll-mt-16 space-y-2">
             <div className="flex items-center justify-between px-1">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 {t("ai.context_inquiries")}
@@ -307,7 +315,7 @@ export function InvestigatorPage() {
               <span className="text-xs font-mono text-cyan-400">3 Presets</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div className="flex snap-x gap-2.5 overflow-x-auto sm:grid sm:grid-cols-3">
               {promptChips.map((p) => (
                 <button
                   key={p.id}
@@ -328,7 +336,8 @@ export function InvestigatorPage() {
           </div>
 
           {/* Conversation Stream Container */}
-          <div className="rounded-2xl border border-slate-800 bg-[#111C2E] p-4 sm:p-5 shadow-sm space-y-4 min-h-[460px] max-h-[580px] overflow-y-auto">
+          <div id="ai-conversation" role="log" aria-label={t("ai.title")}
+            className="scroll-mt-16 rounded-2xl border border-slate-800 bg-[#111C2E] p-4 sm:p-5 shadow-sm space-y-4 min-h-[360px] max-h-[580px] overflow-y-auto">
             {messages.map((m) => {
               const isUser = m.role === "user";
               return (
@@ -434,9 +443,10 @@ export function InvestigatorPage() {
               e.preventDefault();
               handleSend();
             }}
-            className="flex items-center gap-2"
+            className="sticky bottom-2 z-10 flex items-center gap-2 rounded-xl border border-slate-800 bg-[#0B1220]/95 p-2 shadow-xl backdrop-blur-md"
           >
             <input
+              aria-label={t("ai.input_placeholder")}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={t("ai.input_placeholder")}
@@ -455,7 +465,7 @@ export function InvestigatorPage() {
         </div>
 
         {/* Right Column: Live Telemetry & Scientific Grounding Stack (5 cols on lg = ~42%) */}
-        <div className="lg:col-span-5 space-y-4">
+        <div id="ai-telemetry" className="lg:col-span-5 min-w-0 space-y-4 scroll-mt-16">
           {/* Card 1: Monthly Anomaly Meter & Telemetry Gauge */}
           <div className="rounded-2xl border border-slate-800 bg-[#111C2E] p-5 shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">

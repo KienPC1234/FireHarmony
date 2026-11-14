@@ -19,6 +19,8 @@ import {
 import { cn, num } from "@/lib/utils";
 import { useLang } from "@/lib/i18n";
 
+type ReplayModelKey = "stan" | "sf" | "hts" | "hgb" | "ts";
+
 interface BlindReplayTabProps {
   aoi: string;
   data: string;
@@ -32,6 +34,9 @@ interface BlindReplayTabProps {
       viirs_ref: number;
       ml_pred: number;
       ts_pred: number | null;
+      sf_pred?: number | null;
+      stan_pred?: number | null;
+      hts_pred?: number | null;
       b2_pred: number;
     }>;
   } | null;
@@ -39,23 +44,33 @@ interface BlindReplayTabProps {
 }
 
 export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabProps) {
-  const { lang } = useLang();
-  const vi = lang === "vi";
+  const { t } = useLang();
 
   const [revealed, setRevealed] = useState(false);
   const [showFailuresOnly, setShowFailuresOnly] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<ReplayModelKey>("stan");
 
   const months = useMemo(() => backtest?.months ?? [], [backtest]);
 
-  // Transform data for chart based on revealed state
+  // Transform data for chart based on selected model and revealed state
   const chartData = useMemo(() => {
     return months.map((m) => {
-      // SensorFormer = seasonal anchor + residual. The residual gate is OFF on the
-      // current holdout, so the served value is the anchor (never a hardcoded multiplier).
-      const pred = m.b2_pred;
+      let predVal = m.b2_pred;
+      if (selectedModel === "stan") {
+        predVal = m.stan_pred ?? m.b2_pred;
+      } else if (selectedModel === "sf") {
+        predVal = m.sf_pred ?? m.b2_pred;
+      } else if (selectedModel === "hts") {
+        predVal = m.hts_pred ?? m.b2_pred;
+      } else if (selectedModel === "hgb") {
+        predVal = m.ml_pred ?? m.b2_pred;
+      } else if (selectedModel === "ts") {
+        predVal = m.ts_pred ?? m.b2_pred;
+      }
+
       const b2_anchor = m.b2_pred;
-      const residual = Math.round(pred - m.viirs_ref);
-      const absErrModel = Math.abs(pred - m.viirs_ref);
+      const residual = Math.round(predVal - m.viirs_ref);
+      const absErrModel = Math.abs(predVal - m.viirs_ref);
       const absErrB2 = Math.abs(b2_anchor - m.viirs_ref);
       const isFailure = absErrModel > absErrB2;
 
@@ -64,14 +79,14 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
         year: m.year,
         month: m.month,
         modis: m.modis,
-        predicted: Math.round(pred),
+        predicted: Math.round(predVal),
         b2_anchor: Math.round(b2_anchor),
         viirs: revealed ? m.viirs_ref : null,
         residual,
         isFailure,
       };
     });
-  }, [months, revealed]);
+  }, [months, revealed, selectedModel]);
 
   const displayedMonths = useMemo(() => {
     if (!showFailuresOnly) return chartData;
@@ -87,7 +102,7 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
       <div className="flex flex-col items-center justify-center py-24 text-slate-400 gap-3">
         <RefreshCw className="h-6 w-6 animate-spin text-cyan-400" />
         <span className="text-xs font-mono">
-          {vi ? "Đang nạp tập dữ liệu kiểm thử holdout đóng băng..." : "Loading frozen holdout replay dataset..."}
+          {t("replay.loading")}
         </span>
       </div>
     );
@@ -98,12 +113,10 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
       <div className="rounded-2xl border border-amber-500/30 bg-amber-950/10 p-8 text-center space-y-3">
         <HelpCircle className="h-8 w-8 text-amber-400 mx-auto" />
         <h3 className="text-base font-bold text-white">
-          {vi ? "Chưa có dữ liệu Holdout Replay" : "Holdout Replay Unavailable"}
+          {t("replay.no_data_title")}
         </h3>
         <p className="text-xs text-slate-400 max-w-md mx-auto">
-          {vi
-            ? `Chưa có bản ghi đánh giá holdout nào cho ${aoi.toUpperCase()} (${data}). Hãy chuyển sang dữ liệu mẫu hoặc chạy benchmark huấn luyện trước.`
-            : `No reproducible holdout evaluation registered for ${aoi.toUpperCase()} (${data}). Switch to sample data or run training benchmark first.`}
+          {t("replay.no_data_desc", { aoi: aoi.toUpperCase(), data })}
         </p>
       </div>
     );
@@ -117,16 +130,14 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="font-mono text-xs font-bold uppercase tracking-wider text-cyan-300">
-                {vi ? "Nghị định thư P0: Tái tạo cảm biến giấu kín" : "P0 Protocol: Blind Sensor Replay"}
+                {t("replay.protocol_badge")}
               </span>
               <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-0.5 text-xs font-mono text-cyan-300">
-                {vi ? "Tập giấu kín" : "Frozen Holdout"} ({backtest.test_years.join(", ")})
+                {t("replay.holdout_badge", { years: backtest.test_years.join(", ") })}
               </span>
             </div>
             <p className="text-xs text-slate-300">
-              {vi
-                ? "Dữ liệu VIIRS bị khóa hoàn toàn trong giai đoạn kiểm thử. Mô hình chỉ được cung cấp dữ liệu thô MODIS để phục hồi tín hiệu tham chiếu, sau đó mở khóa để đối soát."
-                : "VIIRS observations are strictly locked during test. The model receives only raw MODIS input to reconstruct the reference signal, then unlocks to audit accuracy."}
+              {t("replay.protocol_desc")}
             </p>
           </div>
 
@@ -144,12 +155,12 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
             {revealed ? (
               <>
                 <EyeOff className="h-4 w-4" />
-                <span>{vi ? "Giấu lại VIIRS tham chiếu" : "Re-hide VIIRS Ground Truth"}</span>
+                <span>{t("replay.rehide_btn")}</span>
               </>
             ) : (
               <>
                 <Unlock className="h-4 w-4 text-amber-300" />
-                <span>{vi ? "Mở khóa VIIRS thực tế (Reveal)" : "Reveal Reference VIIRS"}</span>
+                <span>{t("replay.reveal_btn")}</span>
               </>
             )}
           </button>
@@ -158,27 +169,21 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
         {/* Status badges */}
         <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
           <div className="rounded-lg border border-border/60 bg-slate-900/80 px-2.5 py-1 text-slate-300">
-            <span className="text-muted-foreground mr-1.5">{vi ? "Giai đoạn huấn luyện:" : "Train Window:"}</span>
+            <span className="text-muted-foreground mr-1.5">{t("replay.train_window")}</span>
             <span className="text-cyan-300 font-semibold">{backtest.train_years.join(", ")}</span>
           </div>
           <div className="rounded-lg border border-border/60 bg-slate-900/80 px-2.5 py-1 text-slate-300">
-            <span className="text-muted-foreground mr-1.5">{vi ? "Năm kiểm nghiệm:" : "Test Window:"}</span>
+            <span className="text-muted-foreground mr-1.5">{t("replay.test_window")}</span>
             <span className="text-emerald-300 font-semibold">{backtest.test_years.join(", ")}</span>
           </div>
           <div className="rounded-lg border border-border/60 bg-slate-900/80 px-2.5 py-1 text-slate-300">
-            <span className="text-muted-foreground mr-1.5">{vi ? "Số tháng đánh giá:" : "Evaluated Months:"}</span>
-            <span className="text-white font-semibold">{months.length} {vi ? "tháng" : "months"}</span>
+            <span className="text-muted-foreground mr-1.5">{t("replay.evaluated_months")}</span>
+            <span className="text-white font-semibold">{t("replay.months_count", { count: months.length })}</span>
           </div>
           <div className="rounded-lg border border-border/60 bg-slate-900/80 px-2.5 py-1 text-slate-300">
-            <span className="text-muted-foreground mr-1.5">{vi ? "Trạng thái:" : "Status:"}</span>
+            <span className="text-muted-foreground mr-1.5">{t("replay.status_label")}</span>
             <span className={revealed ? "text-emerald-400 font-bold" : "text-amber-400 font-bold"}>
-              {revealed
-                ? vi
-                  ? "ĐÃ MỞ KHÓA (Hiện sai số đầy đủ)"
-                  : "REVEALED (Full Residuals Active)"
-                : vi
-                ? "GIẤU KÍN (Giai đoạn dự đoán)"
-                : "BLINDFOLDED (Prediction Phase)"}
+              {revealed ? t("replay.status_revealed") : t("replay.status_blindfolded")}
             </span>
           </div>
         </div>
@@ -189,27 +194,79 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold text-white tracking-tight">
-              {revealed
-                ? vi
-                  ? "Tín hiệu tái cấu trúc vs VIIRS đối chứng thực tế"
-                  : "Reconstructed Signal vs Actual Reference VIIRS"
-                : vi
-                ? "Giai đoạn dự đoán mù: Đầu vào MODIS -> Tương đương VIIRS ước tính"
-                : "Blind Prediction Phase: MODIS Input -> Estimated VIIRS Equivalent"}
+              {revealed ? t("replay.chart_title_revealed") : t("replay.chart_title_blind")}
             </h3>
             <p className="text-xs text-slate-400">
-              {revealed
-                ? vi
-                  ? "Kiểm toán sai số khái quát hóa độc lập, không rò rỉ dữ liệu"
-                  : "Auditing generalization residuals without data leakage"
-                : vi
-                ? "Dữ liệu VIIRS đối chứng bị giấu kín cho đến khi bạn bấm Mở khóa"
-                : "Reference VIIRS is hidden until you click Reveal"}
+              {revealed ? t("replay.chart_sub_revealed") : t("replay.chart_sub_blind")}
             </p>
           </div>
 
           {/* Model Switcher & Failure Toggle */}
-          <div className="flex items-center gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-lg p-0.5">
+              <span className="text-[11px] text-slate-400 px-1.5 font-mono">{t("replay.select_model")}</span>
+              <button
+                type="button"
+                onClick={() => setSelectedModel("stan")}
+                className={cn(
+                  "rounded px-2 py-1 text-xs font-semibold transition",
+                  selectedModel === "stan"
+                    ? "bg-purple-600 text-white shadow-sm"
+                    : "text-slate-400 hover:text-white",
+                )}
+              >
+                STAN
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedModel("sf")}
+                className={cn(
+                  "rounded px-2 py-1 text-xs font-semibold transition",
+                  selectedModel === "sf"
+                    ? "bg-purple-600 text-white shadow-sm"
+                    : "text-slate-400 hover:text-white",
+                )}
+              >
+                SensorFormer
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedModel("hts")}
+                className={cn(
+                  "rounded px-2 py-1 text-xs font-semibold transition",
+                  selectedModel === "hts"
+                    ? "bg-purple-600 text-white shadow-sm"
+                    : "text-slate-400 hover:text-white",
+                )}
+              >
+                HTS
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedModel("hgb")}
+                className={cn(
+                  "rounded px-2 py-1 text-xs font-semibold transition",
+                  selectedModel === "hgb"
+                    ? "bg-purple-600 text-white shadow-sm"
+                    : "text-slate-400 hover:text-white",
+                )}
+              >
+                HGB
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedModel("ts")}
+                className={cn(
+                  "rounded px-2 py-1 text-xs font-semibold transition",
+                  selectedModel === "ts"
+                    ? "bg-purple-600 text-white shadow-sm"
+                    : "text-slate-400 hover:text-white",
+                )}
+              >
+                Transformer
+              </button>
+            </div>
+
             {revealed && (
               <button
                 type="button"
@@ -221,7 +278,7 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
                     : "border-border/60 bg-slate-900 text-slate-300 hover:bg-slate-800",
                 )}
               >
-                <span>{vi ? "Chỉ xem ca thua baseline" : "Show Failures"}</span>
+                <span>{t("replay.show_failures_only")}</span>
                 <span className="font-mono text-xs rounded-full bg-rose-500/20 px-1.5 py-0.2 text-rose-300">
                   {failureCount}
                 </span>
@@ -249,7 +306,7 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
               <Line
                 type="monotone"
                 dataKey="modis"
-                name={vi ? "MODIS thô (Đầu vào)" : "MODIS Raw (Input)"}
+                name={t("replay.modis_raw")}
                 stroke="#3b82f6"
                 strokeWidth={2}
                 dot={false}
@@ -257,7 +314,7 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
               <Line
                 type="monotone"
                 dataKey="b2_anchor"
-                name={vi ? "Neo mùa vụ (trong SensorFormer)" : "Seasonal anchor (inside SensorFormer)"}
+                name={t("replay.b2_anchor")}
                 stroke="#eab308"
                 strokeWidth={1.5}
                 strokeDasharray="4 4"
@@ -267,9 +324,15 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
                 type="monotone"
                 dataKey="predicted"
                 name={
-                  vi
-                    ? "SensorFormer (neo mùa vụ, gate đóng)"
-                    : "SensorFormer (seasonal anchor, gate OFF)"
+                  selectedModel === "stan"
+                    ? t("replay.model_stan")
+                    : selectedModel === "sf"
+                    ? t("replay.model_sf")
+                    : selectedModel === "hts"
+                    ? t("replay.model_hts")
+                    : selectedModel === "hgb"
+                    ? t("replay.model_hgb")
+                    : t("replay.model_ts")
                 }
                 stroke="#a855f7"
                 strokeWidth={2.5}
@@ -279,7 +342,7 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
                 <Line
                   type="monotone"
                   dataKey="viirs"
-                  name={vi ? "VIIRS thực tế (Ground Truth)" : "VIIRS Actual (Revealed Ground Truth)"}
+                  name={t("replay.viirs_actual")}
                   stroke="#14b8a6"
                   strokeWidth={2.5}
                   dot={{ r: 4, fill: "#14b8a6" }}
@@ -295,9 +358,7 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
             <div className="flex items-center gap-2 text-amber-200">
               <Lock className="h-4 w-4 text-amber-400 shrink-0" />
               <span>
-                {vi
-                  ? "Dữ liệu đếm VIIRS thực tế hiện đang bị ẩn để kiểm chứng độ trung thực của dự đoán mà không có thiên kiến nhìn trước."
-                  : "VIIRS actual counts are currently withheld to verify prediction fidelity without lookahead bias."}
+                {t("replay.locked_notice")}
               </span>
             </div>
             <button
@@ -305,7 +366,7 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
               onClick={() => setRevealed(true)}
               className="font-bold text-amber-300 hover:underline shrink-0 font-mono"
             >
-              {vi ? "Mở khóa ngay →" : "Reveal Now →"}
+              {t("replay.reveal_now")}
             </button>
           </div>
         )}
@@ -316,20 +377,16 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
         <div className="flex items-center justify-between border-b border-border/50 pb-2.5">
           <div>
             <h3 className="text-sm font-bold text-white tracking-tight">
-              {vi ? "Bảng chi tiết kiểm chứng từng tháng (Holdout Ledger)" : "Holdout Period Monthly Audit Ledger"}
+              {t("replay.ledger_title")}
             </h3>
             <p className="text-xs text-slate-400">
               {showFailuresOnly
-                ? vi
-                  ? `Chỉ hiển thị ${displayedMonths.length} tháng mà sai số mô hình vượt quá đường cơ sở mùa vụ B2`
-                  : `Showing only ${displayedMonths.length} months where model error exceeded B2 seasonal baseline`
-                : vi
-                ? `Hồ sơ minh bạch đầy đủ trên toàn bộ ${displayedMonths.length} tháng kiểm thử`
-                : `Complete transparent record across all ${displayedMonths.length} test months`}
+                ? t("replay.ledger_sub_failures", { count: displayedMonths.length })
+                : t("replay.ledger_sub_all", { count: displayedMonths.length })}
             </p>
           </div>
           <span className="font-mono text-xs text-cyan-400 font-semibold">
-            {displayedMonths.length} {vi ? "tháng" : "Months"}
+            {t("replay.months_count", { count: displayedMonths.length })}
           </span>
         </div>
 
@@ -337,13 +394,13 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
           <table className="w-full text-left font-mono text-xs">
             <thead className="sticky top-0 bg-slate-950 border-b border-border/60 text-xs uppercase text-slate-400">
               <tr>
-                <th className="p-2">{vi ? "Thời gian" : "Period"}</th>
-                <th className="p-2 text-right">{vi ? "MODIS đầu vào" : "MODIS Input"}</th>
-                <th className="p-2 text-right">{vi ? "Mốc B2" : "B2 Anchor"}</th>
-                <th className="p-2 text-right">{vi ? "Mô hình dự đoán" : "Model Prediction"}</th>
-                <th className="p-2 text-right">{vi ? "VIIRS thực tế" : "VIIRS Actual"}</th>
-                <th className="p-2 text-right">{vi ? "Sai số dư" : "Residual"}</th>
-                <th className="p-2 text-center">{vi ? "Trạng thái" : "Status"}</th>
+                <th className="p-2">{t("replay.th_period")}</th>
+                <th className="p-2 text-right">{t("replay.th_modis")}</th>
+                <th className="p-2 text-right">{t("replay.th_b2")}</th>
+                <th className="p-2 text-right">{t("replay.th_pred")}</th>
+                <th className="p-2 text-right">{t("replay.th_viirs")}</th>
+                <th className="p-2 text-right">{t("replay.th_residual")}</th>
+                <th className="p-2 text-center">{t("replay.th_status")}</th>
               </tr>
             </thead>
             <tbody className="divide-y border-border/30">
@@ -355,7 +412,7 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
                     <td className="p-2 text-right text-amber-300">{num(m.b2_anchor)}</td>
                     <td className="p-2 text-right text-purple-300 font-semibold">{num(m.predicted)}</td>
                     <td className="p-2 text-right text-teal-300 font-bold">
-                      {revealed && m.viirs !== null ? num(m.viirs) : vi ? "ĐÃ KHÓA" : "LOCKED"}
+                      {revealed && m.viirs !== null ? num(m.viirs) : t("replay.status_locked")}
                     </td>
                     <td className="p-2 text-right text-slate-300">
                       {revealed && m.viirs !== null ? `${m.residual > 0 ? "+" : ""}${m.residual}` : "-"}
@@ -363,15 +420,15 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
                     <td className="p-2 text-center">
                       {!revealed ? (
                         <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-400">
-                          {vi ? "Giấu kín" : "Blind"}
+                          {t("replay.status_blind")}
                         </span>
                       ) : m.isFailure ? (
                         <span className="rounded-full border border-rose-500/30 bg-rose-500/15 px-2 py-0.5 text-xs font-bold text-rose-400">
-                          {vi ? "Thua B2" : "Model Lost"}
+                          {t("replay.status_lost")}
                         </span>
                       ) : (
                         <span className="rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 text-xs font-bold text-emerald-400">
-                          {vi ? "Thắng B2" : "Model Beat Baseline"}
+                          {t("replay.status_beat")}
                         </span>
                       )}
                     </td>

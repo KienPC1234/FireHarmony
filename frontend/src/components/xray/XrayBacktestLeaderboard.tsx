@@ -22,7 +22,7 @@ const fmtYears = (years: number[]) => {
   if (!years.length) return "-";
   const sorted = [...years].sort((a, b) => a - b);
   const contiguous = sorted.every((y, i) => i === 0 || y === sorted[i - 1] + 1);
-  return contiguous ? `${sorted[0]}–${sorted[sorted.length - 1]}` : sorted.join(", ");
+  return contiguous ? `${sorted[0]}-${sorted[sorted.length - 1]}` : sorted.join(", ");
 };
 
 const MODEL_SPECS = [

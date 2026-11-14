@@ -325,20 +325,36 @@ def build_series() -> dict:
     return {k: state[k] for k in ("method_id", "role", "months", "cutoff_rule")}
 
 
-def sources(aoi: str) -> dict[str, str]:
+_SERIES_CACHE: tuple[float, dict] | None = None
+
+
+def _get_series_data() -> dict:
+    global _SERIES_CACHE
     p = MODEL_DIR / "stan_series_raw.json"
     if not p.exists():
         return {}
-    data = json.loads(p.read_text(encoding="utf-8"))
+    try:
+        mtime = p.stat().st_mtime
+    except OSError:
+        return {}
+    if _SERIES_CACHE is not None and _SERIES_CACHE[0] == mtime:
+        return _SERIES_CACHE[1]
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+        _SERIES_CACHE = (mtime, data)
+        return data
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def sources(aoi: str) -> dict[str, str]:
+    data = _get_series_data()
     return {ym: ("stan_safe_v1" if v.get("source") == "stan" else "hts_anchor_v1")
             for ym, v in (data.get("series", {}).get(aoi) or {}).items()}
 
 
 def targets(aoi: str) -> dict[str, float]:
-    p = MODEL_DIR / "stan_series_raw.json"
-    if not p.exists():
-        return {}
-    data = json.loads(p.read_text(encoding="utf-8"))
+    data = _get_series_data()
     return {ym: float(v["target"])
             for ym, v in (data.get("series", {}).get(aoi) or {}).items()}
 

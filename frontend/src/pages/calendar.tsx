@@ -3,7 +3,10 @@ import { Link, useSearchParams } from "react-router-dom";
 import {
   CalendarDays,
   Download,
+  Eye,
   Globe,
+  Loader2,
+  Printer,
   ScanEye,
   Sparkles,
   Table as TableIcon,
@@ -22,7 +25,7 @@ import {
 import { api, type CalendarResponse } from "@/lib/api";
 import { useLang } from "@/lib/i18n";
 import { backendMethod, useResearchContext, type AoiId } from "@/lib/researchContext";
-import { ErrorState, Loading } from "@/components/states";
+import { ErrorState } from "@/components/states";
 import { AoiMap } from "@/components/AoiMap";
 import { SCENARIO_PRESETS, type ScenarioPreset } from "@/components/calendar/calendarPresets";
 import type { HotspotCluster } from "@/components/map/clusterZones";
@@ -32,8 +35,17 @@ import { MapTimeScrubber } from "@/components/calendar/MapTimeScrubber";
 import { Footer } from "@/components/Footer";
 import { cn, compact } from "@/lib/utils";
 
-function colorFor(z: number | null): string {
+function colorFor(z: number | null, palette: "standard" | "accessible" = "standard"): string {
   if (z === null || z === undefined) return "bg-slate-900/60 text-slate-500 border-slate-800/50";
+  if (palette === "accessible") {
+    // High-contrast, colorblind-safe (Viridis/Cividis inspired, deuteranopia/protanopia verified)
+    if (z >= 3) return "bg-amber-400 text-slate-950 border-2 border-white font-black shadow-[inset_0_0_8px_rgba(255,255,255,0.5)]";
+    if (z >= 2) return "bg-amber-500 text-slate-950 border-amber-300 font-bold";
+    if (z >= 1) return "bg-amber-800/80 text-amber-100 border-amber-500 font-medium";
+    if (z <= -1.5) return "bg-indigo-900/90 text-indigo-100 border-indigo-400 font-bold";
+    if (z <= -0.75) return "bg-teal-950/80 text-teal-200 border-teal-600 font-medium";
+    return "bg-slate-900/70 text-slate-300 border-slate-800/60";
+  }
   if (z >= 3) return "bg-rose-950/90 text-rose-200 border-rose-600/70 font-bold shadow-[inset_0_0_10px_rgba(225,29,72,0.35)]";
   if (z >= 2) return "bg-orange-950/80 text-orange-200 border-orange-600/60 font-semibold";
   if (z >= 1) return "bg-amber-950/50 text-amber-200 border-amber-700/50";
@@ -47,6 +59,24 @@ const AOI_CENTER: Record<string, { c: [number, number]; z: number }> = {
   amazon: { c: [-4, -60], z: 4 },
   australia: { c: [-26, 133], z: 4 },
 };
+
+function SlowLoading({ label, hint, unit }: { label: string; hint: string; unit: string }) {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setSeconds((v) => v + 1), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  return (
+    <div role="status" aria-live="polite" className="flex flex-1 items-center justify-center bg-[#060B13] p-6">
+      <div className="max-w-md space-y-3 text-center">
+        <Loader2 className="mx-auto h-6 w-6 animate-spin text-cyan-400" aria-hidden="true" />
+        <p className="text-sm font-semibold text-slate-200">{label}</p>
+        <p className="text-xs text-slate-400">{hint}</p>
+        <p className="font-mono text-xs text-cyan-300">{seconds} {unit}</p>
+      </div>
+    </div>
+  );
+}
 
 const AOI_BBOX: Record<string, string> = {
   vietnam: "104,10,109,16",
@@ -77,11 +107,15 @@ export function CalendarPage() {
   const [activeTab, setActiveTab] = useState<"map" | "matrix" | "scenarios">("map");
 
   // Dock controls
-  const [dockOpen, setDockOpen] = useState(true);
+  // On narrow viewports keep the map usable; the inspector opens as a sheet.
+  const [dockOpen, setDockOpen] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches,
+  );
   const [dockTab, setDockTab] = useState<DockTab>("overview");
 
   // Matrix display mode: values vs z-score
   const [matrixMode, setMatrixMode] = useState<"compact" | "zscore">("compact");
+  const [paletteMode, setPaletteMode] = useState<"standard" | "accessible">("standard");
 
   // Map temporal filter
   const [mapPeriod, setMapPeriod] = useState<string>(search.get("ym") || "all");
@@ -106,6 +140,9 @@ export function CalendarPage() {
   }>>([]);
   const [mapMeta, setMapMeta] = useState<{ returned: number; total: number; preview: boolean; level: string } | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [monthEvidence, setMonthEvidence] = useState<{
+    method_id?: string; effective_method?: string; notes?: string[];
+  } | null>(null);
 
   // Filters state
   const [, setBbox] = useState<string>(AOI_BBOX[aoi] ?? AOI_BBOX.vietnam);
@@ -176,20 +213,22 @@ export function CalendarPage() {
 
   useEffect(() => {
     if ((method === "hts_anchor" || method === "stan") && dataFeed !== "raw") {
-      setMethod("k_ratio");
+      setDataFeed("raw");
+      setApplied((prev) => ({ ...prev, data: "raw", method: backendMethod(method) }));
       return;
     }
     const bm = backendMethod(method);
     setApplied((prev) => (prev.method === bm ? prev : { ...prev, method: bm }));
-  }, [method, dataFeed, setMethod]);
+  }, [method, dataFeed, setDataFeed]);
 
   useEffect(() => {
     setData(null);
     setError(null);
     setRawUnavailable(null);
-    // The synthetic sample has no tile artifacts; never send stan/hts there.
-    const requestMethod = applied.data !== "raw"
-      && (applied.method === "stan" || applied.method === "hts")
+    // P0-06 / P1-12: Custom geometry uses point-in-polygon statistical forward rule (stat).
+    const requestMethod = applied.geometry || applied.dataset
+      ? "stat"
+      : applied.data !== "raw" && (applied.method === "stan" || applied.method === "hts")
       ? "stat"
       : applied.method;
     api
@@ -220,11 +259,14 @@ export function CalendarPage() {
             message: detail?.message
               || (e instanceof Error ? e.message : t("calendar.raw_unavailable_body")),
           });
+          setDataFeed("sample");
+          setMethod("k_ratio");
+          setApplied((prev) => ({ ...prev, data: "sample", method: "k_ratio" }));
           return;
         }
         setError(e);
       });
-  }, [applied, t]);
+  }, [applied, t, setDataFeed, setMethod]);
 
   // P0-06: fetch map cells for exactly the selected month.
   useEffect(() => {
@@ -238,7 +280,7 @@ export function CalendarPage() {
         applied.bbox || undefined,
         applied.aoi,
         applied.data,
-        applied.method,
+        applied.geometry || applied.dataset ? "stat" : applied.method,
         applied.dataset,
         applied.qa_min,
         applied.platform_set,
@@ -314,6 +356,35 @@ export function CalendarPage() {
 
   const geometryForRequest = applied.geometry;
 
+  // P1-12: the month inspector names the method that actually served that
+  // month (STAN falls back to HTS before 2024) instead of hardcoding a model.
+  useEffect(() => {
+    if (!activeMonth) {
+      setMonthEvidence(null);
+      return;
+    }
+    let alive = true;
+    api
+      .evidence(
+        applied.aoi,
+        applied.data,
+        applied.method,
+        activeMonth.year,
+        activeMonth.month,
+        applied.qa_min,
+        applied.platform_set,
+      )
+      .then((d) => {
+        if (alive) setMonthEvidence(d as { method_id?: string; effective_method?: string; notes?: string[] });
+      })
+      .catch(() => {
+        if (alive) setMonthEvidence(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [activeMonth, applied.aoi, applied.data, applied.method, applied.qa_min, applied.platform_set]);
+
   // P1-07: Escape closes the month inspector opened from a matrix button.
   useEffect(() => {
     if (!activeMonth) return;
@@ -368,6 +439,7 @@ export function CalendarPage() {
       ...applied,
       aoi: newAoi,
       bbox: b,
+      geometry: null,
     });
   };
 
@@ -379,68 +451,26 @@ export function CalendarPage() {
       ...applied,
       aoi: sc.aoi,
       bbox: b,
+      geometry: null,
     });
     setMapPeriod(`${sc.year}-${String(sc.month).padStart(2, "0")}`);
     setActiveTab("map");
   };
 
-  if (rawUnavailable) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-[#060B13] p-6">
-        <div className="max-w-xl space-y-4 rounded-2xl border border-amber-500/40 bg-slate-950/95 p-6 text-slate-200">
-          <div className="flex items-center gap-2 text-amber-300">
-            <Zap className="h-5 w-5" />
-            <h1 className="text-base font-bold">{t("calendar.raw_unavailable_title")}</h1>
-          </div>
-          <p className="text-sm text-slate-300">{t("calendar.raw_unavailable_body")}</p>
-          <dl className="space-y-1 rounded-xl border border-slate-800 bg-slate-900/70 p-3 font-mono text-xs">
-            <div className="flex justify-between gap-4">
-              <dt className="text-slate-500">HTTP</dt>
-              <dd>{rawUnavailable.status || "-"} {rawUnavailable.code ? `· ${rawUnavailable.code}` : ""}</dd>
-            </div>
-            <div>
-              <dt className="mb-0.5 text-slate-500">{t("calendar.raw_unavailable_detail")}</dt>
-              <dd className="break-words text-slate-300">{rawUnavailable.message}</dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-slate-500">AOI</dt>
-              <dd>{applied.aoi} · {applied.method}</dd>
-            </div>
-          </dl>
-          <p className="text-xs text-amber-200/90">{t("calendar.raw_unavailable_keep")}</p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setApplied((prev) => ({ ...prev }))}
-              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800 min-h-[40px]"
-            >
-              {t("calendar.retry")}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setRawUnavailable(null);
-                setDataFeed("sample");
-                setMethod("k_ratio");
-                setApplied((prev) => ({ ...prev, data: "sample", method: "stat" }));
-              }}
-              className="rounded-lg border border-sky-500/50 bg-sky-950/60 px-3 py-2 text-xs font-bold text-sky-200 hover:bg-sky-900/60 min-h-[40px]"
-            >
-              {t("calendar.use_synthetic")}
-            </button>
-            <Link
-              to="/methods"
-              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-300 hover:text-white min-h-[40px]"
-            >
-              {t("calendar.raw_unavailable_methods")}
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
   if (error) return <ErrorState error={error} onRetry={() => setApplied({ ...applied })} />;
-  if (!data) return <Loading label={t("common.loading")} />;
+  if (!data) {
+    return applied.data === "raw"
+      ? <SlowLoading
+          label={t("calendar.loading_raw")}
+          hint={t("calendar.loading_raw_hint")}
+          unit={t("calendar.loading_elapsed")}
+        />
+      : <SlowLoading
+          label={t("calendar.loading_sample")}
+          hint={t("calendar.loading_sample_hint")}
+          unit={t("calendar.loading_elapsed")}
+        />;
+  }
 
   const isSynthetic = applied.data === "sample";
   const summary = data.summary;
@@ -488,6 +518,7 @@ export function CalendarPage() {
           <div className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/90 px-2 py-1 text-xs">
             <span className="text-slate-400 font-medium">{t("calendar.period")}</span>
             <select
+              aria-label={t("calendar.period")}
               value={mapPeriod}
               onChange={(e) => setMapPeriod(e.target.value)}
               className="rounded bg-transparent font-mono text-xs text-cyan-300 focus:outline-none cursor-pointer"
@@ -538,7 +569,7 @@ export function CalendarPage() {
             <a
               href={api.exportUrl(
                 2000000, applied.bbox || undefined, applied.aoi, applied.data,
-                applied.method, applied.dataset, applied.qa_min,
+                geometryForRequest || applied.dataset ? "stat" : applied.method, applied.dataset, applied.qa_min,
                 applied.platform_set, geometryForRequest || undefined,
                 applied.from_date || undefined, applied.to_date || undefined,
               )}
@@ -560,6 +591,15 @@ export function CalendarPage() {
             >
               {t("calendar.export_detections")}
             </a>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              title={t("calendar.export_print_title")}
+              className="border-l border-slate-800 px-2.5 py-1 text-xs font-semibold text-purple-300 hover:text-white transition min-h-[30px] inline-flex items-center gap-1"
+            >
+              <Printer className="h-3.5 w-3.5 text-purple-400" />
+              <span className="hidden sm:inline">{t("calendar.export_print")}</span>
+            </button>
           </div>
 
           <div className="hidden 2xl:flex items-center gap-2 whitespace-nowrap text-xs text-slate-400 font-mono">
@@ -646,6 +686,22 @@ export function CalendarPage() {
         </div>
       </header>
 
+      {rawUnavailable && (
+        <div className="shrink-0 mx-3 mt-2 flex items-center justify-between rounded-xl border border-amber-500/40 bg-amber-950/50 px-3.5 py-2 text-xs text-amber-200 animate-fade-in">
+          <div className="flex items-center gap-2">
+            <Zap className="h-4 w-4 text-amber-400 shrink-0" />
+            <span>{rawUnavailable.message || t("calendar.raw_unavailable_body")}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRawUnavailable(null)}
+            className="text-amber-400 hover:text-white p-1"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* P1-02: Research mode reveals provenance/coverage detail; Explore keeps
           the same page without model plumbing. */}
       {mode === "research" && summary && (
@@ -668,9 +724,9 @@ export function CalendarPage() {
 
       {/* VIEW 1: SATELLITE GIS WORKSTATION (DEFAULT) */}
       {activeTab === "map" && (
-        <div className="relative flex-1 min-h-0 w-full h-full flex items-stretch overflow-hidden">
-          {/* Main Map Canvas - Clean, Zero Overlapping Floating Box */}
-          <div className="relative flex-1 min-h-0 h-full self-stretch flex flex-col overflow-hidden">
+        <div className="relative isolate flex-1 min-h-0 min-w-0 w-full h-full flex items-stretch overflow-hidden">
+          {/* Main Map Canvas: retain width when the mobile inspector is open. */}
+          <div className="relative flex-1 min-w-0 min-h-0 h-full self-stretch flex flex-col overflow-hidden">
             <AoiMap
               center={AOI_CENTER[aoi]?.c ?? [13, 106.5]}
               zoom={AOI_CENTER[aoi]?.z ?? 6}
@@ -708,7 +764,12 @@ export function CalendarPage() {
             )}
           </div>
 
-          {/* Right-Docked NASA FIRMS Tool & Inspection Dock */}
+          {dockOpen && (
+            <button type="button" onClick={() => setDockOpen(false)}
+              aria-label={t("common.close_menu")}
+              className="absolute inset-0 z-[1200] bg-black/55 lg:hidden" />
+          )}
+          {/* Desktop dock / mobile overlay inspector */}
           <CalendarDock
             open={dockOpen}
             onToggle={() => setDockOpen(!dockOpen)}
@@ -717,6 +778,7 @@ export function CalendarPage() {
             aoi={applied.aoi}
             onSelectAoi={handleSelectAoi}
             data={applied.data}
+            onSelectDataFeed={setDataFeed}
             method={method}
             onSelectMethod={setMethod}
             totalDetections={totalObserved}
@@ -746,7 +808,7 @@ export function CalendarPage() {
       {activeTab === "matrix" && (
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 max-w-7xl mx-auto w-full">
           {/* KPI Summary Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 space-y-1">
               <span className="text-xs text-slate-400 block font-medium">
                 {t("calendar.kpi_observed")}
@@ -786,6 +848,37 @@ export function CalendarPage() {
                 {t("calendar.kpi_anomalous_sub")}
               </span>
             </div>
+
+            {data.latest && (
+              <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 space-y-1">
+                <span className="text-xs text-slate-400 block font-medium">
+                  {t("calendar.kpi_latest_vs_median")}
+                </span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-xl sm:text-2xl font-extrabold font-mono text-cyan-300">
+                    {compact(data.latest.month_total)}
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono">
+                    / {compact(data.latest.hist_median)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 pt-0.5">
+                  <span className={cn(
+                    "rounded-full px-2 py-0.5 text-[11px] font-bold font-mono",
+                    (data.latest.ratio ?? 1) >= 1.5
+                      ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                      : (data.latest.ratio ?? 1) <= 0.7
+                      ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
+                      : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30",
+                  )}>
+                    {data.latest.ratio ? `${data.latest.ratio.toFixed(1)}x` : "1.0x"} · {data.latest.verdict.replace("_", " ")}
+                  </span>
+                </div>
+                <span className="text-[11px] font-mono text-slate-500 block truncate">
+                  {t("calendar.kpi_latest_sub", { date: data.latest.date, years: data.latest.hist_years ?? 24 })}
+                </span>
+              </div>
+            )}
 
             <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 space-y-1">
               <span className="text-xs text-slate-400 block font-medium">
@@ -827,7 +920,7 @@ export function CalendarPage() {
                     {t("calendar.matrix_title")}
                   </h2>
                   <span className="text-xs text-slate-400 font-mono">
-                    ({data.calendar.years[0] ?? "-"} – {data.calendar.years.at(-1) ?? "-"})
+                    ({data.calendar.years[0] ?? "-"} - {data.calendar.years.at(-1) ?? "-"})
                   </span>
                 </div>
                 <p className="text-xs text-slate-400">
@@ -836,7 +929,7 @@ export function CalendarPage() {
               </div>
 
               {/* Mode Toggle & Map CTA */}
-              <div className="flex items-center gap-2.5">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <div className="flex items-center rounded-lg border border-slate-800 bg-slate-900 p-0.5 text-xs">
                   <button
                     type="button"
@@ -861,6 +954,36 @@ export function CalendarPage() {
                     )}
                   >
                     {t("calendar.matrix_mode_zscore")}
+                  </button>
+                </div>
+
+                <div className="flex items-center rounded-lg border border-slate-800 bg-slate-900 p-0.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setPaletteMode("standard")}
+                    className={cn(
+                      "rounded px-2.5 py-1 font-medium transition min-h-[32px]",
+                      paletteMode === "standard"
+                        ? "bg-cyan-500/20 text-cyan-300 font-semibold"
+                        : "text-slate-400 hover:text-white",
+                    )}
+                    title={t("calendar.palette_standard_title")}
+                  >
+                    {t("calendar.palette_standard")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaletteMode("accessible")}
+                    className={cn(
+                      "rounded px-2.5 py-1 font-medium transition min-h-[32px] inline-flex items-center gap-1",
+                      paletteMode === "accessible"
+                        ? "bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30"
+                        : "text-slate-400 hover:text-white",
+                    )}
+                    title={t("calendar.palette_accessible_title")}
+                  >
+                    <Eye className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>{t("calendar.palette_accessible")}</span>
                   </button>
                 </div>
 
@@ -972,8 +1095,8 @@ export function CalendarPage() {
                               aria-label={label}
                               title={label}
                               className={cn(
-                                "w-full rounded px-1 py-1.5 transition-all select-none text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300",
-                                colorFor(z),
+                                "w-full rounded px-1 py-1.5 transition-[background-color,border-color,color,transform] duration-150 select-none text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300",
+                                colorFor(z, paletteMode),
                                 isSelected && "ring-2 ring-cyan-400 font-bold shadow-md",
                               )}
                             >
@@ -994,7 +1117,7 @@ export function CalendarPage() {
 
           {/* Active Month Detail Card */}
           {activeMonth && (
-            <div className="rounded-2xl border border-cyan-500/40 bg-slate-950/95 p-5 shadow-2xl space-y-4">
+            <div data-fh-popover className="rounded-2xl border border-cyan-500/40 bg-slate-950/95 p-5 shadow-2xl space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-950 border border-cyan-500/30 text-cyan-300 font-mono font-bold text-sm">
@@ -1073,11 +1196,18 @@ export function CalendarPage() {
                     {t("calendar.dock_calibration_title")}
                   </span>
                   <span className="text-purple-300 font-semibold text-sm">
-                    {methodShown}
+                    {monthEvidence?.effective_method || methodShown}
                   </span>
                   <span className="block text-[11px] text-slate-500">
-                    {t("calendar.month_method_note", { method: methodShown })}
+                    {t("calendar.month_method_note", {
+                      method: monthEvidence?.effective_method || methodShown,
+                    })}
                   </span>
+                  {monthEvidence?.notes?.length ? (
+                    <span className="mt-1 block text-[11px] leading-snug text-amber-300/90">
+                      {monthEvidence.notes[monthEvidence.notes.length - 1]}
+                    </span>
+                  ) : null}
                 </div>
 
                 <div className="rounded-xl bg-slate-900/80 p-3 border border-slate-800 space-y-1">
@@ -1164,8 +1294,9 @@ export function CalendarPage() {
               return (
                 <div
                   key={sc.id}
+                  data-fh-card-link
                   onClick={() => handleSelectScenario(sc)}
-                  className="cursor-pointer rounded-2xl border border-slate-800 bg-slate-950/80 p-5 space-y-3 hover:border-cyan-500/50 hover:bg-slate-900/60 transition group"
+                  className="cursor-pointer rounded-2xl border border-slate-800 bg-slate-950/80 p-5 space-y-3 hover:border-cyan-500/50 hover:bg-slate-900/60 transition-colors duration-150 group"
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-mono font-bold text-cyan-400 uppercase">

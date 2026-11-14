@@ -1049,16 +1049,14 @@ def test_T39_sf_status_separates_artifact_from_live_data():
     assert "artifact" in st and "feature_version" in st
 
 
-def test_T35_custom_srf_is_archived_and_ties_b2():
-    """The custom transformer must not be presented as a winner."""
-    from app.firms import srf
-    models, meta = srf.load_artifact("raw")
-    assert models is not None and meta is not None
-    assert meta["method_id"] == "srf_v1"
-    assert meta["n_test"] == 72
-    assert meta["deployed"] is False
-    assert meta["mean_gain_vs_b2"] < 0.02
-    assert meta["comparisons"]["srf_vs_b2"]["ci95"][0] < 0 < meta["comparisons"]["srf_vs_b2"]["ci95"][1]
+def test_T35_srf_artifacts_were_removed():
+    """SRF was deleted (srf.py + srf_raw.*); nothing may resurrect it."""
+    assert not (BACKEND_DIR / "data/firms/models/srf_raw.pt").exists()
+    assert not (BACKEND_DIR / "data/firms/models/srf_raw.json").exists()
+    assert not (BACKEND_DIR / "app/firms/srf.py").exists()
+
+
+
 
 
 def test_T40_hierarchical_tile_anchor_beats_b2_on_official_holdout():
@@ -1078,43 +1076,13 @@ def test_T40_hierarchical_tile_anchor_beats_b2_on_official_holdout():
     assert meta["mean_gain_vs_b2"] > 0.02
 
 
-def test_T41_tileformer_residual_does_not_beat_the_hierarchical_anchor():
-    import json
-    meta = json.loads((BACKEND_DIR / "data/firms/models/tileformer_raw.json")
-                      .read_text(encoding="utf-8"))
-    assert meta["n_train"] > 2500 and meta["n_test"] > 500
-    assert meta["params"] > 50000
-    assert meta["tile_metrics"]["model"]["mae"] >= meta["tile_metrics"]["anchor"]["mae"]
-    assert meta["aggregate"]["delta_mae"] > 0
-    assert meta["deployed"] is False
-    assert meta["gate"]["passed"] is False
-    # The band is honest but not a calibrated interval.
-    assert 0.5 <= meta["coverage80"] <= 1.0
-
-
-def test_T42_tile_dataset_matches_its_manifest():
-    import hashlib
-    import json
-    bench = BACKEND_DIR / "data/firms/benchmark"
-    meta = json.loads((bench / "tile_pairs_raw.json").read_text(encoding="utf-8"))
-    p = bench / "tile_pairs_raw.csv"
-    assert meta["rows"] == sum(1 for _ in p.open(encoding="utf-8")) - 1
-    assert meta["rows"] > 40000 and meta["tiles"] > 900
-    assert hashlib.sha256(p.read_bytes()).hexdigest() == meta["sha256"]
-
-
-def test_T43_more_capacity_does_not_close_the_gap():
-    """d32 -> d128 triples parameters but still loses to the anchor."""
-    import json
+def test_T41_tileformer_artifacts_were_removed():
+    """TileFormer training outputs were deleted; the tile dataset stays."""
     base = BACKEND_DIR / "data/firms/models"
-    d32 = json.loads((base / "tileformer_d32.json").read_text(encoding="utf-8"))
-    d64 = json.loads((base / "tileformer_raw.json").read_text(encoding="utf-8"))
-    d128 = json.loads((base / "tileformer_d128.json").read_text(encoding="utf-8"))
-    assert d32["params"] < d64["params"] < d128["params"]
-    assert d128["tile_metrics"]["model"]["mae"] < d32["tile_metrics"]["model"]["mae"]
-    assert d128["tile_metrics"]["model"]["mae"] > d128["tile_metrics"]["anchor"]["mae"]
-    for d in (d32, d64, d128):
-        assert d["aggregate"]["delta_mae"] > 0
+    for name in ("tileformer_raw.json", "tileformer_d32.json",
+                 "tileformer_d128.json"):
+        assert not (base / name).exists(), name
+    assert (base / "hts_anchor_raw.json").exists()
 
 
 def test_T44_hts_status_is_a_candidate_not_a_served_win():
@@ -1571,3 +1539,63 @@ def test_UX09_map_cells_respects_custom_day_range():
     assert part["from_date"] == "2019-03-01"
     assert part["to_date"] == "2019-03-10"
     assert max((c["days"] for c in part["cells"]), default=0) <= 10
+
+
+def test_UX10_model_error_names_the_effective_constraint():
+    r = client.get("/api/firms/calendar", params={
+        "data": "sample", "aoi": "vietnam", "method": "stan"})
+    assert r.status_code == 409
+    detail = r.json()["detail"]
+    assert "requires raw NASA data" in detail
+    assert "method=stat" in detail
+
+
+def test_UX12_map_cells_echoes_zoom_and_aggregation():
+    for zoom in (3, 6, 10):
+        r = client.get("/api/firms/map-cells", params={
+            "data": "sample", "aoi": "vietnam", "ym": "2019-03", "zoom": zoom})
+        assert r.status_code == 200
+        d = r.json()
+        assert d["zoom"] == zoom
+        assert d["aggregation_level"] == "0.05deg cell-month"
+        assert "not fires" in d["aggregation_note"]
+
+
+def test_P1_14_admin_fails_closed_in_production(monkeypatch):
+    from fastapi import HTTPException
+    from starlette.requests import Request
+    from app.main import _require_admin
+    req = Request({"type": "http", "headers": []})
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.delenv("ADMIN_TOKEN", raising=False)
+    with pytest.raises(HTTPException) as e:
+        _require_admin(req)
+    assert e.value.status_code == 503
+    monkeypatch.setenv("ADMIN_TOKEN", "secret")
+    with pytest.raises(HTTPException) as e2:
+        _require_admin(req)
+    assert e2.value.status_code == 403
+
+
+def test_cache_key_cannot_escape_cache_dir(tmp_path, monkeypatch):
+    """A bbox with `..`/`/` must stay inside CACHE_DIR, not write outside it."""
+    monkeypatch.setattr(_store, "CACHE_DIR", tmp_path / "cache")
+    key = "cal_vietnam_stat_fp_../../escaped"
+    _store.cache_put(key, {"ok": True})
+    assert _store.cache_get(key) == {"ok": True}
+    assert not (tmp_path.parent / "escaped.json").exists()
+    assert not (tmp_path / "escaped.json").exists()
+    # ordinary tokens keep their stable, readable name
+    assert _store._safe_cache_key("cal_vietnam_104,10,109,16") == "cal_vietnam_104,10,109,16"
+
+
+def test_aggregate_rejects_unknown_instrument():
+    """aggregate() and aggregate_iter() must agree: unknown != MODIS (P0-12)."""
+    rows = _recs()
+    bad = dict(rows[0], latitude=12.5, longitude=106.5, instrument="")
+    typo = dict(rows[0], latitude=12.6, longitude=106.5, instrument="MODISX")
+    agg = harmonize.aggregate(rows + [bad, typo])
+    assert sum(a.count for a in agg.values()) == len(rows)
+    modis = sum(a.count for (_, _, inst), a in agg.items() if inst == "MODIS")
+    assert modis == 10
+

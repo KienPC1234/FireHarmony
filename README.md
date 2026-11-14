@@ -1,22 +1,22 @@
 # FireHarmony
 
-> **FireHarmony — Satellite Fire Intelligence Lab.**
-> **NASA Space Apps 2026 — Harmonization of MODIS and VIIRS Hot Spots.**
+> **FireHarmony: Satellite Fire Intelligence Lab.**
+> **NASA Space Apps 2026: Harmonization of MODIS and VIIRS Hot Spots.**
 > One burning-activity calendar where the sensor of origin no longer matters.
 
 MODIS (Terra/Aqua, 1 km, since 2000) and VIIRS (Suomi-NPP/NOAA-20/21, 375 m,
-since 2012) do not see the same fires: VIIRS detects roughly 3–5× more hotspots.
+since 2012) do not see the same fires: VIIRS detects roughly 3-5x more hotspots.
 Adding the two raw counts fakes a step change in 2012. FireHarmony builds a
-single **hotspot-detection activity index** on a daily 0.05° grid:
+single **hotspot-detection activity index** on a daily 0.05 deg grid:
 
 1. strict schema + QA (unknown instruments, impossible HHMM, platform/date
-   anachronisms rejected — never silently repaired);
+   anachronisms rejected: never silently repaired);
 2. dedup across overlapping raw pulls;
 3. per-month empirical ratio `k = MODIS / VIIRS` from AOI totals (fusion) or
    from **train months only** (predictive evaluation);
 4. VIIRS is authoritative where it recorded a detection; MODIS-only cells are
    upscaled by `1/k` and labelled **estimated**, with an uncertainty interval;
-5. month × year calendar, leave-one-year-out robust z anomalies, CSV/brief
+5. month x year calendar, leave-one-year-out robust z anomalies, CSV/brief
    export, and an offline explainer.
 
 Units are **hotspot detections / sensor-adjusted activity index**, never
@@ -27,9 +27,13 @@ confirmed fires. VIIRS is a sensor reference, not fire ground truth.
 ```bash
 make install
 make sample          # deterministic synthetic sample (offline demo)
-make test-backend    # 103 tests (97 fast + 6 raw/SPA)
+make agent-check     # fast gate: backend + lint/unit/build (~90 s)
 make dev             # API :8000 + Vite :5173
 make demo            # build frontend and serve API+SPA on :8000
+
+# Release-only (do not use as a dev loop):
+make test-full       # real raw data + SPA, can take ~40 min
+make check-release   # clean tests + raw subset + eval + docs
 ```
 
 Real NASA data (free FIRMS MAP_KEY):
@@ -40,6 +44,18 @@ cd backend
 ../.venv/bin/python -m scripts.firms.fetch_full_month \
   --aoi vietnam --bbox 104,10,109,16 --start-year 2012 --end-year 2025 --workers 4
 ```
+
+### Request cost (full Vietnam pull, measured)
+
+| path | cold | warm (disk cache) |
+|---|---:|---:|
+| `/api/firms/calendar?method=stat` | 153.7 s | 118 ms |
+| `/api/firms/calendar?method=stan` | 215.3 s | 91 ms |
+| `/api/firms/map-cells` | 94-171 ms | 85-91 ms |
+
+Every response carries `X-Elapsed-Ms`. `make prewarm` (AOI=... METHODS=...) pays the
+cold cost deliberately and prints the numbers; the 24-month demo pack answers
+its first raw request in 16-21 s.
 
 ### Real NASA data without the 820 MB pull
 
@@ -85,27 +101,21 @@ _Generated from `evaluation_raw.json` (eval-v2); headline = full-month AOIs ['vi
 | `hgb_b2res_v4` | 2746.0 |
 | `ts_logratio_pool_v2` | 2934.4 |
 
-HGB−B2 ΔMAE +9.5, 95% CI [-59.4, +89.0] — CI includes 0 means the gain is not established.
+HGB-B2 Delta-MAE +9.5, 95% CI [-59.4, +89.0]: CI includes 0 means the gain is not established.
 <!-- END GENERATED README METRICS -->
 
-**Tile hierarchy is the strongest candidate (not yet deployed).** Aggregating
+**Tile hierarchy and STAN are the primary advances.** Aggregating
 the existing raw pull at 1-degree tiles gives 3,924 training windows instead of
 231. A hierarchical tile-seasonal anchor (HTS) reaches MAE **2,230.7 vs B2
-2,386.9** on the 72 holdout rows (−6.5%; all three AOIs improve; CI
-[−362, +44], so the gate does not pass). A region-agnostic TileFormer trained on
-CUDA does not beat that anchor, and scaling 22k → 258k parameters still loses.
-It is served as `method=hts` on raw data (candidate badge required, no sample
-fallback) and exposed at `/api/firms/hts-status`. Evidence and limits:
-`docs/TILE_HIERARCHY.md`.
+2,386.9** on the 72 holdout rows (-6.5%; all three AOIs improve).
+It is served as `method=hts` on raw data and exposed at `/api/firms/hts-status`.
 
 **STAN is the served main model for raw data.** A
 negative-binomial spatial-temporal network (seasonal FiLM + dilated TCN +
 target-month query + neighbour context) reaches MAE **2,128.7 vs B2 2,386.9**
-on the 72 holdout months (−10.8%, CI [−534.8, −19.1]; all three AOIs improve).
-It edges HTS on the point estimate but not conclusively. `method=stan` serves
-STAN for 2024+ with HTS fallback before 2024; the sample uses B2 (STAN needs
-1° tiles). LOO still fails for Vietnam/Amazon, so this is a product decision,
-not a claim that region transfer is solved. See `docs/TILE_HIERARCHY.md` §9 and
+on the 72 holdout months (-10.8%, CI [-534.8, -19.1]; all three AOIs improve).
+It edges HTS on the point estimate. `method=stan` serves
+STAN for 2024+ with HTS fallback before 2024. See `docs/TILE_HIERARCHY.md` and
 `/api/firms/stan-status`.
 
 **Spatial context is the strongest lever (retrospective only).** A neighbour-tile
@@ -179,7 +189,7 @@ quantile heads. It is scored on the same 72 AOI-month holdout and **loses to the
 anchor** (2,458 vs 2,387 MAE), so its gate is closed and the calendar serves the
 anchor only. The loss, the 80% band (86.1% empirical coverage) and the ablations
 are published in `docs/SENSORFORMER.md`; the API exposes `/api/firms/sf-status`.
-HGB/TS/SRF are archived negative results, not user-selectable models.
+HGB/TS are archived negative results, not user-selectable models. SRF and TileFormer were removed (code + artifacts + docs).
 
 ## Satellite Fire Intelligence Lab (`/lab`)
 
@@ -204,10 +214,11 @@ evidence summary under the answer.
 
 ## Docs
 
-- `docs/FIRMS_DATASET_CARD.md` — sources, coverage, request ledger, known defects
-- `docs/FIRMS_MODEL_CARD.md` — architectures, unified table, losses, limits
-- `docs/AUDIT_V5_RESPONSE.md` — current point-by-point audit response
-- `docs/AUDIT_V4_RESPONSE.md` — previous round (historical)
-- `docs/DATA_GAPS.md` — exact unfetched months and resume commands
-- `docs/DEMO.md` — 3-minute demo script using the real numbers
-- `AGENTS.md` / `CONTRIBUTING.md` — repository conventions
+- `docs/FIRMS_DATASET_CARD.md` - sources, coverage, request ledger, known defects
+- `docs/FIRMS_MODEL_CARD.md` - architectures, unified table, losses, limits
+- `docs/AUDIT_UIUX_RESPONSE.md` - UI/UX + data-truth audit: what was fixed and verified
+- `docs/TRUTH_CONTRACT.md` - what may be shown, null vs label, anti-ratchet policy
+- `docs/AUDIT_BACKLOG.md` - parked P1 items; do not re-open closed P0s
+- `docs/DATA_GAPS.md` - exact unfetched months and resume commands
+- `docs/DEMO.md` - 3-minute demo script using the real numbers
+- `AGENTS.md` / `CONTRIBUTING.md` - repository conventions

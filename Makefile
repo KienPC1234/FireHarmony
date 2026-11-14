@@ -3,18 +3,22 @@ PY      := .venv/bin/python
 BACKEND := backend
 PORT    ?= 8000
 
-.PHONY: help install sample fetch fetch-missing ingest test-backend test-clean test-full test check-fast check-release e2e dev demo build pm2-start clean demo-pack demo-verify demo-install
+.PHONY: help install install-dev venv sample fetch fetch-missing ingest test-backend test-clean test-full test agent-check check-fast check-release e2e dev demo build pm2-start clean demo-pack demo-verify demo-install rebuild-subset prewarm
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
-install: venv  ## python + frontend dependencies (creates .venv first)
+install: venv  ## full python (torch/CUDA) + frontend deps; release/demo only
 	$(PY) -m pip install -r $(BACKEND)/requirements.txt
 	cd frontend && npm install
 
+install-dev: venv  ## agent stack: serving + tests + dataframes, no torch
+	$(PY) -m pip install -r $(BACKEND)/requirements-dev.txt
+	cd frontend && npm install
+
 venv:
-	python3 -m venv .venv
+	@test -x .venv/bin/python || python3 -m venv .venv
 	.venv/bin/python -m pip install --upgrade pip
 
 fetch:  ## download real FIRMS CSVs (needs FIRMS_MAP_KEY; vars: AOI_BBOX SOURCES DAYS AOI)
@@ -39,30 +43,38 @@ demo-verify:  ## verify the demo pack checksums/row counts
 demo-install:  ## copy the verified demo pack into data/firms/raw (real NASA subset)
 	cd $(BACKEND) && ../$(PY) -m scripts.firms.demo_pack install
 
-test-backend:  ## firms tests only (no network/GPU)
-	cd $(BACKEND) && ../$(PY) -m pytest tests/test_firms.py -q
+prewarm:  ## warm raw calendar caches and print measured request costs
+	cd $(BACKEND) && ../$(PY) -m scripts.firms.prewarm --base "$${BASE:-http://127.0.0.1:$(PORT)}" $${AOI:+--aoi $$AOI}
 
-test-clean:  ## clean-source profile: skip raw-data and SPA tests
+test-backend:  ## dev loop: clean-source tests (~70 s; raw/SPA skipped)
 	cd $(BACKEND) && FIRMS_SKIP_RAW=1 FIRMS_SKIP_DIST=1 ../$(PY) -m pytest tests/test_firms.py -q
 
-test-full:  ## full profile: sample + raw (needs data/firms/raw) + SPA build
+test-clean:  ## alias of test-backend
+	$(MAKE) test-backend
+
+test-full:  ## release-only: real raw data + SPA build (can take ~40 min)
 	cd $(BACKEND) && ../$(PY) -m pytest tests/test_firms.py -q
 
-check-fast:  ## dev loop: clean tests, no raw 40-min suite (~1 min)
+check-fast:  ## alias of test-backend (kept for muscle memory)
+	$(MAKE) test-backend
+
+agent-check:  ## one gate for agents: backend clean + frontend lint/unit/build (~90 s)
 	cd $(BACKEND) && FIRMS_SKIP_RAW=1 FIRMS_SKIP_DIST=1 ../$(PY) -m pytest tests/test_firms.py -q
+	cd frontend && npm run lint
+	cd frontend && npm run test
+	cd frontend && npm run build
 
-check-release:  ## before shipping: full tests + release gate (slow)
-	cd $(BACKEND) && ../$(PY) -m pytest tests/test_firms.py -q
+rebuild-subset:  ## verify the committed 4.3 MB raw fixture (fast raw path)
+	cd $(BACKEND) && ../$(PY) -m scripts.firms.rebuild_subset
+
+check-release:  ## release gate (slow; runs pytest once inside check_release)
 	cd $(BACKEND) && ../$(PY) -m scripts.firms.check_release
 
 e2e:  ## HTTP smoke against a running server (vars: BASE)
 	cd $(BACKEND) && ../$(PY) -m scripts.e2e_smoke --base "$${BASE:-http://127.0.0.1:8000}"
 
-test:  ## backend tests + frontend lint/unit/build
-	cd $(BACKEND) && ../$(PY) -m pytest tests -q
-	cd frontend && npm run lint
-	cd frontend && npm run test
-	cd frontend && npm run build
+test:  ## alias of agent-check (never a 40-min surprise)
+	$(MAKE) agent-check
 
 dev:  ## API :$(PORT) + Vite :5173
 	@echo "API  -> http://127.0.0.1:$(PORT)/docs"

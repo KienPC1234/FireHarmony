@@ -26,6 +26,11 @@ import math
 import numpy as np
 from sklearn.ensemble import HistGradientBoostingRegressor
 
+from app.firms.ml_core import counts_from_log_ratio as _counts_from_log_ratio
+from app.firms.ml_core import log_ratio as _log_ratio
+from app.firms.ml_core import metrics as _metrics
+from app.firms.ml_core import ratios_from_train
+
 METHOD_ID = "hgb-b2residual-v4"
 ALGORITHM_VERSION = "ml_b2res_v4.1"   # gate + log-space fix (P0-02)
 FEATURE_VERSION = "features-v4.1"
@@ -38,23 +43,14 @@ GRID = [
 ]
 
 
-def _log_ratio(p: dict) -> float:
-    return math.log((float(p["viirs"]) + 1.0) / (float(p["modis"]) + 1.0))
-
-
 def seasonal_ratios(pairs: list[dict]) -> tuple[dict[int, float], float]:
     """Per-month median LOG ratio (B2) + global median LOG ratio (B1).
 
     Returned in LOG space on purpose: callers do exp(base) exactly once, so
     there is no double-exponentiation trap (a bug v4 shipped with once).
+    Delegates to `ml_core.ratios_from_train`, the single B2 implementation.
     """
-    logr = [_log_ratio(p) for p in pairs if float(p["modis"]) > 0]
-    glob = float(np.median(logr)) if logr else 0.0
-    by_m: dict[int, float] = {}
-    for m in range(1, 13):
-        rs = [_log_ratio(p) for p in pairs if int(p["month"]) == m and float(p["modis"]) > 0]
-        if rs:
-            by_m[m] = float(np.median(rs))
+    glob, by_m = ratios_from_train(pairs)
     return by_m, glob
 
 
@@ -95,7 +91,7 @@ def _residual_target(pairs: list[dict], by_m: dict[int, float], glob: float) -> 
     out = np.zeros(len(pairs), dtype=float)
     for i, p in enumerate(pairs):
         base = by_m.get(int(p["month"]), glob)
-        out[i] = _log_ratio(p) - base
+        out[i] = _log_ratio(p["viirs"], p["modis"]) - base
     return out
 
 
@@ -125,16 +121,6 @@ def _baseline_log(model, month: int) -> float:
             and getattr(model, "_fallback", "") == "b1_global_ratio"):
         return float(model._glob)
     return float(model._by_m.get(int(month), model._glob))
-
-
-def _counts_from_log_ratio(modis: float, log_ratio: float) -> float:
-    """Inverse transform used by BOTH batch and single-row inference.
-
-    P0-02: predict_counts and predict_one previously used different inverse
-    formulas (modis*x vs (modis+1)*x-1), so the reported metric and the served
-    value disagreed. This is now the only inverse path.
-    """
-    return max(math.exp(float(log_ratio)) * (max(float(modis), 0.0) + 1.0) - 1.0, 0.0)
 
 
 def predict_counts(model, pairs: list[dict]) -> np.ndarray:
@@ -172,14 +158,6 @@ def predict_one(model, modis: float, month: int, day_frac: float = 0.5,
     return _counts_from_log_ratio(modis, base + resid)
 
 
-def _metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
-    err = y_pred - y_true
-    denom = float(np.sum(y_true)) or 1.0
-    return {"mae": float(np.mean(np.abs(err))),
-            "wape": float(np.sum(np.abs(err)) / denom),
-            "bias": float(np.mean(err))}
-
-
 def blocked_cv_compare(pairs: list[dict], min_train_years: int = 3) -> dict:
     """Score plain B2 and B2+residual on identical blocked folds.
 
@@ -199,8 +177,9 @@ def blocked_cv_compare(pairs: list[dict], min_train_years: int = 3) -> dict:
             continue
         y = np.array([float(p["viirs"]) for p in te])
         bm, g = seasonal_ratios(tr)
-        b2 = np.array([p["modis"] * math.exp(bm.get(int(p["month"]), g)) for p in te])
-        b1 = np.array([p["modis"] * math.exp(g) for p in te])
+        b2 = np.array([_counts_from_log_ratio(p["modis"], bm.get(int(p["month"]), g))
+                       for p in te])
+        b1 = np.array([_counts_from_log_ratio(p["modis"], g) for p in te])
         params = {"max_depth": 1, "min_samples_leaf": 20, "l2_regularization": 200.0}
         model = _fit(tr, params)
         res = predict_counts(model, te)
@@ -296,9 +275,10 @@ def train_holdout(pairs: list[dict], test_years: int = 2, tune: bool = True,
     metrics = {
         "ml": _metrics(y_true, ml_pred),
         "b0_raw_modis": _metrics(y_true, modis_te),
-        "b1_global_ratio": _metrics(y_true, modis_te * math.exp(glob)),
+        "b1_global_ratio": _metrics(
+            y_true, np.array([_counts_from_log_ratio(m, glob) for m in modis_te])),
         "b2_seasonal_ratio": _metrics(
-            y_true, np.array([m * math.exp(by_m.get(int(p["month"]), glob))
+            y_true, np.array([_counts_from_log_ratio(m, by_m.get(int(p["month"]), glob))
                               for m, p in zip(modis_te, test)])),
     }
     # how much of the correction survives? (0 = pure B2 parity)

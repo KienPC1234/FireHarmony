@@ -17,7 +17,7 @@ Older experiments are archived as negative results, not served:
 - `sf_lite_v1` (this model) — gate off, anchor fallback.
 
 Only SensorFormer is wired into the calendar/API presentation. The archived
-models remain reproducible in `docs/MODEL_DIAGNOSTICS.md` and their scripts, but
+their training scripts remain in `backend/scripts/firms/`, but
 they are not choices a user can select.
 
 ## What it is

@@ -56,7 +56,7 @@ export function MarkdownView({ content, className }: MarkdownViewProps) {
           },
           blockquote: ({ ...props }) => (
             <blockquote
-              className="my-2 border-l-2 border-cyan-500 bg-cyan-950/20 px-3 py-1.5 text-xs text-slate-300 rounded-r"
+              className="my-2 border border-cyan-500/30 bg-cyan-950/20 px-3.5 py-2 text-xs text-slate-300 rounded-lg"
               {...props}
             />
           ),

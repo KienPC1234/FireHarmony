@@ -29,7 +29,7 @@ export function GlobalContextBar({
   const [copied, setCopied] = useState(false);
 
   const currentAoi = (searchParams.get("aoi") as AoiId) || aoi || "vietnam";
-  const currentData = searchParams.get("data") || dataFeed || "sample";
+  const currentData = searchParams.get("data") || dataFeed || "raw";
   const isRaw = currentData === "raw";
 
   const handleShare = async () => {
@@ -119,36 +119,38 @@ export function GlobalContextBar({
             >
               B2 Anchor
             </button>
-            {isRaw && (
-              <button
-                type="button"
-                onClick={() => setMethod("stan")}
-                title={t("calendar.stan_tooltip")}
-                className={cn(
-                  "px-2 py-0.5 rounded text-[11px] font-semibold transition min-h-[26px]",
-                  method === "stan"
-                    ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 font-bold"
-                    : "text-slate-400 hover:text-white"
-                )}
-              >
-                STAN
-              </button>
-            )}
-            {isRaw && (
-              <button
-                type="button"
-                onClick={() => setMethod("hts_anchor")}
-                title={t("calendar.hts_tooltip")}
-                className={cn(
-                  "px-2 py-0.5 rounded text-[11px] font-semibold transition min-h-[26px]",
-                  method === "hts_anchor"
-                    ? "bg-amber-500/25 text-amber-300 border border-amber-500/40 font-bold"
-                    : "text-slate-400 hover:text-white"
-                )}
-              >
-                HTS (Tile)
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (!isRaw) setDataFeed("raw");
+                setMethod("stan");
+              }}
+              title={t("calendar.stan_tooltip")}
+              className={cn(
+                "px-2 py-0.5 rounded text-[11px] font-semibold transition min-h-[26px]",
+                method === "stan"
+                  ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 font-bold"
+                  : "text-slate-400 hover:text-white"
+              )}
+            >
+              STAN
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!isRaw) setDataFeed("raw");
+                setMethod("hts_anchor");
+              }}
+              title={t("calendar.hts_tooltip")}
+              className={cn(
+                "px-2 py-0.5 rounded text-[11px] font-semibold transition min-h-[26px]",
+                method === "hts_anchor"
+                  ? "bg-amber-500/25 text-amber-300 border border-amber-500/40 font-bold"
+                  : "text-slate-400 hover:text-white"
+              )}
+            >
+              HTS (Tile)
+            </button>
           </div>
         </div>
 

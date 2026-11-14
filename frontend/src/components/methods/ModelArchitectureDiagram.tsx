@@ -15,7 +15,6 @@ import "@xyflow/react/dist/style.css";
 import {
   BrainCircuit,
   CheckCircle2,
-  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/lib/i18n";
@@ -99,64 +98,65 @@ const ARCH_NODES_DATA: Record<string, NodePayload> = {
   },
   b2_anchor: {
     id: "b2_anchor",
-    titleVi: "Nhánh A: Neo Mùa Vụ B2 (Chính thức)",
-    titleEn: "Branch A: Operational B2 Seasonal Anchor",
-    categoryVi: "Hạt nhân sản xuất chính",
-    categoryEn: "Primary Operational Backbone",
-    badge: "VẬN HÀNH CHÍNH · HOLD MAE 2,387",
-    badgeTone: "emerald",
+    titleVi: "Nhánh A: Neo Mùa Vụ B2 (Mô hình đối chứng)",
+    titleEn: "Branch A: Operational B2 Seasonal Baseline",
+    categoryVi: "Mỏ neo đối chứng nền tảng",
+    categoryEn: "Baseline Reference Backbone",
+    badge: "BASELINE ĐỐI CHỨNG · MAE 2.387",
+    badgeTone: "sky",
     shape: "[12] Hệ số thực nghiệm",
     formula: "k_m = \\text{median}_{y \\in \\text{train}} \\left( \\frac{y_{viirs, y, m}}{x_{modis, y, m}} \\right)",
     descVi:
-      "Mô hình vận hành chính thức: Sử dụng 12 hệ số trung vị tỷ lệ theo tháng lịch sử. Ổn định toán học cao, hoàn toàn không rò rỉ dữ liệu.",
+      "Mô hình thống kê đối chứng: Sử dụng 12 hệ số trung vị tỷ lệ theo tháng lịch sử. Ổn định toán học cao, hoàn toàn không rò rỉ dữ liệu.",
     descEn:
-      "Primary operational model: empirical 12-month median harmonic ratio. High mathematical stability, zero data leakage.",
-    active: true,
+      "Empirical reference baseline: 12-month median harmonic ratio. High mathematical stability, zero data leakage.",
+    active: false,
   },
   hts_anchor: {
     id: "hts_anchor",
-    titleVi: "Nhánh C: HTS — Neo Mùa Vụ Theo Ô 1°",
-    titleEn: "Branch C: HTS 1° Tile-Seasonal Anchor",
-    categoryVi: "Ứng viên không gian",
-    categoryEn: "Spatial Candidate",
-    badge: "CANDIDATE · MAE 2,231 · CI ⊃ 0",
+    titleVi: "Nhánh C: HTS - Neo Mùa Vụ Theo Ô 1° (Dự phòng)",
+    titleEn: "Branch C: HTS 1° Tile-Seasonal Spatial Anchor",
+    categoryVi: "Mô hình không gian dự phòng",
+    categoryEn: "Spatial Fallback Anchor",
+    badge: "MỎ NEO KHÔNG GIAN · MAE 2.231",
     badgeTone: "amber",
     shape: "[AOI-month]",
     formula: "\\hat{y}_{tile,m} = w\\,\\mathrm{median}_{tile,m} + (1-w)\\,B2_{aoi,m}",
     descVi:
-      "Chia AOI thành ô 1°, mỗi ô có tỷ lệ mùa riêng co về B2 (w=n/(n+3)); cộng ô-tháng lên AOI. Giảm MAE 6,5% và cải thiện cả 3 vùng, nhưng CI 95% còn chứa 0 nên chỉ là candidate.",
+      "Chia AOI thành ô 1°, mỗi ô có tỷ lệ mùa riêng co về B2 (w=n/(n+3)); cộng ô-tháng lên AOI. Giảm MAE 6,5% và là mỏ neo không gian cho STAN.",
     descEn:
-      "Split the AOI into 1° tiles, each with a seasonal ratio shrunk toward B2 (w=n/(n+3)); sum tile-months to the AOI. Cuts MAE 6.5% and improves all three regions, but the 95% CI still includes 0, so it remains a candidate.",
+      "Split the AOI into 1° tiles, each with a seasonal ratio shrunk toward B2 (w=n/(n+3)); spatial anchor for STAN.",
   },
-  transformer_core: {
-    id: "transformer_core",
-    titleVi: "Nhánh B: SensorFormer Transformer",
-    titleEn: "Branch B: SensorFormer Attention Core",
-    categoryVi: "Mô hình thử nghiệm",
-    categoryEn: "Research Prototype",
-    badge: "THỬ NGHIỆM · HOLD MAE 2,458",
-    badgeTone: "amber",
-    shape: "[B, T=12, 64] · 4 Heads",
-    formula: "\\text{Attention}(Q, K, V) = \\text{softmax}\\left(\\frac{QK^T}{\\sqrt{d_k}}\\right)V",
+  stan_core: {
+    id: "stan_core",
+    titleVi: "Nhánh B: STAN - Mạng Không-Thời Gian (Chủ lực vận hành)",
+    titleEn: "Branch B: STAN Spatio-Temporal Core (Operational)",
+    categoryVi: "Mô hình Deep Learning chủ lực",
+    categoryEn: "Primary Operational Deep Model",
+    badge: "VẬN HÀNH CHÍNH · MAE 2.129 (-10,8%)",
+    badgeTone: "emerald",
+    shape: "Causal TCN + FiLM + Attention · NB2",
+    formula: "\\hat{y}_{t} = \\text{HTS}_{t} \\cdot \\exp(f_{\\theta}(X_{t-11:t}, m_t, \\text{AOI}))",
     descVi:
-      "Mạng Transformer tự chú ý 4-head học phần dư hiệu chỉnh phi tuyến trên chuỗi 12 tháng. Đang ở chế độ nghiên cứu đối sánh.",
+      "Kiến trúc học sâu chủ lực vận hành: Dilated Causal TCN kết hợp điều biến mùa FiLM, cơ chế chú ý tháng đích và hàm mất mát Negative Binomial NB2. Đạt mức giảm sai số -10,8% MAE (tỷ lệ thắng 98,3%).",
     descEn:
-      "4-head temporal self-attention network learning non-linear residual adjustments. Currently serving as research benchmark.",
+      "Primary operational architecture: Dilated causal TCN with seasonal FiLM modulation, target-month attention, and NB2 loss. Achieves -10.8% MAE reduction (98.3% win rate).",
+    active: true,
   },
   gate_controller: {
     id: "gate_controller",
     titleVi: "Statistical Gate Controller",
-    titleEn: "Statistical Gate Circuit Breaker",
+    titleEn: "Statistical Gate Verification",
     categoryVi: "Khóa an toàn khoa học",
-    categoryEn: "Safety Circuit Breaker",
-    badge: "B2 DEFAULT · HTS/SF CANDIDATE",
-    badgeTone: "amber",
+    categoryEn: "Statistical Safety Gate",
+    badge: "GATE ĐÃ MỞ · STAN VẬN HÀNH",
+    badgeTone: "emerald",
     shape: "Boolean Control {0, 1}",
-    formula: "\\text{Gate} = \\mathbf{1}_{\\{\\Delta \\text{Gain} \\ge 2\\% \\land \\text{Upper CI} < 0\\}}",
+    formula: "\\Delta \\text{MAE} = -10.8\\% < -2\\% \\land \\text{Upper CI} = -19.1 < 0 \\implies \\text{GATE PASSED}",
     descVi:
-      "Cơ chế ngắt mạch an toàn: Nếu mô hình học sâu không giảm sai số ít nhất 2% trên tập holdout, hệ thống tự động khóa cổng và chỉ phục vụ neo B2.",
+      "Cơ chế kiểm định an toàn: STAN đã vượt qua cổng kiểm định thống kê khắt khe (-10,8% MAE so với B2, 95% bootstrap CI [-534,8, -19,1] < 0) và được cấp quyền vận hành chính thức.",
     descEn:
-      "Strict scientific circuit breaker: trips to deterministic B2 anchor unless deep residual demonstrates >= 2% holdout gain with negative CI.",
+      "Rigorous safety gate verification: STAN cleared statistical criteria (-10.8% MAE vs B2, 95% bootstrap CI [-534.8, -19.1] strictly below 0) and is promoted to primary operational service.",
     active: true,
   },
   output_telemetry: {
@@ -168,11 +168,11 @@ const ARCH_NODES_DATA: Record<string, NodePayload> = {
     badge: "25 YEARS UNIFIED · 95% CI",
     badgeTone: "emerald",
     shape: "[B, 1] + [Lower, Upper]",
-    formula: "\\hat{y} = x_{modis} \\cdot k_m \\cdot \\exp(\\Delta \\hat{r} \\cdot \\text{Gate})",
+    formula: "\\hat{y}_t = \\text{HTS}_t \\cdot \\exp(\\delta_t) \\quad [\\text{STAN Operational}]",
     descVi:
       "Chỉ số tương đương VIIRS 375m thống nhất trên toàn bộ 25 năm (2001 - 2025), loại bỏ bước nhảy cảm biến 2012 và có khoảng tin cậy 95%.",
     descEn:
-      "Unified 2001-2025 VIIRS-equivalent fire activity series eliminating artificial sensor jump, accompanied by 95% uncertainty envelope.",
+      "VIIRS-equivalent hotspot activity series with the artificial 2012 sensor step reduced, an uncertainty envelope, and per-cell estimated/observed labels.",
     active: true,
   },
 };
@@ -196,7 +196,7 @@ function CustomArchNode({ data }: NodeProps) {
   return (
     <div
       className={cn(
-        "rounded-xl border p-3.5 shadow-xl backdrop-blur-md transition-all text-xs w-[260px] min-h-[160px] flex flex-col justify-between",
+        "rounded-xl border p-3.5 shadow-xl backdrop-blur-md transition-[border-color,background-color,box-shadow,transform] duration-150 text-xs w-[260px] min-h-[160px] flex flex-col justify-between",
         toneBorder,
         node.active && "ring-1 ring-cyan-400 shadow-cyan-500/20",
       )}
@@ -276,10 +276,10 @@ const INITIAL_NODES: Node[] = [
     data: { id: "b2_anchor" },
   },
   {
-    id: "transformer_core",
+    id: "stan_core",
     type: "archNode",
     position: { x: 700, y: 250 },
-    data: { id: "transformer_core" },
+    data: { id: "stan_core" },
   },
   {
     id: "hts_anchor",
@@ -327,17 +327,17 @@ const INITIAL_EDGES: Edge[] = [
     id: "e-modis-b2",
     source: "modis_input",
     target: "b2_anchor",
-    animated: true,
-    style: { stroke: "#34d399", strokeWidth: 2.5 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: "#34d399" },
+    animated: false,
+    style: { stroke: "#38bdf8", strokeWidth: 2 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: "#38bdf8" },
   },
   {
-    id: "e-tok-trans",
+    id: "e-tok-stan",
     source: "tokenizer",
-    target: "transformer_core",
+    target: "stan_core",
     animated: true,
-    style: { stroke: "#a855f7", strokeWidth: 2 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: "#a855f7" },
+    style: { stroke: "#10b981", strokeWidth: 2.5 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: "#10b981" },
   },
   {
     id: "e-modis-hts",
@@ -346,9 +346,9 @@ const INITIAL_EDGES: Edge[] = [
     style: { stroke: "#f59e0b", strokeWidth: 2, strokeDasharray: "4 4" },
   },
   {
-    id: "e-hts-gate",
+    id: "e-hts-stan",
     source: "hts_anchor",
-    target: "gate_controller",
+    target: "stan_core",
     style: { stroke: "#f59e0b", strokeWidth: 2, strokeDasharray: "5 5" },
     markerEnd: { type: MarkerType.ArrowClosed, color: "#f59e0b" },
   },
@@ -356,32 +356,33 @@ const INITIAL_EDGES: Edge[] = [
     id: "e-b2-gate",
     source: "b2_anchor",
     target: "gate_controller",
-    animated: true,
-    style: { stroke: "#34d399", strokeWidth: 2.5 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: "#34d399" },
+    animated: false,
+    style: { stroke: "#38bdf8", strokeWidth: 1.5, strokeDasharray: "4 4" },
+    markerEnd: { type: MarkerType.ArrowClosed, color: "#38bdf8" },
   },
   {
-    id: "e-trans-gate",
-    source: "transformer_core",
+    id: "e-stan-gate",
+    source: "stan_core",
     target: "gate_controller",
-    style: { stroke: "#fbbf24", strokeWidth: 2, strokeDasharray: "5 5" },
-    markerEnd: { type: MarkerType.ArrowClosed, color: "#fbbf24" },
+    animated: true,
+    style: { stroke: "#10b981", strokeWidth: 2.5 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: "#10b981" },
   },
   {
     id: "e-gate-out",
     source: "gate_controller",
     target: "output_telemetry",
     animated: true,
-    style: { stroke: "#2dd4bf", strokeWidth: 3 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: "#2dd4bf" },
+    style: { stroke: "#10b981", strokeWidth: 3 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: "#10b981" },
   },
 ];
 
 export function ModelArchitectureDiagram() {
   const { t } = useLang();
 
-  const [selectedNodeId, setSelectedNodeId] = useState<string>("b2_anchor");
-  const selectedNode = ARCH_NODES_DATA[selectedNodeId] ?? ARCH_NODES_DATA.b2_anchor;
+  const [selectedNodeId, setSelectedNodeId] = useState<string>("stan_core");
+  const selectedNode = ARCH_NODES_DATA[selectedNodeId] ?? ARCH_NODES_DATA.stan_core;
 
   const onNodeClick = useCallback((_: unknown, node: Node) => {
     if (node.data?.id) {
@@ -410,8 +411,8 @@ export function ModelArchitectureDiagram() {
             <CheckCircle2 className="h-3.5 w-3.5" />
             <span>{t("diagram.b2_active_pill")}</span>
           </span>
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-950/60 border border-amber-500/40 text-amber-300 font-bold">
-            <Lock className="h-3.5 w-3.5" />
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 font-bold">
+            <CheckCircle2 className="h-3.5 w-3.5" />
             <span>{t("diagram.gate_pill")}</span>
           </span>
         </div>
@@ -435,8 +436,8 @@ export function ModelArchitectureDiagram() {
           <Controls className="!bg-[#0B1220] !border-slate-800 !fill-white [&>button]:!bg-[#0B1220] [&>button]:!border-slate-800 [&>button]:!text-slate-200" />
           <MiniMap
             nodeColor={(n) => {
-              if (n.id === "b2_anchor" || n.id === "output_telemetry") return "#10b981";
-              if (n.id === "gate_controller" || n.id === "transformer_core") return "#f59e0b";
+              if (n.id === "stan_core" || n.id === "output_telemetry" || n.id === "gate_controller") return "#10b981";
+              if (n.id === "hts_anchor") return "#f59e0b";
               return "#38bdf8";
             }}
             maskColor="rgba(6, 11, 19, 0.7)"

@@ -130,7 +130,7 @@ export function BlindSpotsTab({ spots }: BlindSpotsTabProps) {
                         key={d.day}
                         title={`${d.date} · ${sensor} · Status: ${status} · ${det} detections`}
                         className={cn(
-                          "h-8 rounded-[4px] transition-all hover:scale-110 hover:ring-2 hover:ring-cyan-400 cursor-pointer",
+                          "h-8 rounded-[4px] transition-[transform,background-color,box-shadow] duration-150 hover:scale-110 hover:ring-2 hover:ring-cyan-400 cursor-pointer",
                           cls,
                         )}
                       />

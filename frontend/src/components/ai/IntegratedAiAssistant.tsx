@@ -28,8 +28,7 @@ interface IntegratedAiAssistantProps {
  * It fills the parent height; answers come only from the backend investigate tool.
  */
 export function IntegratedAiAssistant({ aoi, data, year, month, method = "stat" }: IntegratedAiAssistantProps) {
-  const { t, lang } = useLang();
-  const vi = lang === "vi";
+  const { t } = useLang();
   const hasMonth = year !== undefined && month !== undefined;
   const ym = hasMonth ? `${year}-${String(month).padStart(2, "0")}` : null;
   const isSynthetic = data !== "raw";
@@ -40,25 +39,19 @@ export function IntegratedAiAssistant({ aoi, data, year, month, method = "stat" 
           {
             id: "month",
             label: t("ai.chip_why_unusual", { ym }),
-            query: vi
-              ? `Tháng ${ym} tại ${aoi} có bất thường so với trung vị lịch sử không, và bằng chứng là gì?`
-              : `Is ${ym} in ${aoi} anomalous relative to the historical median, and what is the evidence?`,
+            query: t("ai.query_month", { ym, aoi }),
           },
         ]
       : []),
     {
       id: "transition",
       label: t("ai.chip_transition"),
-      query: vi
-        ? "Bước nhảy số điểm nóng năm 2012 có liên quan đến việc chuyển từ MODIS sang VIIRS không?"
-        : "Is the 2012 rise in hotspot counts related to the MODIS to VIIRS transition?",
+      query: t("ai.query_transition"),
     },
     {
       id: "coverage",
       label: t("ai.chip_coverage"),
-      query: vi
-        ? `Những giai đoạn nào tại ${aoi} chưa đủ quan sát song song giữa hai cảm biến?`
-        : `Which periods in ${aoi} lack paired observations from both sensors?`,
+      query: t("ai.query_coverage", { aoi }),
     },
   ];
 
@@ -85,7 +78,7 @@ export function IntegratedAiAssistant({ aoi, data, year, month, method = "stat" 
     setBusy(true);
     try {
       await api.investigateStream(
-        { question, aoi, data, method, year, month, use_llm: false },
+        { question, aoi, data, method, year, month, use_llm: true },
         {
           onMeta: (meta) => {
             setMessages((prev) =>
@@ -95,9 +88,7 @@ export function IntegratedAiAssistant({ aoi, data, year, month, method = "stat" 
                       ...msg,
                       evidence:
                         meta.tools_used.length > 0
-                          ? vi
-                            ? `Nguồn tính toán: ${meta.tools_used.join(", ")}`
-                            : `Computed by: ${meta.tools_used.join(", ")}`
+                          ? t("ai.computed_by", { tools: meta.tools_used.join(", ") })
                           : undefined,
                       limitations: meta.limitations?.length ? meta.limitations.join(" ") : undefined,
                       actions: [
@@ -143,9 +134,7 @@ export function IntegratedAiAssistant({ aoi, data, year, month, method = "stat" 
                 msg.id === botId
                   ? {
                       ...msg,
-                      text: vi
-                        ? `Lỗi kết nối phân tích: ${describeError(err)}`
-                        : `Analysis error: ${describeError(err)}`,
+                      text: t("ai.error_analysis", { error: describeError(err) }),
                       isStreaming: false,
                     }
                   : msg,
@@ -160,9 +149,7 @@ export function IntegratedAiAssistant({ aoi, data, year, month, method = "stat" 
           msg.id === botId
             ? {
                 ...msg,
-                text: vi
-                  ? `Không lấy được câu trả lời: ${describeError(err)}. Hãy thử lại sau.`
-                  : `Could not get an answer: ${describeError(err)}. Please retry.`,
+                text: t("ai.error_could_not_get", { error: describeError(err) }),
                 isStreaming: false,
               }
             : msg,
@@ -191,9 +178,7 @@ export function IntegratedAiAssistant({ aoi, data, year, month, method = "stat" 
         {messages.length === 0 && !busy && (
           <div className="space-y-2">
             <p className="text-xs text-slate-400">
-              {vi
-                ? "Câu trả lời chỉ dùng số liệu backend tính được. Chọn một câu hỏi gợi ý:"
-                : "Answers use only figures computed by the backend. Pick a suggested question:"}
+              {t("ai.pick_suggested")}
             </p>
             {suggestions.map((s) => (
               <button

@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import re
 import time
 from functools import lru_cache
 from pathlib import Path
@@ -270,9 +271,24 @@ def pooled_fingerprint(aois, raw: bool = True) -> str:
     return hashlib.sha256("|".join(parts).encode()).hexdigest()[:16]
 
 
+_SAFE_CACHE_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_,.-]*$")
+
+
+def _safe_cache_key(key: str) -> str:
+    """Contain a cache key inside CACHE_DIR.
+
+    Keys embed request values (e.g. the user-supplied `bbox`). A value with `/`
+    or `..` would escape the cache directory, create subdirectories, or raise
+    OSError. Plain tokens are kept verbatim; anything else is hashed.
+    """
+    if _SAFE_CACHE_KEY.match(key) and ".." not in key:
+        return key
+    return "h_" + hashlib.sha256(key.encode("utf-8")).hexdigest()[:32]
+
+
 def cache_get(key: str):
     """Read a cached analysis result. JSON, not pickle (audit P1-20)."""
-    f = CACHE_DIR / f"{key}.json"
+    f = CACHE_DIR / f"{_safe_cache_key(key)}.json"
     if not f.exists():
         return None
     try:
@@ -283,9 +299,10 @@ def cache_get(key: str):
 
 def cache_put(key: str, value) -> None:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    tmp = CACHE_DIR / f".{key}.tmp"
+    safe = _safe_cache_key(key)
+    tmp = CACHE_DIR / f".{safe}.tmp"
     tmp.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
-    tmp.replace(CACHE_DIR / f"{key}.json")
+    tmp.replace(CACHE_DIR / f"{safe}.json")
     # keep the newest 40 entries
     entries = sorted(CACHE_DIR.glob("*.json"), key=lambda p: p.stat().st_mtime)
     for old in entries[:-40]:

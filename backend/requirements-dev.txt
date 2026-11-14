@@ -1,0 +1,6 @@
+# Agent/dev stack: serving + tests + dataframes, no torch.
+# Use this for `make agent-check` / `make check-fast`.
+# `requirements.txt` adds torch (CUDA) for STAN/Transformer work.
+-r requirements-serve.txt
+pandas
+pyarrow

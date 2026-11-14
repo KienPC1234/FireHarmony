@@ -71,22 +71,22 @@ const METHOD_SPECS = [
   },
   {
     id: "sf_lite_v1",
-    name: { vi: "SensorFormer: kiến trúc phục vụ duy nhất", en: "SensorFormer: Single Served Architecture" },
-    category: { vi: "Neo mùa vụ + phần dư có cổng", en: "Seasonal Anchor + Gated Residual" },
+    name: { vi: "SensorFormer Lite (Nguyên mẫu nghiên cứu đối chứng)", en: "SensorFormer Lite (Comparator Benchmark)" },
+    category: { vi: "Mô hình chú ý đối chứng", en: "Attention Comparator" },
     formula: "\\hat{y} = x_{modis} \\cdot k_m^{B2} \\cdot \\exp(\\Delta \\hat{r} \\cdot \\text{Gate})",
     input: { vi: "Cửa sổ 12 tháng MODIS (log), pha tháng, tỷ lệ ban ngày/Terra, embedding vùng", en: "12-month MODIS window (log), month phase, day/Terra fractions, AOI embedding" },
-    target: { vi: "Phần dư trên neo B2: log(VIIRS/MODIS) − b2_log[tháng]", en: "Residual on the B2 anchor: log(VIIRS/MODIS) − b2_log[month]" },
+    target: { vi: "Phần dư trên neo B2: log(VIIRS/MODIS) - b2_log[tháng]", en: "Residual on the B2 anchor: log(VIIRS/MODIS) - b2_log[month]" },
     assumptions: {
-      vi: "Sai lệch cảm biến có cấu trúc theo vùng và mùa; phần dư chỉ được bật khi vượt gate ≥2% và CI < 0.",
+      vi: "Sai lệch cảm biến có cấu trúc theo vùng và mùa; phần dư chỉ được bật khi vượt gate >=2% và CI < 0.",
       en: "Sensor bias is structured by region and season; the residual is enabled only if it clears the >=2% gate with CI < 0.",
     },
     abstains: {
-      vi: "Gate đóng trên holdout 2024–2025 → tự động phục vụ neo mùa vụ (anchor-only).",
-      en: "Gate is closed on the 2024–2025 holdout → serves the seasonal anchor (anchor-only).",
+      vi: "Không vượt qua gate an toàn (MAE 2.458 so với B2 2.387) -> Giữ nguyên làm mốc đối chứng so sánh cho STAN.",
+      en: "Did not clear safety gate (MAE 2,458 vs B2 2,387) -> Retained as comparator benchmark for STAN.",
     },
     failures: {
-      vi: "MAE 2.458 cao hơn neo 2.387; attention không chứng minh được lợi ích ở quy mô 231 cửa sổ.",
-      en: "MAE 2,458 is worse than the 2,387 anchor; attention does not earn its place at 231 windows.",
+      vi: "Attention thuần trên cửa sổ ngắn không nắm bắt được chu kỳ mùa tốt hơn B2; đóng vai trò bài học kiến trúc để thiết kế STAN.",
+      en: "Pure attention on short windows overfits seasonal variance; served as the motivating stepping stone for STAN.",
     },
   },
   {
@@ -164,21 +164,21 @@ const BENCH_ROWS = [
   },
   {
     id: "b2_seasonal_ratio",
-    label: { vi: "B2: Hệ số mùa 12 tháng (Triển khai chính)", en: "B2: Seasonal Ratio (Operational)" },
-    tag: { vi: "Neo vận hành", en: "Operational Anchor" },
-    tagClass: "bg-emerald-500/15 border-emerald-500/30 text-emerald-300 font-bold",
+    label: { vi: "B2: Hệ số mùa 12 tháng (Baseline đối chứng)", en: "B2: Seasonal Ratio (Reference Baseline)" },
+    tag: { vi: "Baseline đối chứng", en: "Reference Baseline" },
+    tagClass: "bg-sky-500/15 border-sky-500/30 text-sky-300 font-bold",
   },
   {
     id: "hts_anchor_v1",
-    label: { vi: "HTS: neo mùa vụ theo ô 1° (candidate)", en: "HTS: 1° tile-seasonal anchor (candidate)" },
-    tag: { vi: "Candidate · CI chứa 0", en: "Candidate · CI includes 0" },
+    label: { vi: "HTS: neo mùa vụ theo ô 1° (dự phòng)", en: "HTS: 1° tile-seasonal anchor (fallback)" },
+    tag: { vi: "Dự phòng không gian", en: "Spatial Fallback" },
     tagClass: "bg-amber-500/15 border-amber-500/30 text-amber-300",
   },
   {
     id: "stan_safe_v1",
-    label: { vi: "STAN: mạng không-thời gian theo count (forecast-safe)", en: "STAN: spatial-temporal count network (forecast-safe)" },
-    tag: { vi: "Chủ lực · vượt B2", en: "Main model · beats B2" },
-    tagClass: "bg-emerald-500/15 border-emerald-500/30 text-emerald-300",
+    label: { vi: "STAN: Mạng không-thời gian STAN (Chủ lực vận hành)", en: "STAN: Spatio-temporal network (Operational)" },
+    tag: { vi: "Chủ lực vận hành · MAE -10,8%", en: "Primary Operational · MAE -10.8%" },
+    tagClass: "bg-emerald-500/15 border-emerald-500/30 text-emerald-300 font-bold",
   },
   {
     id: "spatial_hgb_v1",
@@ -188,9 +188,9 @@ const BENCH_ROWS = [
   },
   {
     id: "sf_lite_v1",
-    label: { vi: "SensorFormer: neo + phần dư (gate đóng)", en: "SensorFormer: anchor + residual (gate OFF)" },
-    tag: { vi: "Kiến trúc phục vụ", en: "Served Architecture" },
-    tagClass: "bg-sky-500/15 border-sky-500/30 text-sky-300",
+    label: { vi: "SensorFormer Lite (Nguyên mẫu cũ)", en: "SensorFormer Lite (Legacy Prototype)" },
+    tag: { vi: "Đối chứng · Gate đóng", en: "Comparator · Gate Closed" },
+    tagClass: "bg-slate-700/30 border-slate-600/40 text-slate-400",
   },
 ];
 
@@ -265,9 +265,9 @@ export function MethodsPage() {
   ];
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 space-y-8 max-w-6xl mx-auto w-full pb-24">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 space-y-8 max-w-7xl mx-auto w-full pb-24">
       {/* 1. Header */}
-      <div className="rounded-2xl border border-slate-800 bg-[#111C2E] p-6 shadow-sm space-y-3">
+      <div data-enter className="rounded-2xl border border-slate-800 bg-[#111C2E] p-6 shadow-sm space-y-3">
         <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3.5 py-1 text-xs font-semibold text-cyan-300">
           <BookOpen className="h-4 w-4" />
           <span>NASA Space Apps Challenge 2026 · Scientific Documentation</span>
@@ -316,8 +316,10 @@ export function MethodsPage() {
         </div>
       </section>
 
-      {/* 3. Section Switcher Tabs */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-2">
+      {/* 3. Section Switcher: one accessible, horizontally scrollable row on small screens. */}
+      <nav aria-label={vi ? "Mục lục phương pháp" : "Methods sections"}
+        className="sticky top-0 z-20 rounded-xl border border-slate-800 bg-[#0B1220]/95 px-2 py-2 shadow-lg backdrop-blur-md">
+      <div className="flex snap-x items-center gap-2 overflow-x-auto pb-0.5" role="group">
         {sections.map((s) => (
           <button
             key={s.id}
@@ -325,7 +327,7 @@ export function MethodsPage() {
             onClick={() => setActiveSection(s.id)}
             aria-pressed={activeSection === s.id}
             className={cn(
-              "rounded-xl px-4 py-2 text-xs font-semibold transition min-h-[40px]",
+              "shrink-0 snap-start whitespace-nowrap rounded-xl px-4 py-2 text-xs font-semibold transition min-h-[40px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400",
               activeSection === s.id
                 ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm"
                 : "bg-[#111C2E] text-slate-400 hover:text-white border border-slate-800"
@@ -336,6 +338,7 @@ export function MethodsPage() {
         ))}
       </div>
 
+      </nav>
       {/* 4. Content Panels */}
 
       {/* SECTION 1: DATA SOURCES */}
@@ -660,12 +663,12 @@ export function MethodsPage() {
           {bench?.stan?.official && (
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4 text-xs text-slate-300 leading-relaxed font-sans space-y-1">
               <p className="font-bold text-emerald-300">
-                {vi ? "STAN — mô hình chủ lực (forecast-safe)" : "STAN — main model (forecast-safe)"}
+                {vi ? "STAN - mô hình chủ lực (forecast-safe)" : "STAN - main model (forecast-safe)"}
               </p>
               <p>
                 {vi
                   ? `Đang phục vụ chính (raw; trước 2024 dùng HTS fallback). Official 72 tháng: MAE ${Math.round(bench.stan.official.metrics.mae).toLocaleString()} so với B2 ${Math.round(bench.stan.official.b2_metrics.mae).toLocaleString()} (giảm ${(100 - 100 * bench.stan.official.metrics.mae / bench.stan.official.b2_metrics.mae).toFixed(1)}%), CI [${Math.round(bench.stan.official.comparisons?.stan_vs_b2?.ci95?.[0] ?? 0).toLocaleString()}, ${Math.round(bench.stan.official.comparisons?.stan_vs_b2?.ci95?.[1] ?? 0).toLocaleString()}]. Việt Nam ${Math.round(bench.stan.official.per_aoi?.vietnam?.stan?.mae ?? 0).toLocaleString()}, Amazon ${Math.round(bench.stan.official.per_aoi?.amazon?.stan?.mae ?? 0).toLocaleString()}, Australia ${Math.round(bench.stan.official.per_aoi?.australia?.stan?.mae ?? 0).toLocaleString()}.`
-                  : `Served as the main model (raw; HTS fallback before 2024). Official 72 months: MAE ${Math.round(bench.stan.official.metrics.mae).toLocaleString()} vs B2 ${Math.round(bench.stan.official.b2_metrics.mae).toLocaleString()} (−${(100 - 100 * bench.stan.official.metrics.mae / bench.stan.official.b2_metrics.mae).toFixed(1)}%), CI [${Math.round(bench.stan.official.comparisons?.stan_vs_b2?.ci95?.[0] ?? 0).toLocaleString()}, ${Math.round(bench.stan.official.comparisons?.stan_vs_b2?.ci95?.[1] ?? 0).toLocaleString()}]. Vietnam ${Math.round(bench.stan.official.per_aoi?.vietnam?.stan?.mae ?? 0).toLocaleString()}, Amazon ${Math.round(bench.stan.official.per_aoi?.amazon?.stan?.mae ?? 0).toLocaleString()}, Australia ${Math.round(bench.stan.official.per_aoi?.australia?.stan?.mae ?? 0).toLocaleString()}.`}
+                  : `Served as the main model (raw; HTS fallback before 2024). Official 72 months: MAE ${Math.round(bench.stan.official.metrics.mae).toLocaleString()} vs B2 ${Math.round(bench.stan.official.b2_metrics.mae).toLocaleString()} (-${(100 - 100 * bench.stan.official.metrics.mae / bench.stan.official.b2_metrics.mae).toFixed(1)}%), CI [${Math.round(bench.stan.official.comparisons?.stan_vs_b2?.ci95?.[0] ?? 0).toLocaleString()}, ${Math.round(bench.stan.official.comparisons?.stan_vs_b2?.ci95?.[1] ?? 0).toLocaleString()}]. Vietnam ${Math.round(bench.stan.official.per_aoi?.vietnam?.stan?.mae ?? 0).toLocaleString()}, Amazon ${Math.round(bench.stan.official.per_aoi?.amazon?.stan?.mae ?? 0).toLocaleString()}, Australia ${Math.round(bench.stan.official.per_aoi?.australia?.stan?.mae ?? 0).toLocaleString()}.`}
               </p>
               <p className="text-slate-400">
                 {vi
@@ -678,12 +681,12 @@ export function MethodsPage() {
           {bench?.spatial && (
             <div className="rounded-xl border border-purple-500/30 bg-purple-950/20 p-4 text-xs text-slate-300 leading-relaxed font-sans space-y-1">
               <p className="font-bold text-purple-300">
-                {vi ? "Spatial HGB — tái dựng không gian (không phải dự báo)" : "Spatial HGB — spatial reconstruction (not a forecast)"}
+                {vi ? "Spatial HGB - tái dựng không gian (không phải dự báo)" : "Spatial HGB - spatial reconstruction (not a forecast)"}
               </p>
               <p>
                 {vi
                   ? `72 tháng: MAE ${Math.round(bench.spatial.headline.mae).toLocaleString()} so với B2 ${Math.round(bench.spatial.b2_headline.mae).toLocaleString()} (giảm ${(100 - 100 * bench.spatial.headline.mae / bench.spatial.b2_headline.mae).toFixed(1)}%). Spatial holdout (${bench.spatial.spatial_holdout?.held_tiles ?? 0} ô chưa thấy): ${Math.round(bench.spatial.spatial_holdout?.spatial_mae ?? 0).toLocaleString()} vs HTS ${Math.round(bench.spatial.spatial_holdout?.hts_mae ?? 0).toLocaleString()}.`
-                  : `72 months: MAE ${Math.round(bench.spatial.headline.mae).toLocaleString()} vs B2 ${Math.round(bench.spatial.b2_headline.mae).toLocaleString()} (−${(100 - 100 * bench.spatial.headline.mae / bench.spatial.b2_headline.mae).toFixed(1)}%). Spatial holdout (${bench.spatial.spatial_holdout?.held_tiles ?? 0} unseen tiles): ${Math.round(bench.spatial.spatial_holdout?.spatial_mae ?? 0).toLocaleString()} vs HTS ${Math.round(bench.spatial.spatial_holdout?.hts_mae ?? 0).toLocaleString()}.`}
+                  : `72 months: MAE ${Math.round(bench.spatial.headline.mae).toLocaleString()} vs B2 ${Math.round(bench.spatial.b2_headline.mae).toLocaleString()} (-${(100 - 100 * bench.spatial.headline.mae / bench.spatial.b2_headline.mae).toFixed(1)}%). Spatial holdout (${bench.spatial.spatial_holdout?.held_tiles ?? 0} unseen tiles): ${Math.round(bench.spatial.spatial_holdout?.spatial_mae ?? 0).toLocaleString()} vs HTS ${Math.round(bench.spatial.spatial_holdout?.hts_mae ?? 0).toLocaleString()}.`}
               </p>
               <p className="text-slate-400">
                 {vi
@@ -696,12 +699,12 @@ export function MethodsPage() {
           {bench?.hts && (
             <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-4 text-xs text-slate-300 leading-relaxed font-sans space-y-1">
               <p className="font-bold text-amber-300">
-                {vi ? "HTS — ứng viên tốt nhất (chưa vượt gate 95%)" : "HTS — strongest candidate (95% gate not passed)"}
+                {vi ? "HTS - ứng viên tốt nhất (chưa vượt gate 95%)" : "HTS - strongest candidate (95% gate not passed)"}
               </p>
               <p>
                 {vi
                   ? `Holdout 72 tháng: MAE ${Math.round(bench.hts.hts_mae).toLocaleString()} so với B2 ${Math.round(bench.hts.b2_mae).toLocaleString()} (giảm ${(bench.hts.mean_gain_vs_b2 * 100).toFixed(1)}%). Việt Nam ${Math.round(bench.hts.per_aoi?.vietnam?.mae ?? 0).toLocaleString()}, Amazon ${Math.round(bench.hts.per_aoi?.amazon?.mae ?? 0).toLocaleString()}, Australia ${Math.round(bench.hts.per_aoi?.australia?.mae ?? 0).toLocaleString()}. CI 95% [${Math.round(bench.hts.comparisons?.hts_vs_b2?.ci95?.[0] ?? 0).toLocaleString()}, +${Math.round(bench.hts.comparisons?.hts_vs_b2?.ci95?.[1] ?? 0).toLocaleString()}], P(better)=${((bench.hts.comparisons?.hts_vs_b2?.prob_a_better ?? 0) * 100).toFixed(0)}%.`
-                  : `72-month holdout: MAE ${Math.round(bench.hts.hts_mae).toLocaleString()} vs B2 ${Math.round(bench.hts.b2_mae).toLocaleString()} (−${(bench.hts.mean_gain_vs_b2 * 100).toFixed(1)}% MAE). Vietnam ${Math.round(bench.hts.per_aoi?.vietnam?.mae ?? 0).toLocaleString()}, Amazon ${Math.round(bench.hts.per_aoi?.amazon?.mae ?? 0).toLocaleString()}, Australia ${Math.round(bench.hts.per_aoi?.australia?.mae ?? 0).toLocaleString()}. 95% CI [${Math.round(bench.hts.comparisons?.hts_vs_b2?.ci95?.[0] ?? 0).toLocaleString()}, +${Math.round(bench.hts.comparisons?.hts_vs_b2?.ci95?.[1] ?? 0).toLocaleString()}], P(better)=${((bench.hts.comparisons?.hts_vs_b2?.prob_a_better ?? 0) * 100).toFixed(0)}%.`}
+                  : `72-month holdout: MAE ${Math.round(bench.hts.hts_mae).toLocaleString()} vs B2 ${Math.round(bench.hts.b2_mae).toLocaleString()} (-${(bench.hts.mean_gain_vs_b2 * 100).toFixed(1)}% MAE). Vietnam ${Math.round(bench.hts.per_aoi?.vietnam?.mae ?? 0).toLocaleString()}, Amazon ${Math.round(bench.hts.per_aoi?.amazon?.mae ?? 0).toLocaleString()}, Australia ${Math.round(bench.hts.per_aoi?.australia?.mae ?? 0).toLocaleString()}. 95% CI [${Math.round(bench.hts.comparisons?.hts_vs_b2?.ci95?.[0] ?? 0).toLocaleString()}, +${Math.round(bench.hts.comparisons?.hts_vs_b2?.ci95?.[1] ?? 0).toLocaleString()}], P(better)=${((bench.hts.comparisons?.hts_vs_b2?.prob_a_better ?? 0) * 100).toFixed(0)}%.`}
               </p>
               <p className="text-slate-400">
                 {vi
@@ -726,8 +729,8 @@ export function MethodsPage() {
               </p>
               <p className="text-slate-400">
                 {vi
-                  ? `Khoảng 10–90%: coverage thực nghiệm ${(100 * (bench.sf_lite.coverage80 ?? 0)).toFixed(1)}% (mục tiêu 80%), độ rộng trung bình ${Math.round(bench.sf_lite.mean_interval_width ?? 0).toLocaleString()}, trung vị ${Math.round(bench.sf_lite.median_interval_width ?? 0).toLocaleString()}. Ablation: no_gate MAE ${Math.round(bench.sf_lite.ablation?.no_gate?.mae ?? 0).toLocaleString()}, no_attn MAE ${Math.round(bench.sf_lite.ablation?.no_attn?.mae ?? 0).toLocaleString()}.`
-                  : `10–90% band: empirical coverage ${(100 * (bench.sf_lite.coverage80 ?? 0)).toFixed(1)}% (target 80%), mean width ${Math.round(bench.sf_lite.mean_interval_width ?? 0).toLocaleString()}, median ${Math.round(bench.sf_lite.median_interval_width ?? 0).toLocaleString()}. Ablation: no_gate MAE ${Math.round(bench.sf_lite.ablation?.no_gate?.mae ?? 0).toLocaleString()}, no_attn MAE ${Math.round(bench.sf_lite.ablation?.no_attn?.mae ?? 0).toLocaleString()}.`}
+                  ? `Khoảng 10-90%: coverage thực nghiệm ${(100 * (bench.sf_lite.coverage80 ?? 0)).toFixed(1)}% (mục tiêu 80%), độ rộng trung bình ${Math.round(bench.sf_lite.mean_interval_width ?? 0).toLocaleString()}, trung vị ${Math.round(bench.sf_lite.median_interval_width ?? 0).toLocaleString()}. Ablation: no_gate MAE ${Math.round(bench.sf_lite.ablation?.no_gate?.mae ?? 0).toLocaleString()}, no_attn MAE ${Math.round(bench.sf_lite.ablation?.no_attn?.mae ?? 0).toLocaleString()}.`
+                  : `10-90% band: empirical coverage ${(100 * (bench.sf_lite.coverage80 ?? 0)).toFixed(1)}% (target 80%), mean width ${Math.round(bench.sf_lite.mean_interval_width ?? 0).toLocaleString()}, median ${Math.round(bench.sf_lite.median_interval_width ?? 0).toLocaleString()}. Ablation: no_gate MAE ${Math.round(bench.sf_lite.ablation?.no_gate?.mae ?? 0).toLocaleString()}, no_attn MAE ${Math.round(bench.sf_lite.ablation?.no_attn?.mae ?? 0).toLocaleString()}.`}
               </p>
             </div>
           )}

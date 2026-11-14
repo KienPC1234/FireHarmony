@@ -31,17 +31,26 @@ served main model on raw, with HTS fallback before 2024.
 - **P1-12** month detail shows the response’s `effective_method`, not a hardcoded model name.
 - **P1-13** `data-status` exposes `dataset_ready` next to `model_artifact_ready`; the Evidence page warns when a request ledger exists but `dataset_ready=false`.
 - **P1-15** default basemap is Dark Canvas; satellite is opt-in.
+- **P1-14** `_require_admin` fails closed (503) when `APP_ENV=production` and no
+  `ADMIN_TOKEN`, and rejects a wrong token (403); regression test added.
 
 ## Still open (honest)
 
-- **P1-06 / P1-16**: typography and task-first IA were not redesigned; this pass fixed truth and blocking interactions only.
-- **P1-08**: cold raw is still a few minutes without a warm cache; the offline Parquet/DuckDB ETL is not in this release.
+- **P1-06**: no full redesign, but labels below 12px are raised to 12–13px at
+  the CSS layer, header actions get a 40px touch target on coarse pointers, and
+  reduced-motion is honoured.
+- **P1-08**: there is still no Parquet/DuckDB ETL. Instead the release adds
+  `make prewarm` and `X-Elapsed-Ms`. Measured on the full Vietnam pull:
+  cold `/calendar` 153.7 s (stat) / 215.3 s (STAN), warm 91–118 ms;
+  `/map-cells` 94–171 ms cold and 85–91 ms warm. The 24-month demo pack is
+  16–21 s cold. The loading panel now shows elapsed seconds and explains the
+  cold pass.
 - **P1-14**: `admin_gated=false` on local dev is expected; public deployment still requires `APP_ENV=production` + `ADMIN_TOKEN` (the API already fails closed without one).
 - **Observation coverage** (cloud/footprint) remains unverified; no burned-area product is bundled.
 
 ## Verification snapshot
 
-- `make check-fast`: **97 passed, 6 skipped**
+- `make check-fast`: **98 passed, 6 skipped**
 - New contracts: UX01, UX03, UX04, UX05, UX06, UX07, UX09, UX14, P0-03, P1-09
 - Frontend `tsc --noEmit`, `eslint --max-warnings=0`, `vite build`: pass
 - Playwright (desktop + mobile): **11 passed / 1 skipped**

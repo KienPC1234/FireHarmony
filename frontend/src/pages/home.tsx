@@ -28,7 +28,7 @@ export function HomePage() {
     raw_count: number;
     datasets: Array<{ aoi: string; sample_rows: number; sample_bytes: number; raw_ready?: boolean; dataset_ready?: boolean }>;
   } | null>(null);
-  const [sampleRange, setSampleRange] = useState<string>("—");
+  const [sampleRange, setSampleRange] = useState<string>("-");
   const [error, setError] = useState<unknown>(null);
   const [interactiveMode, setInteractiveMode] = useState<"naive" | "harmonized">("naive");
 
@@ -38,7 +38,7 @@ export function HomePage() {
     api.calendar(1, undefined, "vietnam", "sample", "stat")
       .then((d) => {
         const p = d.summary?.period;
-        if (p?.from && p?.to) setSampleRange(`${p.from.slice(0, 4)} – ${p.to.slice(0, 4)}`);
+        if (p?.from && p?.to) setSampleRange(`${p.from.slice(0, 4)} - ${p.to.slice(0, 4)}`);
       })
       .catch(() => {});
   }, []);
@@ -49,9 +49,9 @@ export function HomePage() {
   const hasRawData = readyCount > 0 || (dataStats?.raw_count ?? 0) > 0;
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 max-w-6xl mx-auto w-full space-y-12 pb-24">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 max-w-7xl mx-auto w-full space-y-12 pb-24">
       {/* 1. Hero Console */}
-      <section className="relative overflow-hidden rounded-2xl border border-slate-800 bg-[#111C2E] p-6 sm:p-10 shadow-sm">
+      <section data-enter className="relative overflow-hidden rounded-2xl border border-slate-800 bg-[#111C2E] p-6 sm:p-10 shadow-sm">
         <div className="relative z-10 max-w-3xl space-y-4">
           <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3.5 py-1 text-xs font-semibold text-cyan-300">
             <Radio className="h-3.5 w-3.5 text-cyan-400" />
@@ -62,7 +62,7 @@ export function HomePage() {
             {t("home.hero_title")}
           </h1>
 
-          <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-2xl">
+          <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-[65ch]">
             {t("home.hero_desc")}
           </p>
 
@@ -96,7 +96,7 @@ export function HomePage() {
       </section>
 
       {/* 2. Scientific Telemetry KPI Ribbon */}
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-4 tabular-nums">
         <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4.5 space-y-1">
           <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono font-bold uppercase">
             <CalendarDays className="h-4 w-4" />
@@ -116,7 +116,7 @@ export function HomePage() {
         </div>
 
         <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4.5 space-y-1">
-          <div className="flex items-center gap-2 text-purple-400 text-xs font-mono font-bold uppercase">
+          <div className="flex items-center gap-2 text-sky-400 text-xs font-mono font-bold uppercase">
             <Layers className="h-4 w-4" />
             <span>MODIS + VIIRS</span>
           </div>
@@ -136,11 +136,11 @@ export function HomePage() {
 
       {/* 3. Constellation Orbital Architecture Illustration */}
       <section className="space-y-4">
-        <div className="space-y-1">
-          <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
+        <div className="space-y-1.5">
+          <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
             {t("home.orbit_section_title")}
-          </span>
-          <p className="text-sm text-slate-300">
+          </h2>
+          <p className="text-sm text-slate-300 max-w-[65ch]">
             {t("home.orbit_section_desc")}
           </p>
         </div>
@@ -152,13 +152,10 @@ export function HomePage() {
       {/* 4. Spatial Resolution Footprint & Historical Calibration */}
       <section className="rounded-2xl border border-slate-800 bg-[#111C2E] p-6 sm:p-8 shadow-sm space-y-6">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-800 pb-4">
-          <div className="space-y-1 max-w-2xl">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-400">
-              <ShieldAlert className="h-4 w-4" />
-              <span>{t("home.core_problem_kicker")}</span>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-              {t("home.core_problem_title")}
+          <div className="space-y-1.5 max-w-[65ch]">
+            <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight flex items-center gap-2.5">
+              <ShieldAlert className="h-5 w-5 text-amber-400 shrink-0" />
+              <span>{t("home.core_problem_title")}</span>
             </h2>
             <p className="text-sm text-slate-300 leading-relaxed">
               {t("home.core_problem_desc")}
@@ -221,8 +218,8 @@ export function HomePage() {
                 </span>
               </div>
 
-              {/* Dynamic Bars */}
-              <div className="space-y-3 py-2 font-mono text-xs">
+              {/* Dynamic Bars (GPU-accelerated scaleX transform under 300ms) */}
+              <div className="space-y-3 py-2 font-mono text-xs tabular-nums">
                 <div>
                   <div className="flex justify-between text-xs mb-1">
                     <span className="text-slate-400">{t("home.modis_era_label")}</span>
@@ -232,8 +229,8 @@ export function HomePage() {
                   </div>
                   <div className="h-3.5 w-full rounded bg-slate-800 overflow-hidden">
                     <div
-                      className="h-full bg-blue-500 transition-all duration-500"
-                      style={{ width: interactiveMode === "naive" ? "35%" : "85%" }}
+                      className="h-full w-full origin-left bg-blue-500 transition-transform duration-200 ease-out-quint"
+                      style={{ transform: interactiveMode === "naive" ? "scaleX(0.35)" : "scaleX(0.85)" }}
                     />
                   </div>
                 </div>
@@ -247,8 +244,8 @@ export function HomePage() {
                   </div>
                   <div className="h-3.5 w-full rounded bg-slate-800 overflow-hidden">
                     <div
-                      className="h-full bg-teal-500 transition-all duration-500"
-                      style={{ width: "90%" }}
+                      className="h-full w-full origin-left bg-teal-500 transition-transform duration-200 ease-out-quint"
+                      style={{ transform: "scaleX(0.9)" }}
                     />
                   </div>
                 </div>
@@ -280,27 +277,23 @@ export function HomePage() {
 
       {/* 5. Explore a Question (3 Action Cards) */}
       <section className="space-y-4">
-        <div className="space-y-1">
-          <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
-            {t("home.explore_kicker")}
-          </span>
-          <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-            {t("home.explore_title")}
-          </h2>
-        </div>
+        <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+          {t("home.explore_title")}
+        </h2>
 
         <div className="grid gap-4 md:grid-cols-3">
           <Link
+            data-fh-card-link
             to="/calendar?aoi=vietnam"
-            className="group rounded-2xl border border-slate-800 bg-[#111C2E] p-5 shadow-sm hover:border-cyan-500/40 transition min-h-[160px] flex flex-col justify-between"
+            className="group rounded-2xl border border-slate-800 bg-[#111C2E] p-5 shadow-sm hover:border-cyan-500/40 min-h-[160px] flex flex-col justify-between"
           >
             <div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-950/40 text-cyan-300 mb-4 group-hover:scale-105 transition-transform">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-950/40 text-cyan-300 mb-4 group-hover:scale-105 transition-transform duration-150">
                 <CalendarDays className="h-5 w-5" />
               </div>
               <h3 className="font-bold text-white text-base mb-1.5 flex items-center justify-between">
                 <span>{t("home.q1_title")}</span>
-                <ArrowRight className="h-4 w-4 text-slate-500 group-hover:text-cyan-400 transition" />
+                <ArrowRight data-fh-arrow className="h-4 w-4 text-slate-500 group-hover:text-cyan-400" />
               </h3>
               <p className="text-xs text-slate-300 leading-relaxed">
                 {t("home.q1_desc")}
@@ -312,16 +305,17 @@ export function HomePage() {
           </Link>
 
           <Link
+            data-fh-card-link
             to="/lab?tab=xray"
-            className="group rounded-2xl border border-slate-800 bg-[#111C2E] p-5 shadow-sm hover:border-amber-500/40 transition min-h-[160px] flex flex-col justify-between"
+            className="group rounded-2xl border border-slate-800 bg-[#111C2E] p-5 shadow-sm hover:border-amber-500/40 min-h-[160px] flex flex-col justify-between"
           >
             <div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-950/40 text-amber-300 mb-4 group-hover:scale-105 transition-transform">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-950/40 text-amber-300 mb-4 group-hover:scale-105 transition-transform duration-150">
                 <Scale className="h-5 w-5" />
               </div>
               <h3 className="font-bold text-white text-base mb-1.5 flex items-center justify-between">
                 <span>{t("home.q2_title")}</span>
-                <ArrowRight className="h-4 w-4 text-slate-500 group-hover:text-amber-400 transition" />
+                <ArrowRight data-fh-arrow className="h-4 w-4 text-slate-500 group-hover:text-amber-400" />
               </h3>
               <p className="text-xs text-slate-300 leading-relaxed">
                 {t("home.q2_desc")}
@@ -333,16 +327,17 @@ export function HomePage() {
           </Link>
 
           <Link
+            data-fh-card-link
             to="/evidence?aoi=vietnam"
-            className="group rounded-2xl border border-slate-800 bg-[#111C2E] p-5 shadow-sm hover:border-emerald-500/40 transition min-h-[160px] flex flex-col justify-between"
+            className="group rounded-2xl border border-slate-800 bg-[#111C2E] p-5 shadow-sm hover:border-emerald-500/40 min-h-[160px] flex flex-col justify-between"
           >
             <div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-950/40 text-emerald-300 mb-4 group-hover:scale-105 transition-transform">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-950/40 text-emerald-300 mb-4 group-hover:scale-105 transition-transform duration-150">
                 <CheckCircle2 className="h-5 w-5" />
               </div>
               <h3 className="font-bold text-white text-base mb-1.5 flex items-center justify-between">
                 <span>{t("home.q3_title")}</span>
-                <ArrowRight className="h-4 w-4 text-slate-500 group-hover:text-emerald-400 transition" />
+                <ArrowRight data-fh-arrow className="h-4 w-4 text-slate-500 group-hover:text-emerald-400" />
               </h3>
               <p className="text-xs text-slate-300 leading-relaxed">
                 {t("home.q3_desc")}
@@ -357,14 +352,9 @@ export function HomePage() {
 
       {/* 6. Three-Stage Scientific Pipeline */}
       <section className="space-y-4">
-        <div className="space-y-1">
-          <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
-            {t("home.three_steps_title")}
-          </span>
-          <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-            {t("home.three_steps_title")}
-          </h2>
-        </div>
+        <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+          {t("home.three_steps_title")}
+        </h2>
 
         <div className="grid gap-4 md:grid-cols-3 font-mono text-xs">
           <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4.5 space-y-2">

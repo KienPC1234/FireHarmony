@@ -166,6 +166,7 @@ export function AoiMap({
             setDrawMode={setDrawMode}
             bbox={bbox}
             onClearBbox={onClearBbox}
+            onSetBbox={(b) => onSelect(b, null)}
             zoneCount={fireZones.length}
             totalPoints={cells.length}
             basemaps={BASEMAPS}
@@ -267,10 +268,10 @@ export function AoiMap({
                         <div className="text-xs text-slate-400">
                           {vi ? "Đỉnh điểm:" : "Peak date:"} {zone.peakDate}
                         </div>
-                        <div className="max-w-[220px] text-[11px] leading-snug text-amber-200/90">
+                        <div className="max-w-[280px] text-[11px] leading-snug text-amber-200/90">
                           {vi
-                            ? "Bao hình học quanh các ô phát hiện — KHÔNG phải đường viền cháy, diện tích cháy hay mức nguy cơ."
-                            : "Convex hull around detected cells — NOT a fire perimeter, burned area, or risk grade."}
+                            ? "Bao hình học quanh các ô phát hiện: KHÔNG phải đường viền cháy, diện tích cháy hay mức nguy cơ."
+                            : "Convex hull around detected cells: NOT a fire perimeter, burned area, or risk grade."}
                         </div>
                       </div>
                     </Tooltip>

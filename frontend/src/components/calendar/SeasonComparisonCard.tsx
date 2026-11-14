@@ -192,7 +192,7 @@ export function SeasonComparisonCard({
             <span>{t("calendar.year_prefix", { year: yearA })}</span>
           </span>
           <div className="text-lg font-bold font-mono text-white">
-            {totalA === null ? "–" : compact(Math.round(totalA))}
+            {totalA === null ? "-" : compact(Math.round(totalA))}
           </div>
           <span className="text-[11px] text-slate-400 block font-mono">
             {peakA.month === null || peakA.val === null
@@ -208,7 +208,7 @@ export function SeasonComparisonCard({
             <span>{t("calendar.year_prefix", { year: yearB })}</span>
           </span>
           <div className="text-lg font-bold font-mono text-white">
-            {totalB === null ? "–" : compact(Math.round(totalB))}
+            {totalB === null ? "-" : compact(Math.round(totalB))}
           </div>
           <span className="text-[11px] text-slate-400 block font-mono">
             {peakB.month === null || peakB.val === null
@@ -224,7 +224,7 @@ export function SeasonComparisonCard({
           </span>
           <div className={cn("text-lg font-bold font-mono flex items-center gap-1", deltaTotal === null ? "text-slate-400" : deltaTotal >= 0 ? "text-rose-400" : "text-emerald-400")}>
             {deltaTotal === null ? (
-              <span>–</span>
+              <span>-</span>
             ) : (
               <>
                 {deltaTotal >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
@@ -302,15 +302,15 @@ export function SeasonComparisonCard({
                     </span>
                     <div className="flex items-center justify-between gap-4 text-cyan-300">
                       <span>{yearA}:</span>
-                      <span className="font-bold">{d[yearA] == null ? "–" : Number(d[yearA]).toLocaleString()}</span>
+                      <span className="font-bold">{d[yearA] == null ? "-" : Number(d[yearA]).toLocaleString()}</span>
                     </div>
                     <div className="flex items-center justify-between gap-4 text-amber-300">
                       <span>{yearB}:</span>
-                      <span className="font-bold">{d[yearB] == null ? "–" : Number(d[yearB]).toLocaleString()}</span>
+                      <span className="font-bold">{d[yearB] == null ? "-" : Number(d[yearB]).toLocaleString()}</span>
                     </div>
                     <div className="flex items-center justify-between gap-4 text-slate-400 pt-1 border-t border-slate-800">
                       <span>{t("calendar.baseline_mean")}</span>
-                      <span>{d.baseline == null ? "–" : Number(d.baseline).toLocaleString()}</span>
+                      <span>{d.baseline == null ? "-" : Number(d.baseline).toLocaleString()}</span>
                     </div>
                     {onSelectPeriod && (
                       <div className="pt-1.5 text-[10px] text-cyan-400 font-sans">

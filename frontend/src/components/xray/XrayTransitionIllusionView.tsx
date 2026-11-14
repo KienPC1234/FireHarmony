@@ -97,7 +97,7 @@ export function XrayTransitionIllusionView({ months }: XrayTransitionIllusionVie
               type="button"
               onClick={() => setShowHarmonized((v) => !v)}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all border shadow-sm",
+                "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors duration-150 border shadow-sm",
                 showHarmonized
                   ? "border-cyan-500/40 bg-cyan-500/20 text-cyan-300"
                   : "border-border/60 bg-slate-900 text-slate-400 hover:text-white",

@@ -58,7 +58,7 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
 export function EmptyState({ message }: { message: string }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border/80 bg-card/40 px-6 py-14 text-center">
-      <span className="grid h-11 w-11 place-items-center rounded-full border border-primary/25 bg-primary/10 shadow-[0_0_28px_-8px_hsl(var(--primary)/.6)]">
+      <span className="grid h-11 w-11 place-items-center rounded-full border border-primary/25 bg-primary/10 shadow-[0_6px_20px_rgba(2,132,199,0.22)]">
         <Inbox className="h-5 w-5 text-primary" aria-hidden="true" />
       </span>
       <p className="max-w-md text-pretty text-sm leading-relaxed text-muted-foreground">

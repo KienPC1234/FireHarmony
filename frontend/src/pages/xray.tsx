@@ -16,7 +16,7 @@ export function XrayPage() {
   const { t } = useLang();
   const [sp, setSp] = useSearchParams();
   const aoi = sp.get("aoi") || "vietnam";
-  const data = sp.get("data") || "sample";
+  const data = sp.get("data") || "raw";
   const [viewTab, setViewTab] = useState<XrayTab>("trajectory");
 
   const [xr, setXr] = useState<Awaited<ReturnType<typeof api.xray>> | null>(null);

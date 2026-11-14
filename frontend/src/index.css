@@ -23,6 +23,15 @@
     --status-critical: #EF4444;
     --status-unknown: #64748B;
 
+    /* Motion & Easing Tokens (emil-design-eng + taste-skill) */
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+    --ease-enter: cubic-bezier(0.22, 1, 0.36, 1);
+    --m-in: 150ms;
+    --m-out: 120ms;
+    --m-press: 100ms;
+
     /* Tailwind Semantic Mappings */
     --background: 222 47% 5%;
     --foreground: 210 40% 98%;
@@ -50,6 +59,7 @@
 
   html {
     -webkit-text-size-adjust: 100%;
+    color-scheme: dark;
   }
 
   body {
@@ -57,17 +67,43 @@
     font-feature-settings: "cv11" 1, "ss01" 1, "rlig" 1, "calt" 1;
     text-rendering: optimizeLegibility;
     background-color: #060B13;
+    caret-color: #38bdf8;
     font-size: 15px;
-    line-height: 1.5;
+    line-height: 1.55;
+    letter-spacing: 0.005em;
   }
 
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
+    letter-spacing: -0.025em;
+  }
+
+  p,
+  li,
+  dd,
+  blockquote {
+    text-wrap: pretty;
+  }
+
+  a {
+    text-underline-offset: 3px;
+  }
+
+  table,
+  th,
+  td,
+  [data-numeric],
   .font-mono,
   .tabular-nums {
     font-variant-numeric: tabular-nums;
   }
 
   ::selection {
-    @apply bg-primary/30;
+    background-color: rgba(56, 189, 248, 0.28);
+    color: #f8fafc;
   }
 
   mark {
@@ -188,11 +224,33 @@ html, body {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5) !important;
 }
 
+/* Audit P1-06: the audit counted 9-11px labels across dense panels. Keep the
+   tables compact but never below 12px, and give touch devices a 40px target
+   for header actions without inflating the 25-year matrix cells. */
 @layer utilities {
-  .bg-grid {
-    background-image:
-      linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-    background-size: 32px 32px;
+  .ease-out-quint { transition-timing-function: var(--ease-out); }
+  .text-\[9px\] { font-size: 11px !important; line-height: 1.25 !important; }
+  .text-\[10px\] { font-size: 12px !important; line-height: 1.3 !important; }
+  .text-\[11px\] { font-size: 13px !important; line-height: 1.35 !important; }
+}
+
+@media (pointer: coarse) {
+  header nav a,
+  header button,
+  header a[href],
+  header select {
+    min-height: 40px;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-property: opacity, color, background-color, border-color !important;
+    transition-duration: 120ms !important;
+    transform: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+

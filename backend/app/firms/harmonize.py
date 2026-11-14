@@ -79,8 +79,14 @@ def aggregate(records: list[dict], res_deg: float = RES_DEG) -> dict[tuple[str, 
             lon = float(r["longitude"])
         except (KeyError, TypeError, ValueError):
             continue
-        inst = str(r.get("instrument", "MODIS")).upper()
-        inst = "VIIRS" if inst.startswith("VIIRS") else "MODIS"
+        inst = str(r.get("instrument", "")).strip().upper()
+        # P0-12: unknown instruments are rejected, never counted as MODIS.
+        # `aggregate_iter` validates through FirmsRecord, so both paths must
+        # agree on the same input.
+        if inst.startswith("VIIRS"):
+            inst = "VIIRS"
+        elif inst != "MODIS":
+            continue
         d = str(r.get("acq_date", ""))[:10]
         la = np.floor(lat / res_deg) * res_deg
         lo = np.floor(lon / res_deg) * res_deg

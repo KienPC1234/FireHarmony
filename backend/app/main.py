@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.firms import calendar as cal
 from app.firms import (coverage as cov, dl, evaluation, evidence as evd,
-                       explain as ex, harmonize, hts, llm, ml_cal, ml_v4, sf_lite,
+                       explain as ex, harmonize, hts, llm, ml_cal, ml_v4, registry, sf_lite,
                        stan,
                        spatial, store, ts_v2 as tst)
 from app.firms.schema import FirmsRecord
@@ -57,6 +57,16 @@ app.add_middleware(
 )
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 
+
+@app.middleware("http")
+async def _elapsed_header(request: Request, call_next):
+    """P1-08: make request cost measurable (X-Elapsed-Ms) for P50/P95 reports."""
+    t0 = time.perf_counter()
+    response = await call_next(request)
+    response.headers["X-Elapsed-Ms"] = str(int((time.perf_counter() - t0) * 1000))
+    return response
+
+
 _STARTED = time.time()
 
 
@@ -86,6 +96,9 @@ def _artifact_availability() -> dict:
     sf_stat = sf_lite.artifact_status("raw", MODEL_DIR)
     sf_present = bool(sf_stat["weights_present"] and sf_stat["metadata_present"])
     ts_ok = bool(ts_weights and tst._HAS_TORCH)  # noqa: SLF001
+    stan_series = (MODEL_DIR / "stan_series_raw.json").exists()
+    hts_series = (MODEL_DIR / "hts_series_raw.json").exists()
+    stan_ok = bool(stan_series)
     reason = None
     if not ts_weights:
         reason = "weights_missing"
@@ -95,6 +108,9 @@ def _artifact_availability() -> dict:
         "stat": True,
         "ml": ml_present,
         "ts": ts_ok,
+        "stan": stan_ok,
+        "hts": hts_series,
+        "primary": stan_ok,
         "ml_artifact_present": ml_present,
         "ts_artifact_present": ts_weights,
         "ts_reason": reason,
@@ -111,9 +127,13 @@ def health():
     return {"status": "ok", "service": "firms-calendar",
             "uptime_s": round(time.time() - _STARTED, 1),
             "torch": dl.describe()["has_torch"],
+            "primary_method_id": registry.PRIMARY,
+            "baseline_method_id": registry.BASELINE,
             "methods_available": {"stat": availability["stat"],
                                   "ml": availability["ml"],
-                                  "ts": availability["ts"]},
+                                  "ts": availability["ts"],
+                                  "stan": availability["stan"],
+                                  "hts": availability["hts"]},
             "methods_detail": availability,
             "admin_gated": bool(os.getenv("ADMIN_TOKEN")) or
                            os.getenv("APP_ENV", "").lower() in ("production", "prod")}
@@ -179,7 +199,9 @@ def _evaluation_facts(aoi: str, data: str) -> dict:
     if not m:
         return {}
     per = (m.get("per_aoi") or {}).get(aoi) or {}
-    return {
+    stan_m = _stan_meta("safe") if data == "raw" else None
+    spatial_m = _spatial_meta() if data == "raw" else None
+    facts = {
         "evaluation_version": m.get("evaluation_version"),
         "test_years": per.get("test_years") or m.get("test_years"),
         "n_eval": m.get("n_eval"),
@@ -191,6 +213,15 @@ def _evaluation_facts(aoi: str, data: str) -> dict:
         "hgb_fallback_baseline": per.get("hgb_fallback_baseline"),
         "hgb_gate": per.get("hgb_gate"),
     }
+    if stan_m:
+        off = stan_m.get("official") or {}
+        facts["stan_official"] = off
+        facts["stan_headline"] = off.get("headline")
+        facts["stan_vs_b2"] = off.get("comparisons", {}).get("stan_vs_b2")
+        facts["stan_per_aoi"] = (off.get("per_aoi") or {}).get(aoi)
+    if spatial_m:
+        facts["spatial_hgb"] = spatial_m.get("comparisons", {}).get("spatial_vs_b2")
+    return facts
 
 
 def _pairs_for(aoi: str, data: str) -> list[dict]:
@@ -1779,20 +1810,10 @@ def firms_brief(aoi: str = Query("vietnam", description="preset region"),
                              headers={"Content-Disposition": f'attachment; filename="brief_{aoi}.md"'})
 
 
-@app.post("/api/firms/train-calibrator")
-def firms_train(request: Request, payload: dict):
-    """Experimental offline calibrator (NOT used by /calendar). Rate-limited."""
-    _require_admin(request)
-    pairs = payload.get("pairs", [])
-    if not isinstance(pairs, list):
-        raise HTTPException(400, "Provide pairs: list")
-    if len(pairs) > 5000:
-        raise HTTPException(413, "Max 5000 pairs (offline experiment only)")
-    out = dl.train_calibrator(pairs)
-    out["note"] = ("experimental: checkpoint is NOT persisted and /calendar does not use it; "
-                   "use /api/firms/ml-train for the persisted HGB calibrator. "
-                   "see docs/FIRMS_MODEL_CARD.md")
-    return out
+@app.get("/api/firms/models")
+def firms_models():
+    """One registry: the primary model, baseline, fallback, comparators, archive."""
+    return registry.status(MODEL_DIR)
 
 
 @app.post("/api/firms/ml-train")
@@ -1898,16 +1919,30 @@ def firms_sf_status(aoi: str = Query("vietnam"),
             **{k: v for k, v in (meta or {}).items() if k != "predictions"}}
 
 
-def _stan_meta(kind: str = "safe") -> dict | None:
-    import json as _json
-    name = "stan_safe_raw.json" if kind == "safe" else "stan_retro_raw.json"
-    p = MODEL_DIR / name
-    if not p.exists():
+_JSON_META_CACHE: dict[str, tuple[float, dict]] = {}
+
+
+def _read_cached_meta(path: Path) -> dict | None:
+    if not path.exists():
         return None
     try:
-        return _json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, _json.JSONDecodeError):
+        mtime = path.stat().st_mtime
+    except OSError:
         return None
+    cached = _JSON_META_CACHE.get(str(path))
+    if cached is not None and cached[0] == mtime:
+        return cached[1]
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        _JSON_META_CACHE[str(path)] = (mtime, data)
+        return data
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _stan_meta(kind: str = "safe") -> dict | None:
+    name = "stan_safe_raw.json" if kind == "safe" else "stan_retro_raw.json"
+    return _read_cached_meta(MODEL_DIR / name)
 
 
 @app.get("/api/firms/stan-status")
@@ -1925,14 +1960,7 @@ def firms_stan_status():
 
 
 def _spatial_meta() -> dict | None:
-    import json as _json
-    p = MODEL_DIR / "spatial_hgb_raw.json"
-    if not p.exists():
-        return None
-    try:
-        return _json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, _json.JSONDecodeError):
-        return None
+    return _read_cached_meta(MODEL_DIR / "spatial_hgb_raw.json")
 
 
 @app.get("/api/firms/spatial-status")
@@ -2007,29 +2035,36 @@ def _backtest_from_manifest(manifest: dict, aoi: str, data: str,
     samples = [s for s in manifest.get("samples", []) if s.get("aoi") == aoi]
     sf_models, sf_meta = sf_lite.load_artifact(data, MODEL_DIR)
     sf_preds = (sf_meta or {}).get("predictions") or {}
-    hts_meta = None
-    if data == "raw":
-        import json as _json
-        hp = MODEL_DIR / "hts_anchor_raw.json"
-        if hp.exists():
-            try:
-                hts_meta = _json.loads(hp.read_text(encoding="utf-8"))
-            except (OSError, _json.JSONDecodeError):
-                hts_meta = None
-    hts_row = ((hts_meta or {}).get("per_aoi") or {}).get(aoi)
-    spatial_meta = _spatial_meta()
-    spatial_row = (((spatial_meta or {}).get("per_aoi") or {}).get(aoi) or {}).get("spatial")
     stan_meta = _stan_meta("safe")
-    stan_row = (((stan_meta or {}).get("official", {}).get("per_aoi") or {}).get(aoi) or {}).get("stan")
+    stan_preds = (stan_meta or {}).get("predictions") or {}
+    metrics = dict(per.get("metrics") or {})
+    # Artifact merges can be absent on an old manifest; fall back to the metas.
+    if "stan_safe_v1" not in metrics:
+        row = (((stan_meta or {}).get("official", {}).get("per_aoi") or {}).get(aoi) or {}).get("stan")
+        if row:
+            metrics["stan_safe_v1"] = row
+    if "hts_anchor_v1" not in metrics and data == "raw":
+        row = ((_read_cached_meta(MODEL_DIR / "hts_anchor_raw.json") or {}).get("per_aoi") or {}).get(aoi)
+        if row:
+            metrics["hts_anchor_v1"] = row
+    if "spatial_hgb_v1" not in metrics:
+        row = (((_spatial_meta() or {}).get("per_aoi") or {}).get(aoi) or {}).get("spatial")
+        if row:
+            metrics["spatial_hgb_v1"] = row
+    if sf_meta and (sf_meta.get("per_aoi") or {}).get(aoi):
+        metrics["sf_lite_v1"] = sf_meta["per_aoi"][aoi]
     rows = []
     for s in samples:
         sid = f"{aoi}:{int(s['year'])}-{int(s['month']):02d}"
         sfp = sf_preds.get(sid) or {}
+        stan_entry = stan_preds.get(sid) or {}
         rows.append({"year": s["year"], "month": s["month"],
                      "modis": s["modis"], "viirs_ref": s["viirs_ref"],
                      "ml_pred": s.get("hgb_b2res_v4"),
                      "ts_pred": s.get("ts_logratio_pool_v2"),
                      "sf_pred": sfp.get("mid"),
+                     "stan_pred": stan_entry.get("stan"),
+                     "hts_pred": stan_entry.get("hts"),
                      "b2_pred": s.get("b2_seasonal_ratio")})
     return {
         "aoi": aoi, "data": data,
@@ -2037,19 +2072,16 @@ def _backtest_from_manifest(manifest: dict, aoi: str, data: str,
         "evaluation_version": manifest.get("evaluation_version"),
         "eval_unit": manifest.get("eval_unit"),
         "dataset_sha256": manifest.get("dataset_sha256"),
-        "metrics": {**(per.get("metrics", {})),
-                    **({"sf_lite_v1": (sf_meta.get("per_aoi") or {}).get(aoi)}
-                       if sf_meta and (sf_meta.get("per_aoi") or {}).get(aoi)
-                       else {}),
-                    **({"hts_anchor_v1": hts_row} if hts_row else {}),
-                    **({"spatial_hgb_v1": spatial_row} if spatial_row else {}),
-                    **({"stan_safe_v1": stan_row} if stan_row else {})},
+        "metrics": metrics,
+        "primary_method_id": registry.PRIMARY,
         "sf_lite": sf_meta,
         "sf_lite_comparison": (sf_meta or {}).get("comparisons", {}).get("sf_vs_b2"),
         "sf_lite_deployed": bool((sf_meta or {}).get("deployed")),
-        "hts": hts_meta,
-        "hts_comparison": (hts_meta or {}).get("comparisons", {}).get("hts_vs_b2"),
-        "hts_candidate": bool(hts_meta) and not bool((hts_meta or {}).get("gate", {}).get("passed")),
+        "hts": _read_cached_meta(MODEL_DIR / "hts_anchor_raw.json"),
+        "hts_comparison": (_read_cached_meta(MODEL_DIR / "hts_anchor_raw.json")
+                           or {}).get("comparisons", {}).get("hts_vs_b2"),
+        "hts_candidate": (_read_cached_meta(MODEL_DIR / "hts_anchor_raw.json") or {}).get(
+            "gate", {}).get("passed") is False,
         "spatial": _spatial_meta(),
         "spatial_comparison": (_spatial_meta() or {}).get("comparisons", {}).get("spatial_vs_b2"),
         "spatial_retrospective": bool((_spatial_meta() or {}).get("retrospective")),

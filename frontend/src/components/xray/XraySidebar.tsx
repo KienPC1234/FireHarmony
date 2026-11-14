@@ -75,7 +75,7 @@ export function XraySidebar({
                 type="button"
                 onClick={() => setAoi(item.id)}
                 className={cn(
-                  "w-full text-left rounded-xl p-2.5 transition-all border flex items-center justify-between min-h-[44px]",
+                  "w-full text-left rounded-xl p-2.5 transition-colors duration-150 border flex items-center justify-between min-h-[44px]",
                   active
                     ? "border-cyan-500/50 bg-cyan-500/10 text-cyan-200 shadow-sm"
                     : "border-slate-800 bg-slate-900/40 text-slate-400 hover:text-slate-200 hover:bg-slate-900/80",
@@ -105,7 +105,7 @@ export function XraySidebar({
               type="button"
               onClick={() => setData("sample")}
               className={cn(
-                "rounded-md py-1.5 text-center text-xs font-semibold transition-all min-h-[36px]",
+                "rounded-md py-1.5 text-center text-xs font-semibold transition-colors duration-150 min-h-[36px]",
                 data === "sample"
                   ? "bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 shadow-sm"
                   : "text-slate-400 hover:text-white",
@@ -117,7 +117,7 @@ export function XraySidebar({
               type="button"
               onClick={() => setData("raw")}
               className={cn(
-                "rounded-md py-1.5 text-center text-xs font-semibold transition-all min-h-[36px]",
+                "rounded-md py-1.5 text-center text-xs font-semibold transition-colors duration-150 min-h-[36px]",
                 data === "raw"
                   ? "bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-sm"
                   : "text-slate-400 hover:text-white",
@@ -140,7 +140,7 @@ export function XraySidebar({
               type="button"
               onClick={() => setViewTab("trajectory")}
               className={cn(
-                "w-full text-left rounded-lg p-2.5 text-xs font-semibold transition-all border flex items-center gap-2 min-h-[40px]",
+                "w-full text-left rounded-lg p-2.5 text-xs font-semibold transition-colors duration-150 border flex items-center gap-2 min-h-[40px]",
                 viewTab === "trajectory"
                   ? "border-cyan-500/40 bg-cyan-950/40 text-cyan-200"
                   : "border-transparent text-slate-400 hover:bg-slate-900 hover:text-white",
@@ -154,7 +154,7 @@ export function XraySidebar({
               type="button"
               onClick={() => setViewTab("transition")}
               className={cn(
-                "w-full text-left rounded-lg p-2.5 text-xs font-semibold transition-all border flex items-center gap-2 min-h-[40px]",
+                "w-full text-left rounded-lg p-2.5 text-xs font-semibold transition-colors duration-150 border flex items-center gap-2 min-h-[40px]",
                 viewTab === "transition"
                   ? "border-amber-500/40 bg-amber-950/40 text-amber-200"
                   : "border-transparent text-slate-400 hover:bg-slate-900 hover:text-white",
@@ -168,7 +168,7 @@ export function XraySidebar({
               type="button"
               onClick={() => setViewTab("backtest")}
               className={cn(
-                "w-full text-left rounded-lg p-2.5 text-xs font-semibold transition-all border flex items-center gap-2 min-h-[40px]",
+                "w-full text-left rounded-lg p-2.5 text-xs font-semibold transition-colors duration-150 border flex items-center gap-2 min-h-[40px]",
                 viewTab === "backtest"
                   ? "border-emerald-500/40 bg-emerald-950/40 text-emerald-200"
                   : "border-transparent text-slate-400 hover:bg-slate-900 hover:text-white",

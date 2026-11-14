@@ -260,20 +260,10 @@ How to read it:
   MODIS-only forecast. Artifact `models/spatial_hgb_raw.json`;
   `GET /api/firms/spatial-status`. Not wired into the calendar.
 
-### `tileformer_v1` (region-agnostic residual — rejected)
-
-- 12-month tile window + dilated CNN + one transformer layer + smooth
-  geographic basis (no AOI one-hot), gated residual on HTS, monotone quantiles.
-- Tile-level MAE 141.6 vs HTS 137.0; AOI-aggregate MAE 1,419 vs 1,218.
-- Capacity sweep d=32/64/128 (22,574 → 258,254 params) improves tile MAE
-  143.2 → 139.5 but never beats HTS; aggregate error stays worse.
-- Leave-one-region-out: Vietnam +134, Amazon +1,458, Australia −3.5 aggregate
-  MAE versus HTS. Region transfer is not solved.
-- `deployed=false`. Full evidence: `docs/TILE_HIERARCHY.md`.
 
 ## Spatial transfer — the honest weak spot
 
-`scripts.firms.train_spatial` / `ts_v2.train_leave_one_out` trains on the other
+`ts_v2.train_leave_one_out` trains on the other
 two AOIs with **no AOI embedding** and scores the held-out region. This is the
 protocol that can detect a model that only memorised a region.
 
@@ -302,7 +292,6 @@ cd backend
 ../.venv/bin/python -m scripts.firms.train_ts --aoi vietnam --data raw --test-years 2
 ../.venv/bin/python -m scripts.firms.evaluate --data raw --test-years 2
 ../.venv/bin/python -m scripts.firms.evaluate --data raw --verify
-../.venv/bin/python -m scripts.firms.train_spatial --data raw
 ../.venv/bin/python -m scripts.firms.make_benchmark --check
 ../.venv/bin/python -m pytest tests/test_firms.py -q
 ```

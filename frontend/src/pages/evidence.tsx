@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { useLang } from "@/lib/i18n";
 import { ErrorState, Loading } from "@/components/states";
 import { GlobalContextBar } from "@/components/GlobalContextBar";
+import { SectionQuickNav } from "@/components/common/SectionQuickNav";
 
 const AOIS = [
   {
@@ -39,7 +40,7 @@ export function EvidencePage() {
 
   const [sp, setSp] = useSearchParams();
   const aoi = sp.get("aoi") || "vietnam";
-  const data = sp.get("data") || "sample";
+  const data = sp.get("data") || "raw";
   const ymParam = sp.get("ym") || "2025-03";
 
   const [yearStr, monthStr] = ymParam.split("-");
@@ -82,11 +83,23 @@ export function EvidencePage() {
   }, [aoi, data, year, month]);
 
   const handleAoiChange = (newAoi: string) => {
-    setSp({ aoi: newAoi, data, ym: `${year}-${String(month).padStart(2, "0")}` });
+    setSp((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("aoi", newAoi);
+      next.set("data", data);
+      next.set("ym", String(year) + "-" + String(month).padStart(2, "0"));
+      return next;
+    });
   };
 
   const handleYmChange = (newYm: string) => {
-    setSp({ aoi, data, ym: newYm });
+    setSp((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("aoi", aoi);
+      next.set("data", data);
+      next.set("ym", newYm);
+      return next;
+    });
   };
 
   const days = spots?.days ?? [];
@@ -111,7 +124,7 @@ export function EvidencePage() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6 max-w-7xl mx-auto w-full space-y-6 pb-24">
       {/* 1. Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-[#111C2E] p-4 sm:p-5 shadow-sm">
+      <div data-enter className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-[#111C2E] p-4 sm:p-5 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-950/60 shadow-sm">
             <FileCheck2 className="h-5 w-5 text-cyan-400" />
@@ -134,14 +147,14 @@ export function EvidencePage() {
         {/* Action Links */}
         <div className="flex flex-wrap items-center gap-2">
           <Link
-            to={`/calendar?aoi=${aoi}&data=${data}`}
+            to={"/calendar?" + sp.toString()}
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-200 transition min-h-[40px]"
           >
             <CalendarDays className="h-4 w-4 text-cyan-400" />
             <span>{t("evidence.view_calendar")}</span>
           </Link>
           <Link
-            to="/methods"
+            to={"/methods?" + sp.toString()}
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-200 transition min-h-[40px]"
           >
             <FlaskConical className="h-4 w-4 text-purple-400" />
@@ -152,6 +165,17 @@ export function EvidencePage() {
 
       {/* 2. Global Context Bar */}
       <GlobalContextBar />
+      {!loading && (
+      <SectionQuickNav
+        title={vi ? "Đi đến" : "On this page"}
+        items={[
+          { id: "evidence-verdict", label: vi ? "Kết luận" : "Verdict" },
+          { id: "evidence-scope", label: vi ? "Khu vực & tháng" : "Area & month" },
+          { id: "evidence-matrix", label: vi ? "Ma trận quan trắc" : "Observation matrix" },
+          { id: "evidence-limits", label: vi ? "Giới hạn" : "Limitations" },
+        ]}
+      />
+      )}
 
       {/* P0-07/P1-13: request coverage is not dataset readiness. */}
       {coverage && coverage.request_coverage === true && coverage.dataset_ready === false && (
@@ -168,7 +192,7 @@ export function EvidencePage() {
       )}
 
       {/* 3. Primary Verdict Banner */}
-      <div className="rounded-2xl border border-slate-800 bg-[#0B1220]/95 p-5 shadow-sm space-y-3">
+      <div id="evidence-verdict" className="scroll-mt-16 rounded-2xl border border-slate-800 bg-[#0B1220]/95 p-5 shadow-sm space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
           <div className="flex items-center gap-2.5">
             <div
@@ -230,6 +254,7 @@ export function EvidencePage() {
         </p>
       </div>
 
+      <div id="evidence-scope" className="scroll-mt-16" />
       {/* 4. Controls: Select Area & Month */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-800 bg-[#111C2E] p-3.5 text-xs">
         <div className="flex flex-wrap items-center gap-3">
@@ -325,7 +350,7 @@ export function EvidencePage() {
           </div>
 
           {/* 6. Daily Observation Matrix (Source x Date: Days 01-31) */}
-          <div className="rounded-2xl border border-slate-800 bg-[#111C2E] p-5 shadow-sm space-y-4">
+          <div id="evidence-matrix" className="scroll-mt-16 rounded-2xl border border-slate-800 bg-[#111C2E] p-4 sm:p-5 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
               <div>
                 <h3 className="text-sm font-bold text-white tracking-tight">
@@ -523,7 +548,7 @@ export function EvidencePage() {
           )}
 
           {/* 7. Crucial Scientific Disclaimers */}
-          <div className="rounded-2xl border border-amber-500/30 bg-amber-950/10 p-5 space-y-3">
+          <div id="evidence-limits" className="scroll-mt-16 rounded-2xl border border-amber-500/30 bg-amber-950/10 p-4 sm:p-5 space-y-3">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-300">
               <ShieldAlert className="h-4 w-4" />
               <span>{vi ? "Ranh giới khoa học: Sổ tệp đã tải vs Độ phủ quan trắc thực địa" : "Download Ledger vs Physical Observation Footprint"}</span>

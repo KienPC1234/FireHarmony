@@ -26,6 +26,9 @@ from pathlib import Path
 
 import numpy as np
 
+from app.firms.ml_core import counts_from_log_ratio_array as _to_counts
+from app.firms.ml_core import metrics as _metrics
+
 try:
     import torch
     import torch.nn as nn
@@ -109,18 +112,6 @@ else:
 
 def _encode_aoi(aoi: str) -> int:
     return AOIS.index(aoi) if aoi in AOIS else 0
-
-
-def _to_counts(modis: np.ndarray, y_log_ratio: np.ndarray) -> np.ndarray:
-    return np.clip(np.exp(y_log_ratio) * (modis + 1.0) - 1.0, 0.0, None)
-
-
-def _metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
-    err = y_pred - y_true
-    denom = float(np.sum(y_true)) or 1.0
-    return {"mae": float(np.mean(np.abs(err))),
-            "wape": float(np.sum(np.abs(err)) / denom),
-            "bias": float(np.mean(err))}
 
 
 def _train_one(train: list[dict], val: list[dict], seed: int,
@@ -352,12 +343,29 @@ def artifact_compat(models, meta: dict, expected_fingerprint: str | None = None)
     return True, "ok"
 
 
+_ARTIFACT_CACHE: dict[tuple, tuple] = {}
+
+
+def _artifact_key(mp: Path, jp: Path) -> tuple:
+    def sig(p: Path):
+        try:
+            st = p.stat()
+            return (st.st_mtime_ns, st.st_size)
+        except OSError:
+            return None
+    return (str(mp), str(jp), sig(mp), sig(jp))
+
+
 def load_artifact(aoi: str, model_dir, tag: str = "sample"):
     out = Path(model_dir)
     suffix = "" if tag == "sample" else f"_{tag}"
     mp, jp = out / f"ts_{aoi}{suffix}.pt", out / f"ts_{aoi}{suffix}.json"
     if not (mp.exists() and jp.exists()):
         return None, None
+    key = _artifact_key(mp, jp)
+    hit = _ARTIFACT_CACHE.get(key)
+    if hit is not None:
+        return hit
     try:
         blob = torch.load(mp, map_location="cpu", weights_only=True)
         models = []
@@ -366,9 +374,13 @@ def load_artifact(aoi: str, model_dir, tag: str = "sample"):
             m.load_state_dict(sd)
             m.eval()
             models.append(m)
-        return models, json.loads(jp.read_text(encoding="utf-8"))
+        meta = json.loads(jp.read_text(encoding="utf-8"))
     except Exception:
         return None, None
+    if len(_ARTIFACT_CACHE) > 16:
+        _ARTIFACT_CACHE.clear()
+    _ARTIFACT_CACHE[key] = (models, meta)
+    return models, meta
 
 
 def predict_windows(models, X: np.ndarray, aoi: str = "vietnam") -> np.ndarray:

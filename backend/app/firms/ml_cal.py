@@ -20,6 +20,8 @@ from pathlib import Path
 import joblib
 import numpy as np
 
+from app.firms.ml_core import metrics_raw as _metrics_single
+
 try:
     import sklearn
 
@@ -234,17 +236,6 @@ def featurize(pairs: list[dict]) -> tuple[np.ndarray, np.ndarray]:
     return X, y
 
 
-def _metrics_single(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
-    y_true = np.asarray(y_true, dtype=float)
-    y_pred = np.asarray(y_pred, dtype=float)
-    err = y_pred - y_true
-    mae = float(np.mean(np.abs(err))) if y_true.size else 0.0
-    denom = float(np.sum(y_true))
-    wape = float(np.sum(np.abs(err)) / denom) if denom > 0 else 0.0
-    bias = float(np.mean(err)) if y_true.size else 0.0
-    return {"mae": mae, "wape": wape, "bias": bias}
-
-
 def train_holdout(pairs: list[dict], test_years: int = 3) -> dict:
     """Temporal split: last `test_years` distinct years as holdout.
 
@@ -396,19 +387,44 @@ def artifact_compat(model, meta: dict, expected_fingerprint: str | None = None) 
     return True, "ok"
 
 
+_ARTIFACT_CACHE: dict[tuple, tuple] = {}
+
+
+def _cache_key(model_path: Path, meta_path: Path) -> tuple:
+    """Identity = both paths plus (mtime, size): a retrain invalidates it."""
+    def sig(p: Path):
+        try:
+            st = p.stat()
+            return (st.st_mtime_ns, st.st_size)
+        except OSError:
+            return None
+    return (str(model_path), str(meta_path), sig(model_path), sig(meta_path))
+
+
 def load_artifact(aoi: str, model_dir, tag: str = "sample"):
-    """Load (model, meta) or (None, None) when files are missing."""
+    """Load (model, meta) or (None, None) when files are missing.
+
+    Cached on file identity: `/calendar?method=ml` used to joblib.load the same
+    artifact on every request, which is pure disk cost on a warm server.
+    """
     out = Path(model_dir)
     suffix = "" if tag == "sample" else f"_{tag}"
     model_path = out / f"cal_{aoi}{suffix}.joblib"
     meta_path = out / f"cal_{aoi}{suffix}.json"
     if not (model_path.exists() and meta_path.exists()):
         return None, None
+    key = _cache_key(model_path, meta_path)
+    hit = _ARTIFACT_CACHE.get(key)
+    if hit is not None:
+        return hit
     try:
         model = joblib.load(model_path)
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
     except Exception:
         return None, None
+    if len(_ARTIFACT_CACHE) > 32:  # bounded: at most a few AOIs x tags
+        _ARTIFACT_CACHE.clear()
+    _ARTIFACT_CACHE[key] = (model, meta)
     return model, meta
 
 
@@ -429,9 +445,8 @@ def predict_viirs(model, modis_count: float, month: int,
         return float(ml_v4.predict_one(model, modis_count, month,
                                        day_frac, terra_frac, prev_modis))
     if target == "log_ratio":
-        from app.firms import ml_v3
-        return float(ml_v3.predict_one(model, modis_count, month,
-                                       day_frac, terra_frac, prev_modis))
+        raise ValueError("log_ratio artifacts were removed with ml_v3.py; "
+                         "retrain to the b2_residual target")
     if target == "level_log1p":
         pass  # legacy artifact: handled below
     elif target is not None:

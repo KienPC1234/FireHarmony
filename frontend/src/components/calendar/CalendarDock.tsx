@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Globe, Info, Sparkles, Table as TableIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Database, Globe, Info, Sparkles, Table as TableIcon } from "lucide-react";
 import { useLang } from "@/lib/i18n";
 import { backendMethod, type CalibMethod } from "@/lib/researchContext";
 import { cn, compact } from "@/lib/utils";
@@ -24,6 +24,7 @@ interface CalendarDockProps {
   aoi: string;
   onSelectAoi: (aoi: string) => void;
   data: string;
+  onSelectDataFeed?: (feed: "raw" | "sample") => void;
   method: CalibMethod;
   onSelectMethod: (method: CalibMethod) => void;
   totalDetections: number;
@@ -56,6 +57,7 @@ export function CalendarDock({
   aoi,
   onSelectAoi,
   data,
+  onSelectDataFeed,
   method,
   onSelectMethod,
   totalDetections,
@@ -77,7 +79,8 @@ export function CalendarDock({
 
   if (!open) {
     return (
-      <aside className="flex w-11 shrink-0 flex-col items-center gap-3 border-l border-slate-800 bg-[#0B1220] py-3">
+      <aside aria-label="Fire activity inspector"
+        className="relative z-10 flex w-11 shrink-0 flex-col items-center gap-3 border-l border-slate-800 bg-[#0B1220] py-3">
         <button
           type="button"
           onClick={onToggle}
@@ -102,7 +105,8 @@ export function CalendarDock({
   }
 
   return (
-    <aside className="flex w-[340px] shrink-0 flex-col border-l border-slate-800 bg-[#0B1220]">
+    <aside aria-label="Fire activity inspector"
+      className="absolute inset-y-0 right-0 z-[1300] flex w-[min(360px,calc(100vw-20px))] shrink-0 flex-col border-l border-slate-800 bg-[#0B1220] shadow-2xl lg:static lg:z-auto lg:w-[340px] lg:shadow-none">
       <div className="flex shrink-0 items-center gap-1 border-b border-slate-800 px-2 py-2">
         <div className="flex flex-1 items-center gap-1 rounded-lg bg-slate-900/80 p-1" role="tablist">
           {tabs.map((tabItem) => (
@@ -156,21 +160,54 @@ export function CalendarDock({
 
           <section className="space-y-2">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              {t("calendar.dock_feed_title")}
+            </h2>
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-900/80 p-1">
+              <button
+                type="button"
+                onClick={() => onSelectDataFeed?.("raw")}
+                className={cn(
+                  "rounded-md py-1.5 px-2 text-xs font-semibold transition flex items-center justify-center gap-1.5",
+                  !isSynthetic
+                    ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 shadow-sm"
+                    : "text-slate-400 hover:text-white hover:bg-slate-800/60",
+                )}
+              >
+                <Database className="h-3.5 w-3.5 shrink-0" />
+                <span>NASA Raw</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onSelectDataFeed?.("sample")}
+                className={cn(
+                  "rounded-md py-1.5 px-2 text-xs font-semibold transition flex items-center justify-center gap-1.5",
+                  isSynthetic
+                    ? "bg-sky-500/25 text-sky-300 border border-sky-500/40 shadow-sm"
+                    : "text-slate-400 hover:text-white hover:bg-slate-800/60",
+                )}
+              >
+                <span>Sample</span>
+              </button>
+            </div>
+          </section>
+
+          <section className="space-y-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               {t("calendar.dock_calibration_title")}
             </h2>
             <div className="grid gap-1.5">
               <button
                 type="button"
-                disabled={isSynthetic}
-                onClick={() => onSelectMethod?.("stan")}
+                onClick={() => {
+                  if (isSynthetic) onSelectDataFeed?.("raw");
+                  onSelectMethod?.("stan");
+                }}
                 className={cn(
                   "rounded-lg border px-3 py-2 text-left transition",
                   method === "stan"
                     ? "border-emerald-500/50 bg-emerald-950/25"
                     : "border-slate-800 bg-slate-900/50 hover:border-slate-700",
-                  isSynthetic && "cursor-not-allowed opacity-50",
                 )}
-                title={isSynthetic ? t("calendar.stan_requires_raw_title") : undefined}
               >
                 <span className="flex items-center justify-between gap-2">
                   <span className="text-sm font-medium text-white">STAN</span>
@@ -179,24 +216,22 @@ export function CalendarDock({
                   </span>
                 </span>
                 <span className="mt-0.5 block text-xs text-slate-400">
-                  {isSynthetic
-                    ? t("calendar.stan_requires_raw_desc")
-                    : t("calendar.stan_desc")}
+                  {t("calendar.stan_desc")}
                 </span>
               </button>
 
               <button
                 type="button"
-                disabled={isSynthetic}
-                onClick={() => onSelectMethod?.("hts_anchor")}
+                onClick={() => {
+                  if (isSynthetic) onSelectDataFeed?.("raw");
+                  onSelectMethod?.("hts_anchor");
+                }}
                 className={cn(
                   "rounded-lg border px-3 py-2 text-left transition",
                   method === "hts_anchor"
                     ? "border-amber-500/50 bg-amber-950/20"
                     : "border-slate-800 bg-slate-900/50 hover:border-slate-700",
-                  isSynthetic && "cursor-not-allowed opacity-50",
                 )}
-                title={isSynthetic ? t("calendar.hts_requires_raw_title") : undefined}
               >
                 <span className="flex items-center justify-between gap-2">
                   <span className="text-sm font-medium text-white">HTS</span>
@@ -205,9 +240,7 @@ export function CalendarDock({
                   </span>
                 </span>
                 <span className="mt-0.5 block text-xs text-slate-400">
-                  {isSynthetic
-                    ? t("calendar.hts_requires_raw_desc")
-                    : t("calendar.hts_desc")}
+                  {t("calendar.hts_desc")}
                 </span>
               </button>
 
