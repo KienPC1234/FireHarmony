@@ -42,7 +42,7 @@ export function AboutPage() {
         </p>
       </div>
 
-      <section className="space-y-4">
+      <section data-tour="about-mission" className="space-y-4">
         <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
           {t("about.audience_title")}
         </h2>
@@ -77,7 +77,7 @@ export function AboutPage() {
         </a>
       </section>
 
-      <section className="rounded-2xl border border-amber-500/30 bg-amber-950/10 p-6 space-y-3">
+      <section data-tour="about-disclaimer" className="rounded-2xl border border-amber-500/30 bg-amber-950/10 p-6 space-y-3">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-300">
           <ShieldAlert className="h-4 w-4" />
           <span>{t("about.limits_title")}</span>

@@ -11,9 +11,10 @@
       Australia đã backfill đủ 84/85 tháng (trước đây từng chỉ có cửa sổ 5 ngày),
       pre-2012 upscale là ước lượng, bias giờ bay/mây chưa khử hết, outlook là khí hậu học,
       chỉ mới đánh giá trên 3 AOI (chưa chứng minh transfer sang vùng mới).
-- [ ] Báo cáo kết quả trung thực: STAN đạt MAE 3,765.8 vs B2 4,411.8 (-14.6% MAE,
-      win rate 95.8%, cải thiện cả 3 AOI; 95% CI [-1,452.9, +81.8] chứa 0) trên holdout 72 tháng;
-      B2/HTS đóng vai trò mỏ neo chuẩn vững chắc.
+- [ ] Báo cáo kết quả trung thực: STAN đạt MAE 3,899.5 vs B2 4,462.6 (-12.6% MAE,
+      P(STAN better) 0.965, cải thiện cả 3 AOI; 95% CI [-1,184.4, +50.8] chứa 0,
+      `statistically_established: false`) trên holdout 72 tháng (`eval-v4`);
+      B2/HTS (HTS MAE 4,172.7) đóng vai trò mỏ neo chuẩn vững chắc.
 - Truth-messaging Ngày 1B: `k=0.35` chỉ là fallback khi `insufficient_overlap`
   (<3 tháng cùng quan trắc) — response giữ số nhưng ghi `uncertainty_status=not_calibrated`
   + `calibration_note`, không vẽ interval; 409 `model_requires_full_aoi` /

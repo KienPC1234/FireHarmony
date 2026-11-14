@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Legend,
   Line,
   LineChart,
@@ -12,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Activity, CheckCircle2, TrendingUp } from "lucide-react";
+import { Activity, CheckCircle2, Download, TrendingUp } from "lucide-react";
 import { compact, num } from "@/lib/utils";
 import { useLang } from "@/lib/i18n";
 
@@ -27,20 +28,52 @@ interface XrayTimelineViewProps {
     k_used?: number;
     ratio_source?: string;
   }>;
+  daily?: Array<{
+    date: string;
+    modis_raw: number;
+    viirs_ref: number;
+    adjusted_stat: number;
+    k_used?: number;
+    mean_frp?: number | null;
+  }>;
   units: string;
 }
 
-export function XrayTimelineView({ months, units }: XrayTimelineViewProps) {
+export function XrayTimelineView({ months, daily = [], units }: XrayTimelineViewProps) {
   const { t } = useLang();
+  const hasDaily = daily.length > 0;
+  const preferDaily = months.length <= 2 && hasDaily;
+  const [resolution, setResolution] = useState<"monthly" | "daily">(preferDaily ? "daily" : "monthly");
+
+  useEffect(() => {
+    setResolution(preferDaily ? "daily" : "monthly");
+  }, [preferDaily]);
+
+  const useDaily = resolution === "daily" && hasDaily;
 
   const chartData = useMemo(() => {
+    if (useDaily) {
+      return daily.map((d) => {
+        const residual = Number((d.adjusted_stat - d.viirs_ref).toFixed(1));
+        const rawDiscrepancy = Number((d.viirs_ref - d.modis_raw).toFixed(1));
+        return {
+          t: d.date,
+          MODIS: d.modis_raw,
+          VIIRS: d.viirs_ref,
+          Harmonized: d.adjusted_stat,
+          Calendar: null as number | null,
+          Residual: residual,
+          RawGap: rawDiscrepancy,
+          kRatio: d.k_used ?? 3.8,
+          MeanFRP: d.mean_frp ?? null,
+        };
+      });
+    }
     return months.map((m) => {
       const residual = Number((m.adjusted_stat - m.viirs_ref).toFixed(1));
       const rawDiscrepancy = Number((m.viirs_ref - m.modis_raw).toFixed(1));
       return {
         t: `${m.year}-${String(m.month).padStart(2, "0")}`,
-        year: m.year,
-        month: m.month,
         MODIS: m.modis_raw,
         VIIRS: m.viirs_ref,
         Harmonized: m.adjusted_stat,
@@ -48,9 +81,10 @@ export function XrayTimelineView({ months, units }: XrayTimelineViewProps) {
         Residual: residual,
         RawGap: rawDiscrepancy,
         kRatio: m.k_used ?? 3.8,
+        MeanFRP: null as number | null,
       };
     });
-  }, [months]);
+  }, [months, daily, useDaily]);
 
   // Compute key summary telemetry
   const summary = useMemo(() => {
@@ -71,6 +105,88 @@ export function XrayTimelineView({ months, units }: XrayTimelineViewProps) {
       harmonizedParity: totalViirs ? ((totalHarmonized / totalViirs) * 100).toFixed(1) + "%" : "100%",
     };
   }, [chartData]);
+
+  const hasCalendarSeries = useMemo(
+    () => chartData.some((d) => d.Calendar != null),
+    [chartData],
+  );
+  const useGroupedBars = chartData.length > 0 && chartData.length <= 3;
+  const showDots = chartData.length > 0 && chartData.length <= 35;
+  const formatAxisTick = (val: string) =>
+    useDaily && val.length >= 10 ? val.slice(5) : val;
+
+  const handleExportCsv = () => {
+    if (!chartData.length) return;
+    const headers = ["period", "modis_raw", "viirs_ref", "harmonized", "calendar", "residual", "k_ratio", "mean_frp"];
+    const rows = chartData.map((d) => [
+      d.t,
+      d.MODIS,
+      d.VIIRS,
+      d.Harmonized,
+      d.Calendar ?? "",
+      d.Residual,
+      d.kRatio,
+      d.MeanFRP ?? "",
+    ].join(","));
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `xray_${useDaily ? "daily" : "monthly"}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const renderTrajectoryTooltip = ({
+    active,
+    payload,
+  }: {
+    active?: boolean;
+    payload?: ReadonlyArray<{ payload?: (typeof chartData)[number] }>;
+  }) => {
+    const d = payload?.[0]?.payload;
+    if (!active || !d) return null;
+    return (
+      <div className="rounded-xl border border-border/80 bg-slate-900/95 p-3 font-mono text-xs shadow-2xl backdrop-blur space-y-1.5 min-w-[210px]">
+        <div className="font-bold text-white border-b border-border/40 pb-1 flex justify-between">
+          <span>{d.t}</span>
+          <span className="text-cyan-400 font-normal">k = {d.kRatio}</span>
+        </div>
+        <div className="flex justify-between text-slate-400">
+          <span>{t("xray.traj_tip_modis")}</span>
+          <span className="text-slate-200 font-semibold">{num(d.MODIS)}</span>
+        </div>
+        <div className="flex justify-between text-emerald-400">
+          <span>{t("xray.traj_tip_viirs")}</span>
+          <span className="font-semibold">{num(d.VIIRS)}</span>
+        </div>
+        <div className="flex justify-between text-orange-400 font-bold">
+          <span>{t("xray.traj_tip_harm")}</span>
+          <span>{num(d.Harmonized)}</span>
+        </div>
+        {hasCalendarSeries && (
+          <div className="flex justify-between text-cyan-300">
+            <span>{t("xray.traj_tip_cal")}</span>
+            <span>{d.Calendar != null ? num(d.Calendar) : "N/A"}</span>
+          </div>
+        )}
+        {d.MeanFRP != null && (
+          <div className="flex justify-between text-amber-300">
+            <span>Avg FRP:</span>
+            <span>{d.MeanFRP} MW</span>
+          </div>
+        )}
+        <div className="border-t border-border/30 pt-1 flex justify-between text-xs text-slate-400">
+          <span>{t("xray.traj_tip_resid")}</span>
+          <span className={d.Residual > 0 ? "text-amber-400" : "text-sky-400"}>
+            {d.Residual > 0 ? "+" : ""}
+            {d.Residual}
+          </span>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -126,86 +242,156 @@ export function XrayTimelineView({ months, units }: XrayTimelineViewProps) {
               {t("xray.traj_sub")}
             </p>
           </div>
-          <span className="font-mono text-xs px-2.5 py-0.5 rounded-full border border-cyan-500/30 bg-cyan-950/40 text-cyan-300 font-semibold">
-            Unit: {units}
-          </span>
+          <div className="flex items-center gap-2">
+            {hasDaily && (
+              <div className="flex items-center rounded-lg border border-slate-700 bg-slate-900/90 p-0.5 text-[11px] font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setResolution("daily")}
+                  className={
+                    useDaily
+                      ? "rounded-md bg-cyan-500/25 px-2 py-0.5 text-cyan-200 border border-cyan-500/40"
+                      : "px-2 py-0.5 text-slate-400 hover:text-white"
+                  }
+                >
+                  {t("calendar.by_day")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResolution("monthly")}
+                  className={
+                    !useDaily
+                      ? "rounded-md bg-cyan-500/25 px-2 py-0.5 text-cyan-200 border border-cyan-500/40"
+                      : "px-2 py-0.5 text-slate-400 hover:text-white"
+                  }
+                >
+                  {t("calendar.by_month")}
+                </button>
+              </div>
+            )}
+            <span className="font-mono text-xs px-2.5 py-0.5 rounded-full border border-cyan-500/30 bg-cyan-950/40 text-cyan-300 font-semibold">
+              Unit: {useDaily ? "hotspot detections per day" : units}
+            </span>
+            {chartData.length > 0 && (
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-slate-200 hover:border-cyan-500/40 hover:text-cyan-200 transition"
+              >
+                <Download className="h-3 w-3" aria-hidden="true" />
+                <span>CSV</span>
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Top Trajectory Line Chart */}
+        {/* Top Trajectory Chart (Grouped Bars for <=3 pts, Line with dots for short ranges) */}
         <div style={{ height: 320 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 10, right: 12, left: -15, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-              <XAxis dataKey="t" stroke="#64748b" fontSize={10} tick={false} />
-              <YAxis stroke="#64748b" fontSize={10} tickFormatter={(v) => compact(v)} />
-              <Tooltip
-                content={({ active, payload }) => {
-                  if (!active || !payload?.length) return null;
-                  const d = payload[0].payload;
-                  return (
-                    <div className="rounded-xl border border-border/80 bg-slate-900/95 p-3 font-mono text-xs shadow-2xl backdrop-blur space-y-1.5 min-w-[210px]">
-                      <div className="font-bold text-white border-b border-border/40 pb-1 flex justify-between">
-                        <span>{d.t}</span>
-                        <span className="text-cyan-400 font-normal">k = {d.kRatio}</span>
-                      </div>
-                      <div className="flex justify-between text-slate-400">
-                        <span>{t("xray.traj_tip_modis")}</span>
-                        <span className="text-slate-200 font-semibold">{num(d.MODIS)}</span>
-                      </div>
-                      <div className="flex justify-between text-emerald-400">
-                        <span>{t("xray.traj_tip_viirs")}</span>
-                        <span className="font-semibold">{num(d.VIIRS)}</span>
-                      </div>
-                      <div className="flex justify-between text-orange-400 font-bold">
-                        <span>{t("xray.traj_tip_harm")}</span>
-                        <span>{num(d.Harmonized)}</span>
-                      </div>
-                      <div className="flex justify-between text-cyan-300">
-                        <span>{t("xray.traj_tip_cal")}</span>
-                        <span>{d.Calendar != null ? num(d.Calendar) : "N/A"}</span>
-                      </div>
-                      <div className="border-t border-border/30 pt-1 flex justify-between text-xs text-slate-400">
-                        <span>{t("xray.traj_tip_resid")}</span>
-                        <span className={d.Residual > 0 ? "text-amber-400" : "text-sky-400"}>
-                          {d.Residual > 0 ? "+" : ""}{d.Residual}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                }}
-              />
-              <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }} />
-              <Line
-                dataKey="MODIS"
-                stroke="#64748b"
-                strokeWidth={1.5}
-                dot={false}
-                name={t("xray.traj_legend_modis")}
-              />
-              <Line
-                dataKey="VIIRS"
-                stroke="#10b981"
-                strokeWidth={2}
-                dot={false}
-                name={t("xray.traj_legend_viirs")}
-              />
-              <Line
-                dataKey="Harmonized"
-                stroke="#f97316"
-                strokeWidth={2}
-                dot={false}
-                name={t("xray.traj_legend_harm")}
-              />
-              <Line
-                dataKey="Calendar"
-                stroke="#06b6d4"
-                strokeWidth={2}
-                strokeDasharray="4 4"
-                dot={false}
-                connectNulls={false}
-                name={t("xray.traj_legend_cal")}
-              />
-            </LineChart>
+            {useGroupedBars ? (
+              <BarChart data={chartData} margin={{ top: 12, right: 16, left: 4, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis
+                  dataKey="t"
+                  stroke="#64748b"
+                  tick={{ fill: "#94a3b8", fontSize: 11 }}
+                  tickFormatter={formatAxisTick}
+                />
+                <YAxis
+                  width={44}
+                  stroke="#64748b"
+                  tick={{ fill: "#94a3b8", fontSize: 11 }}
+                  tickFormatter={(v) => compact(v)}
+                />
+                <Tooltip cursor={{ fill: "rgba(56, 189, 248, 0.08)" }} content={renderTrajectoryTooltip} />
+                <Legend align="center" wrapperStyle={{ fontSize: "12px", paddingTop: "8px", width: "100%", left: 0 }} />
+                <Bar
+                  dataKey="MODIS"
+                  fill="#64748b"
+                  maxBarSize={44}
+                  radius={[4, 4, 0, 0]}
+                  name={t("xray.traj_legend_modis")}
+                />
+                <Bar
+                  dataKey="VIIRS"
+                  fill="#10b981"
+                  maxBarSize={44}
+                  radius={[4, 4, 0, 0]}
+                  name={t("xray.traj_legend_viirs")}
+                />
+                <Bar
+                  dataKey="Harmonized"
+                  fill="#f97316"
+                  maxBarSize={44}
+                  radius={[4, 4, 0, 0]}
+                  name={t("xray.traj_legend_harm")}
+                />
+                {hasCalendarSeries && (
+                  <Bar
+                    dataKey="Calendar"
+                    fill="#06b6d4"
+                    maxBarSize={44}
+                    radius={[4, 4, 0, 0]}
+                    name={t("xray.traj_legend_cal")}
+                  />
+                )}
+              </BarChart>
+            ) : (
+              <LineChart data={chartData} margin={{ top: 12, right: 16, left: 4, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis
+                  dataKey="t"
+                  stroke="#64748b"
+                  minTickGap={24}
+                  tick={{ fill: "#94a3b8", fontSize: 11 }}
+                  tickFormatter={formatAxisTick}
+                />
+                <YAxis
+                  width={44}
+                  stroke="#64748b"
+                  tick={{ fill: "#94a3b8", fontSize: 11 }}
+                  tickFormatter={(v) => compact(v)}
+                />
+                <Tooltip cursor={{ stroke: "#475569", strokeDasharray: "3 3" }} content={renderTrajectoryTooltip} />
+                <Legend align="center" wrapperStyle={{ fontSize: "12px", paddingTop: "8px", width: "100%", left: 0 }} />
+                <Line
+                  dataKey="MODIS"
+                  stroke="#64748b"
+                  strokeWidth={1.75}
+                  dot={showDots ? { r: 3, strokeWidth: 1.5, fill: "#0b1220" } : false}
+                  activeDot={{ r: 5 }}
+                  name={t("xray.traj_legend_modis")}
+                />
+                <Line
+                  dataKey="VIIRS"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  dot={showDots ? { r: 3.5, strokeWidth: 1.5, fill: "#0b1220" } : false}
+                  activeDot={{ r: 5.5 }}
+                  name={t("xray.traj_legend_viirs")}
+                />
+                <Line
+                  dataKey="Harmonized"
+                  stroke="#f97316"
+                  strokeWidth={2}
+                  dot={showDots ? { r: 3.5, strokeWidth: 1.5, fill: "#0b1220" } : false}
+                  activeDot={{ r: 5.5 }}
+                  name={t("xray.traj_legend_harm")}
+                />
+                {hasCalendarSeries && (
+                  <Line
+                    dataKey="Calendar"
+                    stroke="#06b6d4"
+                    strokeWidth={2}
+                    strokeDasharray="4 4"
+                    dot={showDots ? { r: 3, strokeWidth: 1.5, fill: "#0b1220" } : false}
+                    activeDot={{ r: 5 }}
+                    connectNulls={false}
+                    name={t("xray.traj_legend_cal")}
+                  />
+                )}
+              </LineChart>
+            )}
           </ResponsiveContainer>
         </div>
 
@@ -219,14 +405,26 @@ export function XrayTimelineView({ months, units }: XrayTimelineViewProps) {
               {t("xray.traj_resid_hint")}
             </span>
           </div>
-          <div style={{ height: 130 }}>
+          <div style={{ height: 140 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 5, right: 12, left: -15, bottom: 0 }}>
+              <BarChart data={chartData} margin={{ top: 8, right: 16, left: 4, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="t" stroke="#64748b" fontSize={10} />
-                <YAxis stroke="#64748b" fontSize={10} />
+                <XAxis
+                  dataKey="t"
+                  stroke="#64748b"
+                  minTickGap={24}
+                  tick={{ fill: "#94a3b8", fontSize: 11 }}
+                  tickFormatter={formatAxisTick}
+                />
+                <YAxis
+                  width={44}
+                  stroke="#64748b"
+                  tick={{ fill: "#94a3b8", fontSize: 11 }}
+                  tickFormatter={(v) => compact(v)}
+                />
                 <ReferenceLine y={0} stroke="#475569" strokeWidth={1.5} />
                 <Tooltip
+                  cursor={{ fill: "rgba(56, 189, 248, 0.08)" }}
                   content={({ active, payload }) => {
                     if (!active || !payload?.length) return null;
                     const d = payload[0].payload;
@@ -240,7 +438,14 @@ export function XrayTimelineView({ months, units }: XrayTimelineViewProps) {
                     );
                   }}
                 />
-                <Bar dataKey="Residual" fill="#f97316" radius={[2, 2, 0, 0]} opacity={0.85} />
+                <Bar dataKey="Residual" maxBarSize={36} radius={[3, 3, 0, 0]} opacity={0.9}>
+                  {chartData.map((entry, idx) => (
+                    <Cell
+                      key={`resid-${entry.t}-${idx}`}
+                      fill={entry.Residual >= 0 ? "#f97316" : "#38bdf8"}
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>

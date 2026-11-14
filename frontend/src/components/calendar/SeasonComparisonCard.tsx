@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -38,6 +38,12 @@ export function SeasonComparisonCard({
 
   const [yearA, setYearA] = useState<number>(defaultYearA);
   const [yearB, setYearB] = useState<number>(defaultYearB);
+
+  useEffect(() => {
+    if (years.length === 0) return;
+    if (!years.includes(yearA)) setYearA(defaultYearA);
+    if (!years.includes(yearB)) setYearB(defaultYearB);
+  }, [years, yearA, yearB, defaultYearA, defaultYearB]);
 
   // P1-05: baseline uses only eligible months (same rule as the backend
   // anomaly mask). An ineligible or missing month is null, never zero.

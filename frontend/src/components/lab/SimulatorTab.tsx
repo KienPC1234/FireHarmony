@@ -204,6 +204,7 @@ export function SimulatorTab({ sim, sensors, onSelectPreset }: SimulatorTabProps
                       tickFormatter={(v) => compact(v)}
                     />
                     <RTooltip
+                      cursor={{ fill: "rgba(56, 189, 248, 0.08)" }}
                       content={({ active, payload }) => {
                         if (!active || !payload?.length) return null;
                         const d = payload[0].payload;
@@ -252,6 +253,7 @@ export function SimulatorTab({ sim, sensors, onSelectPreset }: SimulatorTabProps
                     <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#94a3b8" }} />
                     <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={(v) => compact(v)} />
                     <RTooltip
+                      cursor={{ fill: "rgba(56, 189, 248, 0.08)" }}
                       content={({ active, payload }) => {
                         if (!active || !payload?.length) return null;
                         const d = payload[0].payload;

@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { Check, Database, Globe, Loader2, Play, Sliders } from "lucide-react";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/lib/i18n";
 import { PRESETS, SENSORS, Tab } from "./types";
@@ -36,6 +38,27 @@ export function LabSidebar({
 }: LabSidebarProps) {
   const { lang, t } = useLang();
   const vi = lang === "vi";
+  const [aoiOptions, setAoiOptions] = useState(PRESETS);
+
+  useEffect(() => {
+    let alive = true;
+    api.aois().then((res) => {
+      if (!alive || !res.aois?.length) return;
+      const presetIds = new Set(PRESETS.map((p) => p.id));
+      const extras = res.aois
+        .filter((a) => !presetIds.has(a.id))
+        .map((a) => ({
+          id: a.id,
+          name: { vi: a.label || a.id, en: a.label || a.id },
+          region: { vi: a.bbox || "Custom AOI", en: a.bbox || "Custom AOI" },
+          coords: a.bbox || "",
+        }));
+      if (extras.length > 0) setAoiOptions([...PRESETS, ...extras]);
+    }).catch(() => {
+      // Keep preset fallback when offline or /aois is unavailable
+    });
+    return () => { alive = false; };
+  }, []);
 
   return (
     <aside className="space-y-4">
@@ -52,7 +75,7 @@ export function LabSidebar({
             aria-label="Target AOI"
             className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-xs text-white focus:outline-none min-h-[40px]"
           >
-            {PRESETS.map((p) => (
+            {aoiOptions.map((p) => (
               <option key={p.id} value={p.id}>
                 {vi ? p.name.vi : p.name.en} ({vi ? p.region.vi : p.region.en})
               </option>

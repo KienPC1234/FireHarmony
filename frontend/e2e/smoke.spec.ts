@@ -11,7 +11,7 @@ test("home loads with stats and i18n toggle", async ({ page }) => {
 
 test("calendar matrix really renders 12 month columns and opens the inspector", async ({ page }) => {
   await page.goto("/calendar?aoi=amazon");
-  await expect(page.getByText("SYNTHETIC DEMO")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/SYNTHETIC DEMO|MÔ PHỎNG TỔNG HỢP/)).toBeVisible({ timeout: 30_000 });
 
   await page.getByRole("button", { name: /Năm × tháng|Year × month|Ma trận|Matrix/ }).click();
   const matrix = page.locator("table").first();
@@ -62,8 +62,8 @@ test("raw 404 is explained and never silently switches to synthetic", async ({ p
   await page.waitForTimeout(1200);
   expect(sampleRequested).toBe(false);
 
-  await page.getByRole("button", { name: /Use synthetic demo|Dùng dữ liệu mô phỏng/ }).click();
-  await expect(page.getByText("SYNTHETIC DEMO")).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: /Use synthetic demo|Dùng dữ liệu mô phỏng|Dữ liệu mô phỏng|Synthetic demo/i }).click();
+  await expect(page.getByText(/SYNTHETIC DEMO|MÔ PHỎNG TỔNG HỢP/)).toBeVisible({ timeout: 30_000 });
   expect(sampleRequested).toBe(true);
 });
 

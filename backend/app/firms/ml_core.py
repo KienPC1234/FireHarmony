@@ -176,6 +176,9 @@ def apply_monthly_targets(
         ym = str(c["date"])[:7]
         if c.get("estimate_type") == "modis_upscaled_estimated" and ym in factors:
             c["harmonized_count"] = round(c["harmonized_count"] * factors[ym], 3)
+            cell_km2 = c.get("cell_km2")
+            if cell_km2 is not None and float(cell_km2) > 0:
+                c["harmonized_per_km2"] = round(c["harmonized_count"] / float(cell_km2), 4)
             c["estimate_type"] = (labels_by_month or {}).get(ym, estimate_label)
             mid = (method_by_month or {}).get(ym, method_id)
             c["method"] = mid

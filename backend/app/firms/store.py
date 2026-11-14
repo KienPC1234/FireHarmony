@@ -20,6 +20,7 @@ from app.firms.schema import FirmsRecord
 DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "firms"
 SAMPLE_DIR = DATA_DIR / "samples"
 RAW_DIR = DATA_DIR / "raw"
+_DEFAULT_RAW_DIR = RAW_DIR
 UPLOAD_DIR = DATA_DIR / "uploads"
 MANIFEST = DATA_DIR / "ingest_manifest.json"
 AOIS_JSON = DATA_DIR / "aois.json"
@@ -239,7 +240,35 @@ def register_custom_aoi(aoi_id: str | None, label: str,
                         "'custom' with label+bbox so fetch scripts and "
                         "GET /api/firms/aois pick them up without code changes.")
     _atomic_write_json(AOIS_JSON, doc)
+    _registry_cached.cache_clear()
     return {"id": slug, "label": clean_label, "bbox": bbox_str}
+
+
+def delete_custom_aoi(aoi_id: str) -> bool:
+    """Remove a custom AOI from aois.json 'custom' (atomic write).
+
+    Preset AOIs raise ValueError. Returns True if deleted, False if not found.
+    """
+    slug = str(aoi_id or "").strip()
+    if not slug:
+        raise ValueError("aoi_id is required")
+    if slug in PRESET_AOIS or slug in AOIS:
+        raise ValueError(f"aoi id {slug!r} is a preset and cannot be deleted")
+    if not AOIS_JSON.exists():
+        return False
+    try:
+        doc = json.loads(AOIS_JSON.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if not isinstance(doc, dict):
+        return False
+    custom = doc.get("custom")
+    if not isinstance(custom, dict) or slug not in custom:
+        return False
+    del custom[slug]
+    _atomic_write_json(AOIS_JSON, doc)
+    _registry_cached.cache_clear()
+    return True
 
 
 def load_records(aoi: str, limit: int = 25000) -> list[dict]:
@@ -322,7 +351,7 @@ def ingest_upload(filename: str, content: bytes, aoi: str,
 
     P1-15: validate BEFORE committing to disk; enforce 50 MB upstream too.
     """
-    if aoi not in AOIS:
+    if aoi not in aoi_registry():
         raise ValueError(f"Unknown aoi {aoi!r}")
     if len(content) > 50 * 1024 * 1024:
         raise ValueError("File too large (max 50 MB)")
@@ -443,18 +472,20 @@ def register_upload_file(tmp: Path, safe_filename: str, size: int, digest_hex: s
 
 
 def load_upload_dataset(dataset_id: str, limit: int = 100000) -> list[dict]:
-    """Load a session upload by id (validated hex, no path traversal)."""
+    """Load a session upload or live-fetched dataset by id (validated hex, no path traversal)."""
     import re as _re
-    m = _re.fullmatch(r"upload:([0-9a-f]{16})", dataset_id or "")
+    m = _re.fullmatch(r"(upload|live):([0-9a-f]{16})", dataset_id or "")
     if not m:
         raise ValueError(f"Bad dataset_id {dataset_id!r}")
-    hits = sorted(UPLOAD_DIR.glob(f"upload_{m.group(1)}_*.csv"))
+    kind, hex_id = m.group(1), m.group(2)
+    pattern = f"upload_{hex_id}_*.csv" if kind == "upload" else f"live_{hex_id}*.csv"
+    hits = sorted(UPLOAD_DIR.glob(pattern))
     if not hits:
         raise ValueError(f"Unknown or expired dataset {dataset_id!r}")
     rows: list[dict] = []
     with hits[0].open(encoding="utf-8") as fh:
         for r in csv.DictReader(fh):
-            rows.append({k.lower(): v for k, v in r.items()})
+            rows.append({k.lower(): v for k, v in r.items() if k is not None and v != ""})
             if len(rows) >= limit:
                 break
     return rows
@@ -568,6 +599,11 @@ def pooled_fingerprint(aois, raw: bool = True) -> str:
 
 
 _SAFE_CACHE_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_,.-]*$")
+_WINDOW_TAG = re.compile(r"_\d{4}-\d{2}[-_]")
+_MEM_CACHE_MAX = 48
+_MEM_CACHE: dict[str, tuple[int, object]] = {}
+import threading as _threading
+_MEM_CACHE_LOCK = _threading.Lock()
 
 
 def _safe_cache_key(key: str) -> str:
@@ -584,13 +620,31 @@ def _safe_cache_key(key: str) -> str:
 
 def cache_get(key: str):
     """Read a cached analysis result. JSON, not pickle (audit P1-20)."""
-    f = CACHE_DIR / f"{_safe_cache_key(key)}.json"
-    if not f.exists():
-        return None
+    safe = _safe_cache_key(key)
+    mem_key = f"{CACHE_DIR}:{safe}"
+    f = CACHE_DIR / f"{safe}.json"
     try:
-        return json.loads(f.read_text(encoding="utf-8"))
+        st = f.stat()
+    except OSError:
+        with _MEM_CACHE_LOCK:
+            _MEM_CACHE.pop(mem_key, None)
+        return None
+    mtime_ns = st.st_mtime_ns
+    with _MEM_CACHE_LOCK:
+        hit = _MEM_CACHE.get(mem_key)
+        if hit is not None and hit[0] == mtime_ns:
+            # Move to end (LRU)
+            _MEM_CACHE[mem_key] = _MEM_CACHE.pop(mem_key)
+            return hit[1]
+    try:
+        val = json.loads(f.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+    with _MEM_CACHE_LOCK:
+        _MEM_CACHE[mem_key] = (mtime_ns, val)
+        while len(_MEM_CACHE) > _MEM_CACHE_MAX:
+            _MEM_CACHE.pop(next(iter(_MEM_CACHE)))
+    return val
 
 
 def cache_put(key: str, value) -> None:
@@ -598,12 +652,22 @@ def cache_put(key: str, value) -> None:
     import os as _os
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     safe = _safe_cache_key(key)
+    mem_key = f"{CACHE_DIR}:{safe}"
+    dest = CACHE_DIR / f"{safe}.json"
     tmp = CACHE_DIR / f".{safe}.{_os.getpid()}.{_uuid.uuid4().hex[:8]}.tmp"
     tmp.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
-    tmp.replace(CACHE_DIR / f"{safe}.json")
-    # keep the newest 40 entries
+    tmp.replace(dest)
+    try:
+        mtime_ns = dest.stat().st_mtime_ns
+        with _MEM_CACHE_LOCK:
+            _MEM_CACHE[mem_key] = (mtime_ns, value)
+            while len(_MEM_CACHE) > _MEM_CACHE_MAX:
+                _MEM_CACHE.pop(next(iter(_MEM_CACHE)))
+    except OSError:
+        pass
+    # keep the newest 256 entries
     entries = sorted(CACHE_DIR.glob("*.json"), key=lambda p: p.stat().st_mtime)
-    for old in entries[:-40]:
+    for old in entries[:-256]:
         old.unlink(missing_ok=True)
 
 
@@ -626,7 +690,8 @@ def _manifest_files_for_aoi(aoi: str) -> set[str]:
 
 
 def iter_raw_rows(aoi: str, raw_dir: Path | None = None, limit: int | None = None,
-                  year: int | None = None, ym: str | None = None):
+                  year: int | None = None, ym: str | None = None,
+                  dedup: bool = True):
     """Stream deduped raw rows for an aoi without materialising them.
 
     Same dedup signature and SP-first ordering as load_raw_merged, but yields
@@ -638,13 +703,10 @@ def iter_raw_rows(aoi: str, raw_dir: Path | None = None, limit: int | None = Non
     if aoi != "custom" and not is_known_aoi(aoi):
         raise ValueError(f"Unknown aoi {aoi!r}")
     raw_dir = raw_dir or RAW_DIR
-    # CLAIM-024: opt-in Parquet fast path (FIRMS_PARQUET=1). Only for
-    # month/year-filtered reads; any parquet failure falls through to the
-    # legacy CSV scan below, so the default (flag off) behavior is unchanged.
+    # CLAIM-024: opt-in Parquet fast path (FIRMS_PARQUET=1).
     # The explicit raw_dir (incl. test tmp_path dirs) is passed through, so
     # parquet partitions stay isolated per source dir.
-    if (ym is not None or year is not None) \
-            and os.getenv("FIRMS_PARQUET") == "1":
+    if os.getenv("FIRMS_PARQUET") == "1":
         try:
             from app.firms import parquet_cache as _pq
             yield from _pq.iter_parquet_rows(
@@ -652,15 +714,14 @@ def iter_raw_rows(aoi: str, raw_dir: Path | None = None, limit: int | None = Non
             return
         except Exception:
             pass
-    # CLAIM-028: opt-in DuckDB rung (FIRMS_DUCKDB=1), after the Parquet path
-    # so each rung benchmarks independently. Any failure falls through to
-    # the legacy CSV scan below; default (flag off) behavior is unchanged.
-    if (ym is not None or year is not None) \
-            and os.getenv("FIRMS_DUCKDB") == "1":
+    # CLAIM-028: DuckDB fast path over Parquet partitions. Enabled by default
+    # for the production RAW_DIR unless explicitly disabled with FIRMS_DUCKDB=0.
+    use_duckdb = os.getenv("FIRMS_DUCKDB")
+    if use_duckdb == "1" or (use_duckdb != "0" and raw_dir == _DEFAULT_RAW_DIR):
         try:
             from app.firms import parquet_cache as _pq
             yield from _pq.iter_duckdb_rows(
-                aoi, raw_dir=raw_dir, limit=limit, year=year, ym=ym)
+                aoi, raw_dir=raw_dir, limit=limit, year=year, ym=ym, dedup=dedup)
             return
         except Exception:
             pass
@@ -669,17 +730,19 @@ def iter_raw_rows(aoi: str, raw_dir: Path | None = None, limit: int | None = Non
     files = sorted(raw_dir.glob(f"{aoi}_*.csv"),
                    key=lambda p: (0 if "_SP_" in p.name else 1, p.name))
     # (path, filter_rows_by_date): window-named files are trusted by name;
-    # manifest-listed uploads carry no window tag, so their rows are dated.
+    # manifest-listed uploads without a window tag are scanned by row date.
     wanted: list[tuple] = [(f, False) for f in files]
     if ym is not None:
-        names = _manifest_files_for_aoi(aoi)
+        names = {n for n in _manifest_files_for_aoi(aoi)
+                 if not _WINDOW_TAG.search(n)}
         wanted = [(f, False) if (f"_{ym}-" in f.name or f"_{ym}_" in f.name)
                   else (f, True)
                   for f in files
                   if (f"_{ym}-" in f.name or f"_{ym}_" in f.name
                       or f.name in names)]
     elif year is not None:
-        names = _manifest_files_for_aoi(aoi)
+        names = {n for n in _manifest_files_for_aoi(aoi)
+                 if not _WINDOW_TAG.search(n)}
         wanted = [(f, False) if f"_{year}-" in f.name else (f, True)
                   for f in files
                   if f"_{year}-" in f.name or f.name in names]
@@ -838,7 +901,7 @@ def raw_stats(aoi: str, raw_dir: Path | None = None) -> dict:
 
 
 def raw_ready(aoi: str) -> bool:
-    return bool(list(RAW_DIR.glob(f"{aoi}_*.csv"))) if RAW_DIR.exists() else False
+    return next(RAW_DIR.glob(f"{aoi}_*.csv"), None) is not None if RAW_DIR.exists() else False
 
 
 def model_artifacts_ready(aoi: str) -> bool:
@@ -856,12 +919,33 @@ def model_artifacts_ready(aoi: str) -> bool:
     ))
 
 
+_DATA_STATUS_CACHE: tuple[tuple, dict] | None = None
+
+
 def data_status() -> dict:
     """What data is on disk: samples + ingested raw files + manifest.
 
     Covers registry presets plus manifest-backed custom AOIs, so a new AOI
     with raw pulls reports dataset_ready instead of vanishing from the list.
     """
+    global _DATA_STATUS_CACHE
+    try:
+        raw_mtime = RAW_DIR.stat().st_mtime_ns if RAW_DIR.exists() else 0
+    except OSError:
+        raw_mtime = 0
+    try:
+        man_mtime = MANIFEST.stat().st_mtime_ns if MANIFEST.exists() else 0
+    except OSError:
+        man_mtime = 0
+    try:
+        aois_mtime = AOIS_JSON.stat().st_mtime_ns if AOIS_JSON.exists() else 0
+    except OSError:
+        aois_mtime = 0
+    marker = (str(RAW_DIR), str(MANIFEST), str(SAMPLE_DIR), raw_mtime, man_mtime, aois_mtime)
+    cached = _DATA_STATUS_CACHE
+    if cached is not None and cached[0] == marker:
+        return {**cached[1], "cache": cache_info()}
+
     datasets = []
     for aoi in sorted(set(aoi_registry()) | manifest_aois()):
         p = sample_path(aoi)
@@ -873,13 +957,13 @@ def data_status() -> dict:
                          "dataset_ready": bool(rs.get("raw_ready")),
                          "model_artifact_ready": model_artifacts_ready(aoi),
                          **rs})
-    raw_files = []
-    if RAW_DIR.exists():
-        for f in sorted(RAW_DIR.glob("*.csv")):
-            raw_files.append({"file": f.name, "bytes": f.stat().st_size})
-    return {"datasets": datasets, "raw_files": raw_files[:100],
-            "raw_count": len(raw_files),
-            "raw_aois_ready": [d["aoi"] for d in datasets if d["raw_ready"]],
-            "cache": cache_info(),
-            "manifest_entries": len(json.loads(MANIFEST.read_text(encoding="utf-8")))
-            if MANIFEST.exists() else 0}
+    all_raw_names = sorted(RAW_DIR.glob("*.csv")) if RAW_DIR.exists() else []
+    raw_files = [{"file": f.name, "bytes": f.stat().st_size} for f in all_raw_names[:100]]
+    out = {"datasets": datasets, "raw_files": raw_files,
+           "raw_count": len(all_raw_names),
+           "raw_aois_ready": [d["aoi"] for d in datasets if d["raw_ready"]],
+           "cache": cache_info(),
+           "manifest_entries": len(json.loads(MANIFEST.read_text(encoding="utf-8")))
+           if MANIFEST.exists() else 0}
+    _DATA_STATUS_CACHE = (marker, out)
+    return out

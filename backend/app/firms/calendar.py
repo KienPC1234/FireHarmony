@@ -75,8 +75,32 @@ def build_calendar(daily_cells: list[dict], coverage: dict | None = None,
                 "anomaly_baseline": "leave-one-year-out (falls back to column median with <3 other years)",
                 "z_unit": "robust MAD units (1.4826*MAD)"}
     years = sorted({y for y, _ in ym})
+
+    def _is_verified_zero(y: int, m: int) -> bool:
+        """True when a month has 0 detections but verified non-partial coverage."""
+        if (y, m) in seen:
+            return False
+        cov = (coverage or {}).get(f"{y}-{m:02d}")
+        if not isinstance(cov, dict) or cov.get("partial") is True:
+            return False
+        ratio = cov.get("paired_coverage_ratio", cov.get("coverage_ratio"))
+        if ratio is not None:
+            try:
+                return float(ratio) >= 0.9
+            except (TypeError, ValueError):
+                return False
+        req = cov.get("requested_days", cov.get("paired_days"))
+        try:
+            return int(req or 0) > 0
+        except (TypeError, ValueError):
+            return False
+
     matrix: list[list[float | None]] = [
-        [round(ym[(y, m)], 2) if (y, m) in seen else None for m in range(1, 13)]
+        [
+            round(ym[(y, m)], 2) if (y, m) in seen
+            else (0.0 if _is_verified_zero(y, m) else None)
+            for m in range(1, 13)
+        ]
         for y in years
     ]
 
@@ -86,9 +110,11 @@ def build_calendar(daily_cells: list[dict], coverage: dict | None = None,
         Unknown coverage (sample/upload) is permitted but reported as unknown;
         a manifest-verified ratio below the 90% paired threshold is excluded
         from every median/MAD/LOO baseline, not only from critical_periods.
+        Verified zero-fire months (0 detections with eligible coverage) are
+        included as 0.0 so baselines are not biased upward.
         """
         if (y, m) not in seen:
-            return False
+            return _is_verified_zero(y, m)
         cov = (coverage or {}).get(f"{y}-{m:02d}")
         if not isinstance(cov, dict):
             return True

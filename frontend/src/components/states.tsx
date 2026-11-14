@@ -13,25 +13,34 @@ export function BackendProgressCard({
   label,
   hint,
   unit = "s",
+  liveScan = false,
 }: {
   aoi: string
   data?: string
   label: string
   hint?: string
   unit?: string
+  liveScan?: boolean
 }) {
+  const { t } = useLang()
   const [elapsed, setElapsed] = useState(0)
-  const [progress, setProgress] = useState<{ stage: string; percent: number; detail: string } | null>(null)
+  const [progress, setProgress] = useState<{ stage: string; percent: number; detail: string; updated_at?: number } | null>(null)
 
   useEffect(() => {
     let active = true
-    let stopPolling = false
+    let stopPolling = liveScan
+    const startedAt = Date.now() / 1000
+    setElapsed(0)
+    setProgress(null)
     const poll = () => {
       if (stopPolling) return
       api
         .progress(aoi, data === "raw" ? "raw" : "sample")
-        .then((p) => {
-          if (active) setProgress(p)
+        .then((p: { stage: string; percent: number; detail: string; updated_at?: number }) => {
+          if (!active) return
+          if (p.stage === "idle" || p.stage === "done") return
+          if (p.updated_at && p.updated_at < startedAt - 2) return
+          setProgress(p)
         })
         .catch((err) => {
           const status = (err as { status?: number } | null)?.status
@@ -40,21 +49,33 @@ export function BackendProgressCard({
           }
         })
     }
-    poll()
+    if (!liveScan) poll()
     const timerId = window.setInterval(() => setElapsed((s) => s + 1), 1000)
-    const pollId = window.setInterval(poll, 800)
+    const pollId = liveScan ? undefined : window.setInterval(poll, 700)
     return () => {
       active = false
       window.clearInterval(timerId)
-      window.clearInterval(pollId)
+      if (pollId !== undefined) window.clearInterval(pollId)
     }
-  }, [aoi, data])
+  }, [aoi, data, liveScan])
+
+  const stageLabel = liveScan
+    ? t("states.stage_live_fetch")
+    : progress?.stage === "checking_cache"
+      ? t("states.stage_checking_cache")
+      : progress?.stage === "aggregating"
+        ? t("states.stage_aggregating")
+        : progress?.stage === "calibrating"
+          ? t("states.stage_calibrating")
+          : t("states.stage_connecting")
+
+  const hasRealPct = Boolean(progress && progress.percent > 0 && progress.percent < 100 && progress.stage !== "done")
 
   return (
     <div
       role="status"
       aria-live="polite"
-      className="w-full max-w-sm rounded-2xl border border-cyan-500/30 bg-[#0B1220]/95 p-5 shadow-2xl space-y-3"
+      className="w-full max-w-md rounded-2xl border border-cyan-500/30 bg-[#0B1220]/95 p-5 shadow-2xl space-y-3"
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -62,23 +83,26 @@ export function BackendProgressCard({
           <span className="text-sm font-semibold text-white truncate">{label}</span>
         </div>
         <span className="font-mono text-xs text-cyan-300 shrink-0">
-          {progress && progress.percent > 0 ? `${progress.percent}% · ` : ""}
+          {hasRealPct ? `${progress?.percent}% · ` : ""}
           {elapsed} {unit}
         </span>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-        {progress && progress.percent > 0 ? (
+        {hasRealPct ? (
           <div
             className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-all duration-500"
-            style={{ width: `${progress.percent}%` }}
+            style={{ width: `${progress?.percent}%` }}
           />
         ) : (
-          <div className="h-full w-full rounded-full bg-gradient-to-r from-cyan-500/40 via-emerald-400/70 to-cyan-500/40 animate-pulse" />
+          <div className="h-full w-1/2 rounded-full bg-gradient-to-r from-transparent via-cyan-400 to-transparent animate-[pulse_1.2s_ease-in-out_infinite]" />
         )}
       </div>
-      {(progress?.detail || hint) && (
-        <p className="text-xs text-slate-400 leading-relaxed">{progress?.detail || hint}</p>
-      )}
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-cyan-200/90 leading-relaxed">{stageLabel}</p>
+        {(progress?.detail || hint) && (
+          <p className="text-[11px] text-slate-400 leading-relaxed">{progress?.detail || hint}</p>
+        )}
+      </div>
     </div>
   )
 }
@@ -96,13 +120,15 @@ export function Loading({
   hint?: string
   unit?: string
 }) {
+  const { t } = useLang()
+  const resolvedLabel = label ?? t("states.loading")
   if (aoi) {
     return (
       <div className="flex items-center justify-center py-12 px-4">
         <BackendProgressCard
           aoi={aoi}
           data={data}
-          label={label ?? "Loading…"}
+          label={resolvedLabel}
           hint={hint}
           unit={unit}
         />
@@ -120,6 +146,7 @@ export function Loading({
     >
       <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
       <span>{label ?? "Loading…"}</span>
+      <span>{resolvedLabel}</span>
     </div>
   )
 }

@@ -35,13 +35,27 @@ def gather_facts(calendar: dict, daily_cells: int, ratios: dict,
                  method: str | None = None,
                  evaluation: dict | None = None,
                  coverage: dict | None = None,
-                 filters: dict | None = None) -> dict:
+                 filters: dict | None = None,
+                 data_mode: str | None = None,
+                 data_source: str | None = None) -> dict:
     rt = calendar.get("row_totals", [])
     ys = calendar.get("years", [])
     pre = [t for y, t in zip(ys, rt) if y < 2012]
     post = [t for y, t in zip(ys, rt) if y >= 2012]
     era_ratio = round((sum(post) / len(post)) / (sum(pre) / len(pre)), 3) if pre and post else None
     measured = ratios.get("_n_months", 0)
+    if data_source:
+        resolved_source = data_source
+    elif data_mode == "raw":
+        resolved_source = "NASA FIRMS observed"
+    elif data_mode == "sample":
+        resolved_source = "synthetic demo (NOT observed)"
+    elif data_mode == "upload":
+        resolved_source = "user-uploaded session dataset (unverified source)"
+    elif isinstance(evaluation, dict) and evaluation.get("data_source"):
+        resolved_source = str(evaluation["data_source"])
+    else:
+        resolved_source = "unspecified"
     return {
         "n_records": n_records,
         "years": [ys[0], ys[-1]] if ys else [],
@@ -55,7 +69,7 @@ def gather_facts(calendar: dict, daily_cells: int, ratios: dict,
         "era_ratio": era_ratio,
         "col_medians": calendar.get("col_medians", []),
         "latest": None,  # filled by caller
-        "data_source": "synthetic demo (NOT observed)",
+        "data_source": resolved_source,
         "z_unit": calendar.get("z_unit", "robust MAD units"),
         "method_id": method,
         "evaluation": evaluation or {},
@@ -70,7 +84,12 @@ def answer(question: str, facts: dict, critical: list[dict],
     vi = is_vietnamese(q)
     ql = q.lower()
     facts["latest"] = latest
-    if any(w in ql for w in ["thuật toán", "thuat toan", "harmon", "calibrat", "hiệu chuẩn",
+    if any(w in ql for w in ["dự án", "du an", "project", "overview", "giới thiệu", "gioi thieu",
+                             "làm gì", "lam gi", "what is this"]):
+        text = _t_project(facts, vi)
+    elif any(w in ql for w in ["vệ tinh", "ve tinh", "satellite", "modis", "viirs", "375 m", "375m", "1 km", "1km", "khác nhau"]):
+        text = _t_satellite(facts, vi)
+    elif any(w in ql for w in ["thuật toán", "thuat toan", "harmon", "calibrat", "hiệu chuẩn",
                              "hieu chuan", "k =", "phương pháp", "phuong phap", "algorithm", "method"]):
         text = _t_algorithm(facts, vi)
     elif any(w in ql for w in ["chính xác", "chinh xac", "accuracy", "đánh giá", "danh gia",
@@ -107,7 +126,7 @@ def _fmt_top(critical: list[dict], n: int = 3) -> str:
 
 
 def _t_algorithm(f: dict, vi: bool) -> str:
-    src = f.get("data_source", "synthetic demo (NOT observed)")
+    src = f.get("data_source", "unspecified")
     if vi:
         return (f"Thuật toán gồm 4 bước trên lưới ngày 0.05°: (1) Chuẩn hóa mọi dòng FIRMS về một schema, "
                 f"gắn cờ QA (hàng lỗi hình học bị loại, thống kê trong `qa`). (2) Ước lượng k = MODIS/VIIRS = {f['k_fallback']} từ tổng tháng của AOI "
@@ -127,7 +146,7 @@ def _t_algorithm(f: dict, vi: bool) -> str:
 
 def _t_accuracy(f: dict, critical: list[dict], vi: bool) -> str:
     top = _fmt_top(critical)
-    src = f.get("data_source", "synthetic demo (NOT observed)")
+    src = f.get("data_source", "unspecified")
     ev = f.get("evaluation") or {}
     if ev:
         pooled = ev.get("pooled_metrics") or {}
@@ -163,10 +182,12 @@ def _t_accuracy(f: dict, critical: list[dict], vi: bool) -> str:
         return (f"3 con số tính live trên nguồn HIỆN TẠI ({src}): (1) Tỷ lệ hoạt động sau-2012/trước-2012 = {f['era_ratio']} "
                 f"(mục tiêu ~1.0: nhất quán nội bộ đa kỷ nguyên). (2) k trên {f['k_months_measured']} tháng, "
                 f"fallback {f['k_fallback']}. (3) Spike 2019 trong dữ liệu được phát hiện chính xác: {top}. "
-                f"Mô hình học máy STAN và Spatial HGB được bảo vệ bởi cổng MLOps bootstrap 95%.")
+                f"Hệ thống cung cấp `stat` (baseline B2 theo mùa), `hts` (anchor phân cấp theo tile) và `stan` "
+                f"(thử nghiệm: cổng bootstrap 95% hiện chứa 0 khi statistically_established=False).")
     return (f"3 live numbers on CURRENT source ({src}): (1) post/pre-2012 activity ratio = {f['era_ratio']} "
             f"(cross-era consistency). (2) k on {f['k_months_measured']} months, fallback {f['k_fallback']}. "
-            f"(3) 2019 spike accurately isolated: {top}. STAN and Spatial HGB deployed under 95% bootstrap MLOps gating.")
+            f"(3) 2019 spike accurately isolated: {top}. Served methods: `stat` (B2 seasonal ratio baseline), "
+            f"`hts` (hierarchical tile-seasonal anchor), and `stan` (experimental: 95% bootstrap CI includes 0 when statistically_established is False).")
 
 
 def _t_data(f: dict, vi: bool) -> str:
@@ -245,6 +266,38 @@ def _t_dl(f: dict, dl_info: dict, vi: bool) -> str:
         "B2 stays visible as the reference. Older models (HGB residual, "
         "Transformer, SensorFormer, TileFormer, MLP/autoencoder) are archived and "
         "never served."
+    )
+
+
+def _t_project(f: dict, vi: bool) -> str:
+    if vi:
+        return (
+            f"Dự án này chuẩn hóa chuỗi điểm cháy NASA FIRMS (đang xem {f['n_records']} bản ghi, "
+            f"nguồn `{f['data_source']}`, vùng `{f['bbox']}`) để so sánh công bằng qua nhiều năm. "
+            "Trước năm 2012 chỉ có vệ tinh MODIS (1 km), sau 2012 có thêm VIIRS (375 m) nhạy hơn nên số điểm thô tăng mạnh; "
+            "hệ thống quy đổi về cùng thang đo hoạt động điểm nóng (hotspot detections, KHÔNG phải số đám cháy thực). "
+            "Trên bản đồ: chấm xanh/xám là điểm quan sát vệ tinh, vòng cam là cụm điểm nóng quan sát được (không phải ranh giới cháy)."
+        )
+    return (
+        f"This project harmonizes NASA FIRMS hotspot detections (currently {f['n_records']} records, "
+        f"source `{f['data_source']}`, region `{f['bbox']}`) across sensor eras. "
+        "Before 2012 only MODIS (1 km) existed; after 2012 VIIRS (375 m) added finer resolution, inflating raw counts. "
+        "The system calibrates detections onto a consistent hotspot-activity index (NOT confirmed fire counts). "
+        "On the map, dots are satellite detections and amber hulls are observed hotspot clusters, not fire perimeters."
+    )
+
+
+def _t_satellite(f: dict, vi: bool) -> str:
+    if vi:
+        return (
+            f"MODIS (Terra/Aqua, 1 km/pixel, từ 2000) quét rộng nhưng dễ bỏ sót đám cháy nhỏ dưới tán rừng. "
+            f"VIIRS (Suomi-NPP / NOAA-20 / NOAA-21, 375 m/pixel, từ 2012) độ phân giải cao hơn nên phát hiện nhiều điểm nóng nhỏ hơn. "
+            f"Trong tập đang xem, hệ số quy đổi MODIS→VIIRS là `k = {f['k_fallback']}` (tính từ {f['k_months_measured']} tháng có cả 2 vệ tinh)."
+        )
+    return (
+        f"MODIS (Terra/Aqua, 1 km/pixel, since 2000) has coarser pixels and misses smaller sub-canopy fires. "
+        f"VIIRS (Suomi-NPP / NOAA-20 / NOAA-21, 375 m/pixel, since 2012) resolves smaller hotspots. "
+        f"In the current view, the MODIS-to-VIIRS scaling factor is `k = {f['k_fallback']}` ({f['k_months_measured']} paired months)."
     )
 
 

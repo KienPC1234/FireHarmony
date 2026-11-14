@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { applyCustomRegionParams } from "@/lib/researchContext";
 import {
-  AlertTriangle,
   ChevronDown,
   HelpCircle,
   Satellite,
 } from "lucide-react";
+import { notifyToast } from "@/lib/notify";
 import {
   api,
   describeError,
@@ -27,6 +28,7 @@ import { XrayTimelineView } from "@/components/xray/XrayTimelineView";
 import { XrayTransitionIllusionView } from "@/components/xray/XrayTransitionIllusionView";
 import { XrayBacktestLeaderboard } from "@/components/xray/XrayBacktestLeaderboard";
 import { GlobalContextBar } from "@/components/GlobalContextBar";
+import { CustomLiveRegionPanel } from "@/components/CustomLiveRegionPanel";
 
 export function LabPage() {
   const { lang, t } = useLang();
@@ -47,6 +49,7 @@ export function LabPage() {
   // Same filter keys as /calendar so Lab tools quote the same cells.
   const qaMin = sp.get("qa_min") || "all";
   const platformSet = sp.get("platform_set") || "all";
+  const dataset = sp.get("dataset") || undefined;
   // The URL is the single temporal context shared with Calendar/Evidence.
   // Keep a valid historic month; never replace it with a default silently.
   const requestedYm = sp.get("ym");
@@ -131,30 +134,63 @@ export function LabPage() {
     setCrossRes(null);
   }, [aoi, dsrc, qaMin, platformSet]);
 
+  useEffect(() => {
+    if (!err) return;
+    notifyToast({ icon: "error", title: err });
+    setErr("");
+  }, [err]);
+
+  // Separate effect for X-Ray & Replay so tweaking year/month/sensors/QA in
+  // LabSidebar does not re-fetch /xray or /backtest unnecessarily.
+  useEffect(() => {
+    if (tab !== "xray" && tab !== "replay") return;
+    if (aoi === "custom" && !dataset) {
+      setBusy(false);
+      setErr("");
+      setXrayData(null);
+      setBacktestData(null);
+      return;
+    }
+    let active = true;
+    setBusy(true);
+    setErr("");
+    api.xray(aoi, dsrc, dataset)
+      .then((xr) => {
+        if (active) setXrayData(xr);
+      })
+      .catch((err) => {
+        if (active) setErr(describeError(err));
+      })
+      .finally(() => {
+        if (active) setBusy(false);
+      });
+    if (!dataset) {
+      api.backtest(aoi, dsrc)
+        .then((bt) => {
+          if (active) setBacktestData(bt);
+        })
+        .catch(() => null);
+    } else {
+      setBacktestData(null);
+    }
+    return () => {
+      active = false;
+    };
+  }, [tab, aoi, dsrc, dataset]);
+
   // Auto-fetch active tab experiment data so judges never see blank dashed boxes
   useEffect(() => {
+    if (tab === "xray" || tab === "replay") return;
+    if (aoi === "custom" && !dataset) {
+      setBusy(false);
+      setErr("");
+      setSim(null);
+      setSpots(null);
+      setSpatialRes(null);
+      return;
+    }
     let active = true;
-    if ((tab === "xray" || tab === "replay") && (!xrayData || !backtestData)) {
-      setBusy(true);
-      Promise.all([
-        api.xray(aoi, dsrc).catch((err) => {
-          if (active) setErr(describeError(err));
-          return null;
-        }),
-        api.backtest(aoi, dsrc).catch((err) => {
-          if (active) setErr(describeError(err));
-          return null;
-        }),
-      ])
-        .then(([xr, bt]) => {
-          if (!active) return;
-          if (xr) setXrayData(xr);
-          if (bt) setBacktestData(bt);
-        })
-        .finally(() => {
-          if (active) setBusy(false);
-        });
-    } else if (tab === "simulator") {
+    if (tab === "simulator") {
       // Period/sensors may have changed since the previous response.
       setSim(null);
       setErr("");
@@ -173,7 +209,7 @@ export function LabPage() {
       setSpots(null);
       setErr("");
       setBusy(true);
-      api.blindSpots(aoi, dsrc, year, month, qaMin, platformSet)
+      api.blindSpots(aoi, dsrc, year, month, qaMin, platformSet, dataset)
         .then((res) => {
           if (active) setSpots(res);
         })
@@ -187,7 +223,7 @@ export function LabPage() {
       setSpatialRes(null);
       setErr("");
       setBusy(true);
-      api.spatialCheck(aoi, dsrc, year, month)
+      api.spatialCheck(aoi, dsrc, year, month, undefined, undefined, dataset)
         .then((res) => {
           if (active) setSpatialRes(res);
         })
@@ -204,8 +240,7 @@ export function LabPage() {
     // NOTE: result states (sim/spots/...) are intentionally NOT deps: the
     // effect sets them, and listing them re-runs (and re-fetches) every time
     // a response lands. qaMin/platformSet ARE deps: a filter change must refetch.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, aoi, dsrc, year, month, sensors, qaMin, platformSet]);
+  }, [tab, aoi, dsrc, year, month, sensors, qaMin, platformSet, dataset]);
 
   async function run() {
     const seq = ++reqSeq.current;
@@ -216,7 +251,7 @@ export function LabPage() {
         const res = await api.simulate(aoi, dsrc, year, sensors, qaMin, platformSet);
         if (reqSeq.current === seq) setSim(res);
       } else if (tab === "blindspots") {
-        const res = await api.blindSpots(aoi, dsrc, year, month, qaMin, platformSet);
+        const res = await api.blindSpots(aoi, dsrc, year, month, qaMin, platformSet, dataset);
         if (reqSeq.current === seq) setSpots(res);
       } else if (tab === "spatial") {
         const res = await api.spatialCheck(aoi, dsrc, year, month);
@@ -234,7 +269,7 @@ export function LabPage() {
         if (reqSeq.current === seq) setCrossRes(res);
       } else if (tab === "xray" || tab === "replay") {
         const [xr, bt] = await Promise.all([
-          api.xray(aoi, dsrc),
+          api.xray(aoi, dsrc, dataset),
           api.backtest(aoi, dsrc),
         ]);
         if (reqSeq.current === seq) {
@@ -331,7 +366,7 @@ export function LabPage() {
         </div>
 
         {/* 2. Three Structured Mission Task Groups */}
-        <div aria-label={t("lab.task_groups_label")}
+        <div data-tour="lab-groups" aria-label={t("lab.task_groups_label")}
           className="flex snap-x gap-2 overflow-x-auto border-t border-slate-800 pt-3 sm:grid sm:grid-cols-3">
           {TASK_GROUPS.map((g) => {
             const isGroupActive = activeGroup === g.id;
@@ -360,7 +395,7 @@ export function LabPage() {
         </div>
 
         {/* 3. Sub-Tab Switcher for Active Task Group */}
-        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-800">
+        <div data-tour="lab-tabs" className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-800">
           <span className="text-xs font-semibold text-slate-400 px-1">
             {t("lab.experiment_label")}
           </span>
@@ -398,6 +433,17 @@ export function LabPage() {
 
       {/* 4. Global Context Bar */}
       <GlobalContextBar />
+
+      {aoi === "custom" && (
+        <CustomLiveRegionPanel
+          bbox={sp.get("bbox")}
+          geometry={sp.get("geometry")}
+          dataset={dataset}
+          fromDateProp={sp.get("from_date")}
+          toDateProp={sp.get("to_date")}
+          onLoaded={(payload) => setSp((prev) => applyCustomRegionParams(prev, payload), { replace: true })}
+        />
+      )}
 
       {/* 5. Guided Experiment Protocol Bar (Collapsible to save vertical viewport) */}
       <div id="lab-protocol" className="scroll-mt-16 rounded-xl border border-slate-800 bg-[#0B1220] overflow-hidden text-xs">
@@ -458,7 +504,7 @@ export function LabPage() {
         </button>
       </div>
       )}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4 lg:gap-6">
+      <div data-tour="lab-workspace" className="grid grid-cols-1 gap-4 lg:grid-cols-4 lg:gap-6">
         {/* Hide redundant sensor controls on mobile X-Ray until explicitly expanded. */}
         <div id="lab-filters" className={cn("lg:col-span-1 scroll-mt-16", tab === "xray" && !showMobileFilters && "hidden lg:block")}>
           <LabSidebar
@@ -480,12 +526,6 @@ export function LabPage() {
 
         {/* Right Canvas */}
         <div id="lab-results" className="min-w-0 lg:col-span-3 space-y-4 scroll-mt-16">
-          {err && (
-            <div className="flex items-center gap-2 rounded-xl border border-rose-500/40 bg-rose-950/20 p-3.5 text-xs text-rose-300">
-              <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400" />
-              <span>{err}</span>
-            </div>
-          )}
 
           {/* TAB 1: SENSOR X-RAY */}
           {tab === "xray" && (
@@ -545,7 +585,7 @@ export function LabPage() {
               )}
 
               {xrayData && xrayPerspective === "trajectory" && (
-                <XrayTimelineView months={xrayData.months} units={xrayData.units} />
+                <XrayTimelineView months={xrayData.months} daily={xrayData.daily} units={xrayData.units} />
               )}
 
               {xrayData && xrayPerspective === "transition" && (

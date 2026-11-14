@@ -3,9 +3,12 @@ import { Link, useSearchParams } from "react-router-dom";
 import {
   BookmarkPlus,
   CalendarDays,
+  ChevronDown,
   Download,
   Globe,
+  Loader2,
   Printer,
+  Radio,
   ScanEye,
   Sparkles,
   Table as TableIcon,
@@ -15,7 +18,17 @@ import {
 import { api, describeError } from "@/lib/api";
 import { useLang } from "@/lib/i18n";
 import { backendMethod, useResearchContext, type AoiId } from "@/lib/researchContext";
-import { useCalendarData, AOI_BBOX, apiDetailMessage, parseBboxNumbers, type AppliedFilters } from "@/hooks/useCalendarData";
+import {
+  useCalendarData,
+  AOI_BBOX,
+  LIVE_FOCUS_BBOX,
+  AOI_CENTER,
+  DEFAULT_AOI_CENTER,
+  WORLD_CENTER,
+  apiDetailMessage,
+  parseBboxNumbers,
+  type AppliedFilters,
+} from "@/hooks/useCalendarData";
 import { useMapPeriod } from "@/hooks/useMapPeriod";
 import { useCalendarExport } from "@/hooks/useCalendarExport";
 import { BackendProgressCard, ErrorState } from "@/components/states";
@@ -27,18 +40,8 @@ import { CalendarKpis } from "@/components/calendar/CalendarKpis";
 import { CalendarMatrix } from "@/components/calendar/CalendarMatrix";
 import { CalendarMapView } from "@/components/map/CalendarMapView";
 import { Footer } from "@/components/Footer";
+import { notifyAlert, notifyToast, promptExtendDays, promptLiveDateRange } from "@/lib/notify";
 import { cn, compact } from "@/lib/utils";
-
-const AOI_CENTER: Record<string, { c: [number, number]; z: number }> = {
-  vietnam: { c: [13, 106.5], z: 6 },
-  amazon: { c: [-4, -60], z: 4 },
-  australia: { c: [-26, 133], z: 4 },
-};
-
-// P2-12: named view fallbacks instead of inline literals, so the AOI-center
-// rule has one home and the map never depends on a fresh array identity.
-const DEFAULT_AOI_CENTER: [number, number] = [13, 106.5];
-const WORLD_CENTER: [number, number] = [15, 20];
 
 /** CLAIM-024: user-saved custom AOIs live in the server AOI registry
  * (GET /api/firms/aois lists presets + custom with `dataset_ready`;
@@ -88,9 +91,9 @@ export function CalendarPage() {
   // Map temporal filter
   const [mapPeriod, setMapPeriod] = useState<string>(search.get("ym") || "all");
   const [activeZone, setActiveZone] = useState<HotspotCluster | null>(null);
-  // Start at a neutral world-center view unless an AOI/bbox/geometry was explicitly requested
+  // Start at a neutral world-center view unless an AOI/bbox/geometry/dataset was explicitly requested
   const [hasExplicitRegion, setHasExplicitRegion] = useState<boolean>(() =>
-    Boolean(search.get("aoi") || search.get("bbox") || search.get("geometry")),
+    Boolean(search.get("aoi") || search.get("bbox") || search.get("geometry") || search.get("dataset")),
   );
 
   // Data fetching lives in hooks (see useCalendarData/useMapPeriod/
@@ -105,6 +108,18 @@ export function CalendarPage() {
   const [aoiProbes, setAoiProbes] = useState<Record<string, CustomAoiProbe>>({});
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveName, setSaveName] = useState("");
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const actionsMenuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target as Node)) {
+        setActionsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [actionsOpen]);
   // P2: manifest `date_range` per AOI from data-status; null = still pending.
   const [manifestRanges, setManifestRanges] = useState<Record<string, [string, string] | null> | null>(null);
 
@@ -115,8 +130,35 @@ export function CalendarPage() {
   const [fromDate, setFromDate] = useState<string>(search.get("from") || "");
   const [toDate, setToDate] = useState<string>(search.get("to") || "");
 
-  // Filters state
-  const [, setBbox] = useState<string>(AOI_BBOX[aoi] ?? AOI_BBOX.vietnam);
+  const MAX_LIVE_DAYS = 31;
+  const MAX_HYBRID_DAYS = 62;
+const MAX_LIVE_BBOX_SPAN_DEG = 20;
+const MAX_LIVE_BBOX_AREA_DEG2 = 150;
+
+function isoDaysAgo(daysAgo: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  return d.toISOString().slice(0, 10);
+}
+
+function diffDaysInclusive(from: string, to: string): number {
+  if (!from || !to) return 0;
+  const a = Date.parse(`${from}T00:00:00Z`);
+  const b = Date.parse(`${to}T00:00:00Z`);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
+  return Math.floor((b - a) / 86400000) + 1;
+}
+
+function shiftIsoDate(iso: string, deltaDays: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + deltaDays);
+  return d.toISOString().slice(0, 10);
+}
+  const [, setBbox] = useState<string>(search.get("bbox") || (AOI_BBOX[aoi] ?? AOI_BBOX.vietnam));
+  const [fetchingLive, setFetchingLive] = useState(false);
+  const [liveFromDate, setLiveFromDate] = useState<string>(() => search.get("from") || isoDaysAgo(4));
+  const [liveToDate, setLiveToDate] = useState<string>(() => search.get("to") || isoDaysAgo(0));
+  const [liveFetchError, setLiveFetchError] = useState<string | null>(null);
 
   const [activeMonth, setActiveMonth] = useState<{
     year: number;
@@ -130,7 +172,7 @@ export function CalendarPage() {
   } | null>(null);
 
   const [applied, setApplied] = useState<AppliedFilters>({
-    bbox: AOI_BBOX[search.get("aoi") || aoi] ?? AOI_BBOX.vietnam,
+    bbox: search.get("bbox") || (AOI_BBOX[search.get("aoi") || aoi] ?? AOI_BBOX.vietnam),
     aoi: search.get("aoi") || aoi,
     data: dataFeed,
     // Never fire a 409 on first paint: HTS needs raw, the sample has no tiles.
@@ -168,17 +210,40 @@ export function CalendarPage() {
     requestedMethod,
     servingMethod,
     statForced,
-  } = useCalendarData({ applied, activeTab, mapPeriod, activeMonth, t });
-  const { periods, mapCells, mapPreview, yearly, scrubberYears } = useMapPeriod({
+  } = useCalendarData({ applied, activeTab, mapPeriod, activeMonth, enabled: hasExplicitRegion, t });
+  const { periods, availableDays, activeDays, mapCells, mapPreview, yearly, scrubberYears } = useMapPeriod({
     data,
     monthCells,
     mapMeta,
     mapPeriod,
     setMapPeriod,
+    fromDate: applied.from_date,
+    toDate: applied.to_date,
   });
   const { exporting, exportErr, handleExport } = useCalendarExport({ applied });
 
+  const todayIso = isoDaysAgo(0);
+  const curTimelineFrom = applied.from_date || availableDays[0] || liveFromDate;
+  const curTimelineTo = applied.to_date || availableDays[availableDays.length - 1] || liveToDate;
+  const maxTimelineTotal = applied.data !== "raw" ? MAX_HYBRID_DAYS : MAX_LIVE_DAYS;
+  const timelineSpan = Math.max(1, diffDaysInclusive(curTimelineFrom, curTimelineTo));
+  const remainingTimelineBudget = Math.max(0, maxTimelineTotal - timelineSpan);
+  const canExtendLeft = Boolean(hasExplicitRegion && remainingTimelineBudget > 0 && curTimelineFrom > "2001-01-01");
+  const canExtendRight = Boolean(hasExplicitRegion && remainingTimelineBudget > 0 && curTimelineTo < todayIso);
+
   const prevFeed = useRef(dataFeed);
+  useEffect(() => {
+    if (mode === "explore") {
+      if (method !== "k_ratio") setMethod("k_ratio");
+      if (activeTab === "scenarios") setActiveTab("map");
+      setApplied((prev) =>
+        prev.method !== "stat" || prev.qa_min !== "all" || prev.platform_set !== "all"
+          ? { ...prev, method: "stat", qa_min: "all", platform_set: "all" }
+          : prev,
+      );
+    }
+  }, [mode, method, activeTab, setMethod]);
+
   useEffect(() => {
     if (prevFeed.current !== dataFeed) {
       if (dataFeed === "raw") {
@@ -318,22 +383,24 @@ export function CalendarPage() {
   }, [visibleCustomAois, applied.data]);
 
   // URL sync is intentionally keyed on `applied` and `hasExplicitRegion`;
-  // keep default parameters out of the URL until the user selects them.
+  // functional update avoids clobbering concurrent ResearchContext updates.
   useEffect(() => {
-    const next = new URLSearchParams(search);
-    if (hasExplicitRegion || search.has("aoi")) next.set("aoi", applied.aoi); else next.delete("aoi");
-    if (applied.data !== "raw" || search.has("data")) next.set("data", applied.data); else next.delete("data");
-    if (applied.qa_min !== "all" || search.has("qa_min")) next.set("qa_min", applied.qa_min); else next.delete("qa_min");
-    if (applied.platform_set !== "all" || search.has("platform_set")) next.set("platform_set", applied.platform_set); else next.delete("platform_set");
-    if (applied.source_type !== "all") next.set("source_type", applied.source_type); else next.delete("source_type");
-    if (applied.dataset) next.set("dataset", applied.dataset);
-    if (applied.from_date) next.set("from", applied.from_date); else next.delete("from");
-    if (applied.to_date) next.set("to", applied.to_date); else next.delete("to");
-    if (applied.geometry) next.set("geometry", applied.geometry); else next.delete("geometry");
-    if (mapPeriod !== "all") next.set("ym", mapPeriod); else next.delete("ym");
-    if (next.toString() !== search.toString()) {
-      setSearch(next, { replace: true });
-    }
+    setSearch((prev) => {
+      const next = new URLSearchParams(prev);
+      if (hasExplicitRegion) next.set("aoi", applied.aoi); else next.delete("aoi");
+      if (applied.data !== "raw" || prev.has("data")) next.set("data", applied.data); else next.delete("data");
+      if (applied.qa_min !== "all" || prev.has("qa_min")) next.set("qa_min", applied.qa_min); else next.delete("qa_min");
+      if (applied.platform_set !== "all" || prev.has("platform_set")) next.set("platform_set", applied.platform_set); else next.delete("platform_set");
+      if (applied.source_type !== "all") next.set("source_type", applied.source_type); else next.delete("source_type");
+      if (applied.dataset) next.set("dataset", applied.dataset); else next.delete("dataset");
+      if (applied.from_date) next.set("from", applied.from_date); else next.delete("from");
+      if (applied.to_date) next.set("to", applied.to_date); else next.delete("to");
+      const defaultAoiBbox = AOI_BBOX[applied.aoi] ?? "";
+      if (applied.bbox && applied.bbox !== defaultAoiBbox) next.set("bbox", applied.bbox); else next.delete("bbox");
+      if (applied.geometry) next.set("geometry", applied.geometry); else next.delete("geometry");
+      if (mapPeriod !== "all") next.set("ym", mapPeriod); else next.delete("ym");
+      return next.toString() !== prev.toString() ? next : prev;
+    }, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applied, mapPeriod, hasExplicitRegion]);
 
@@ -371,17 +438,68 @@ export function CalendarPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [activeMonth]);
 
-  const handleSelectAoi = (newAoi: string) => {
-    setHasExplicitRegion(true);
-    setAoi(newAoi as AoiId);
-    const b = AOI_BBOX[newAoi] ?? "";
-    setBbox(b);
-    setApplied({
-      ...applied,
-      aoi: newAoi,
-      bbox: b,
-      geometry: null,
+  const handleSelectAoi = async (newAoi: string) => {
+    const inSampleCatalog = applied.data !== "raw" && PRESET_AOI_IDS.has(newAoi);
+    const b = (inSampleCatalog
+      ? AOI_BBOX[newAoi]
+      : (LIVE_FOCUS_BBOX[newAoi] ?? AOI_BBOX[newAoi])) ?? "";
+    const nums = parseBboxNumbers(b);
+    if (!nums) {
+      setHasExplicitRegion(true);
+      setAoi(newAoi as AoiId);
+      setBbox(b);
+      setMapPeriod("all");
+      setApplied({
+        ...applied,
+        aoi: newAoi,
+        bbox: b,
+        geometry: null,
+        dataset: undefined,
+      });
+      return;
+    }
+    const dlon = nums[2] - nums[0];
+    const dlat = nums[3] - nums[1];
+    const maxDays = inSampleCatalog ? MAX_HYBRID_DAYS : MAX_LIVE_DAYS;
+    if (!inSampleCatalog && (dlon > MAX_LIVE_BBOX_SPAN_DEG || dlat > MAX_LIVE_BBOX_SPAN_DEG || dlon * dlat > MAX_LIVE_BBOX_AREA_DEG2)) {
+      await notifyAlert({
+        icon: "warning",
+        title: t("calendar.live_guard_title"),
+        text: t("calendar.live_bbox_too_large", { span: MAX_LIVE_BBOX_SPAN_DEG, area: MAX_LIVE_BBOX_AREA_DEG2 }),
+      });
+      return;
+    }
+    const picked = await promptLiveDateRange({
+      title: t("calendar.live_prompt_title"),
+      subtitle: inSampleCatalog
+        ? t("calendar.hybrid_prompt_subtitle", {
+            dlon: dlon.toFixed(1),
+            dlat: dlat.toFixed(1),
+            max: MAX_HYBRID_DAYS,
+            liveMax: MAX_LIVE_DAYS,
+          })
+        : t("calendar.live_prompt_subtitle", {
+            dlon: dlon.toFixed(1),
+            dlat: dlat.toFixed(1),
+            area: (dlon * dlat).toFixed(1),
+            max: MAX_LIVE_DAYS,
+          }),
+      fromLabel: t("calendar.from_label"),
+      toLabel: t("calendar.to_label"),
+      confirmText: t("calendar.live_prompt_confirm"),
+      cancelText: t("common.cancel"),
+      initialFrom: liveFromDate,
+      initialTo: liveToDate,
+      maxDate: isoDaysAgo(0),
+      maxDays,
+      invalidRangeError: t("calendar.live_range_invalid"),
+      tooLongError: t("calendar.live_range_too_long", { max: maxDays }),
     });
+    if (!picked) return;
+    setBbox(b);
+    setLiveFromDate(picked.from);
+    setLiveToDate(picked.to);
+    await handleFetchLiveFirms(b, null, newAoi as AoiId, picked.from, picked.to);
   };
 
   const handleSelectScenario = (sc: ScenarioPreset) => {
@@ -394,6 +512,7 @@ export function CalendarPage() {
       aoi: sc.aoi,
       bbox: b,
       geometry: null,
+      dataset: undefined,
     });
     setMapPeriod(`${sc.year}-${String(sc.month).padStart(2, "0")}`);
     setActiveTab("map");
@@ -450,23 +569,368 @@ export function CalendarPage() {
     setAoi(c.baseAoi as AoiId);
     setBbox(c.bbox);
     setActiveZone(null);
+    setMapPeriod("all");
     setApplied((prev) => ({
       ...prev,
       aoi: c.baseAoi,
       bbox: c.bbox,
       geometry: c.geometry,
+      dataset: undefined,
     }));
   };
 
-  // No DELETE /api/firms/aois endpoint exists: deletion only hides the entry
-  // locally for this session; the registry entry stays on the server.
-  const handleDeleteCustomAoi = (id: string) => {
+  const handleDeleteCustomAoi = async (id: string) => {
     setHiddenCustomIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
     setAoiProbes((prev) => {
       const next = { ...prev };
       delete next[id];
       return next;
     });
+    if (applied.aoi === id) {
+      setAoi("vietnam");
+      setBbox(AOI_BBOX.vietnam ?? "");
+      setHasExplicitRegion(false);
+      setApplied((prev) => ({
+        ...prev,
+        aoi: "vietnam",
+        bbox: AOI_BBOX.vietnam ?? "",
+        geometry: null,
+        dataset: undefined,
+      }));
+    }
+    try {
+      await api.deleteAoi(id);
+      setCustomAois((prev) => prev.filter((c) => c.id !== id));
+    } catch {
+      // Fall back gracefully if offline or 404 (entry stays hidden for this session)
+    }
+  };
+
+  const findOverlappingPreset = (nums: [number, number, number, number]): AoiId | null => {
+    for (const [id, boxStr] of Object.entries(AOI_BBOX)) {
+      const ab = parseBboxNumbers(boxStr);
+      if (!ab) continue;
+      if (!(nums[2] < ab[0] || nums[0] > ab[2] || nums[3] < ab[1] || nums[1] > ab[3])) {
+        return id as AoiId;
+      }
+    }
+    return null;
+  };
+
+  const liveSpanDays = diffDaysInclusive(liveFromDate, liveToDate);
+
+  const handleFetchLiveFirms = async (
+    overrideBbox?: string,
+    overrideGeom?: string | null,
+    overrideAoi?: AoiId,
+    overrideFrom?: string,
+    overrideTo?: string,
+  ) => {
+    if (fetchingLive) return;
+    const targetBbox = overrideBbox ?? applied.bbox;
+    const nums = parseBboxNumbers(targetBbox);
+    if (!nums) {
+      setLiveFetchError(t("calendar.coord_invalid"));
+      return;
+    }
+    const dlon = nums[2] - nums[0];
+    const dlat = nums[3] - nums[1];
+    if (dlon <= 0 || dlat <= 0) {
+      setLiveFetchError(t("calendar.coord_invalid"));
+      return;
+    }
+    const useSampleMode = applied.data !== "raw";
+    const effectiveMaxDays = useSampleMode ? MAX_HYBRID_DAYS : MAX_LIVE_DAYS;
+    if (!useSampleMode && (dlon > MAX_LIVE_BBOX_SPAN_DEG || dlat > MAX_LIVE_BBOX_SPAN_DEG || dlon * dlat > MAX_LIVE_BBOX_AREA_DEG2)) {
+      void notifyAlert({
+        icon: "warning",
+        title: t("calendar.live_guard_title"),
+        text: t("calendar.live_bbox_too_large", { span: MAX_LIVE_BBOX_SPAN_DEG, area: MAX_LIVE_BBOX_AREA_DEG2 }),
+      });
+      return;
+    }
+
+    const targetFrom = overrideFrom ?? liveFromDate;
+    const targetTo = overrideTo ?? liveToDate;
+    const todayIso = isoDaysAgo(0);
+    const span = diffDaysInclusive(targetFrom, targetTo);
+    if (!targetFrom || !targetTo || span < 1 || targetFrom > todayIso) {
+      void notifyAlert({
+        icon: "warning",
+        title: t("calendar.live_guard_title"),
+        text: t("calendar.live_range_invalid"),
+      });
+      return;
+    }
+    if (span > effectiveMaxDays) {
+      void notifyAlert({
+        icon: "warning",
+        title: t("calendar.live_guard_title"),
+        text: t("calendar.live_range_too_long", { max: effectiveMaxDays }),
+      });
+      return;
+    }
+
+    setFetchingLive(true);
+    setLiveFetchError(null);
+    try {
+      const res = await api.fetchLiveFirms({
+        bbox: nums,
+        from_date: targetFrom,
+        to_date: targetTo,
+        aoi: overrideAoi ?? applied.aoi,
+        use_sample: useSampleMode,
+      });
+      setHasExplicitRegion(true);
+      setEmptyFilter(null);
+      setModelConflict(null);
+      setMapPeriod("all");
+      setLiveFromDate(targetFrom);
+      setLiveToDate(targetTo);
+      if (method !== "k_ratio") setMethod("k_ratio");
+      notifyToast({
+        icon: res.rows > 0 ? "success" : "info",
+        title: res.cached
+          ? t("calendar.fetch_live_cached", { n: res.rows })
+          : t("calendar.fetch_live_done", { n: res.rows }),
+        text: t("calendar.fetch_live_detail", {
+          from: targetFrom,
+          to: targetTo,
+          sources: res.sources_fetched.join(", ") || "NASA FIRMS",
+        }),
+        timer: 6500,
+      });
+      setApplied((prev) => ({
+        ...prev,
+        aoi: overrideAoi ?? prev.aoi,
+        bbox: targetBbox,
+        geometry: overrideGeom !== undefined ? overrideGeom : prev.geometry,
+        from_date: targetFrom,
+        to_date: targetTo,
+        dataset: res.dataset,
+        method: "stat",
+      }));
+    } catch (e) {
+      const msg = apiDetailMessage(e) ?? (e instanceof Error ? e.message : describeError(e));
+      setLiveFetchError(msg);
+      void notifyAlert({
+        icon: "warning",
+        title: t("calendar.live_guard_title"),
+        text: msg,
+      });
+    } finally {
+      setFetchingLive(false);
+    }
+  };
+
+  const selectWorldBbox = async (b: string, geom?: string | null) => {
+    const nums = parseBboxNumbers(b);
+    if (!nums) {
+      setLiveFetchError(t("calendar.coord_invalid"));
+      return;
+    }
+    const dlon = nums[2] - nums[0];
+    const dlat = nums[3] - nums[1];
+    if (dlon <= 0 || dlat <= 0) {
+      setLiveFetchError(t("calendar.coord_invalid"));
+      return;
+    }
+
+    const matched = findOverlappingPreset(nums);
+    const targetAoi: AoiId = matched ?? "custom";
+    const inSampleCatalog = applied.data !== "raw" && Boolean(matched);
+    const maxDays = inSampleCatalog ? MAX_HYBRID_DAYS : MAX_LIVE_DAYS;
+
+    if (!inSampleCatalog && (dlon > MAX_LIVE_BBOX_SPAN_DEG || dlat > MAX_LIVE_BBOX_SPAN_DEG || dlon * dlat > MAX_LIVE_BBOX_AREA_DEG2)) {
+      await notifyAlert({
+        icon: "warning",
+        title: t("calendar.live_guard_title"),
+        text: t("calendar.live_bbox_too_large", { span: MAX_LIVE_BBOX_SPAN_DEG, area: MAX_LIVE_BBOX_AREA_DEG2 }),
+      });
+      return;
+    }
+
+    const picked = await promptLiveDateRange({
+      title: t("calendar.live_prompt_title"),
+      subtitle: inSampleCatalog
+        ? t("calendar.hybrid_prompt_subtitle", {
+            dlon: dlon.toFixed(1),
+            dlat: dlat.toFixed(1),
+            max: MAX_HYBRID_DAYS,
+            liveMax: MAX_LIVE_DAYS,
+          })
+        : t("calendar.live_prompt_subtitle", {
+            dlon: dlon.toFixed(1),
+            dlat: dlat.toFixed(1),
+            area: (dlon * dlat).toFixed(1),
+            max: MAX_LIVE_DAYS,
+          }),
+      fromLabel: t("calendar.from_label"),
+      toLabel: t("calendar.to_label"),
+      confirmText: t("calendar.live_prompt_confirm"),
+      cancelText: t("common.cancel"),
+      initialFrom: liveFromDate,
+      initialTo: liveToDate,
+      maxDate: isoDaysAgo(0),
+      maxDays,
+      invalidRangeError: t("calendar.live_range_invalid"),
+      tooLongError: t("calendar.live_range_too_long", { max: maxDays }),
+    });
+    if (!picked) return;
+
+    setBbox(b);
+    setLiveFromDate(picked.from);
+    setLiveToDate(picked.to);
+    await handleFetchLiveFirms(b, geom ?? null, targetAoi, picked.from, picked.to);
+  };
+
+  const handleOpenCustomFetch = async () => {
+    if (fetchingLive) return;
+    const nums = parseBboxNumbers(applied.bbox);
+    if (!hasExplicitRegion || !nums) {
+      notifyToast({ icon: "info", title: t("calendar.world_explorer_title") });
+      return;
+    }
+    const dlon = nums[2] - nums[0];
+    const dlat = nums[3] - nums[1];
+    if (dlon > MAX_LIVE_BBOX_SPAN_DEG || dlat > MAX_LIVE_BBOX_SPAN_DEG || dlon * dlat > MAX_LIVE_BBOX_AREA_DEG2) {
+      await notifyAlert({
+        icon: "warning",
+        title: t("calendar.live_guard_title"),
+        text: t("calendar.live_bbox_too_large", { span: MAX_LIVE_BBOX_SPAN_DEG, area: MAX_LIVE_BBOX_AREA_DEG2 }),
+      });
+      return;
+    }
+    const picked = await promptLiveDateRange({
+      title: t("calendar.live_prompt_title"),
+      subtitle: t("calendar.live_prompt_subtitle", {
+        dlon: dlon.toFixed(1),
+        dlat: dlat.toFixed(1),
+        area: (dlon * dlat).toFixed(1),
+        max: MAX_LIVE_DAYS,
+      }),
+      fromLabel: t("calendar.from_label"),
+      toLabel: t("calendar.to_label"),
+      confirmText: t("calendar.live_prompt_confirm"),
+      cancelText: t("common.cancel"),
+      initialFrom: liveFromDate,
+      initialTo: liveToDate,
+      maxDate: isoDaysAgo(0),
+      maxDays: MAX_LIVE_DAYS,
+      invalidRangeError: t("calendar.live_range_invalid"),
+      tooLongError: t("calendar.live_range_too_long", { max: MAX_LIVE_DAYS }),
+    });
+    if (picked) {
+      setLiveFromDate(picked.from);
+      setLiveToDate(picked.to);
+      await handleFetchLiveFirms(applied.bbox, applied.geometry, undefined, picked.from, picked.to);
+    }
+  };
+
+  const handleExtendRange = async (direction: "left" | "right") => {
+    if (fetchingLive) return;
+    const nums = parseBboxNumbers(applied.bbox);
+    if (!hasExplicitRegion || !nums) {
+      notifyToast({ icon: "info", title: t("calendar.world_explorer_title") });
+      return;
+    }
+    const todayIso = isoDaysAgo(0);
+    const curFrom = applied.from_date || availableDays[0] || liveFromDate;
+    const curTo = applied.to_date || availableDays[availableDays.length - 1] || liveToDate;
+    const maxTotal = applied.data !== "raw" ? MAX_HYBRID_DAYS : MAX_LIVE_DAYS;
+    const currentSpan = Math.max(1, diffDaysInclusive(curFrom, curTo));
+    const remainingBudget = Math.max(0, maxTotal - currentSpan);
+
+    let maxAdd = remainingBudget;
+    if (direction === "right") {
+      if (curTo >= todayIso) {
+        notifyToast({ icon: "info", title: t("calendar.extend_already_today") });
+        return;
+      }
+      const daysUntilToday = Math.max(0, diffDaysInclusive(curTo, todayIso) - 1);
+      maxAdd = Math.min(remainingBudget, daysUntilToday);
+    }
+
+    if (maxAdd <= 0) {
+      notifyToast({ icon: "info", title: t("calendar.extend_budget_exhausted", { maxTotal }) });
+      return;
+    }
+
+    const addDays = await promptExtendDays({
+      title: direction === "left" ? t("calendar.extend_prompt_title_left") : t("calendar.extend_prompt_title_right"),
+      subtitle: t("calendar.extend_prompt_subtitle", {
+        from: curFrom,
+        to: curTo,
+        span: currentSpan,
+        maxAdd,
+        maxTotal,
+      }),
+      daysLabel: t("calendar.extend_days_label"),
+      maxAdd,
+      defaultDays: Math.min(5, maxAdd),
+      confirmText: t("calendar.live_prompt_confirm"),
+      cancelText: t("common.cancel"),
+      invalidError: t("calendar.extend_days_invalid", { maxAdd }),
+    });
+    if (!addDays) return;
+
+    const nextFrom = direction === "left" ? shiftIsoDate(curFrom, -addDays) : curFrom;
+    const nextTo = direction === "right" ? shiftIsoDate(curTo, addDays) : curTo;
+    setLiveFromDate(nextFrom);
+    setLiveToDate(nextTo);
+    await handleFetchLiveFirms(applied.bbox, applied.geometry, undefined, nextFrom, nextTo);
+  };
+
+  const handleMissingPeriodClick = async (period: string) => {
+    if (fetchingLive) return;
+    if (!hasExplicitRegion || !parseBboxNumbers(applied.bbox)) {
+      notifyToast({ icon: "info", title: t("calendar.world_explorer_title") });
+      return;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(period)) {
+      const curFrom = applied.from_date || availableDays[0] || liveFromDate;
+      const curTo = applied.to_date || availableDays[availableDays.length - 1] || liveToDate;
+      if (period < curFrom) {
+        await handleExtendRange("left");
+        return;
+      }
+      if (period > curTo) {
+        await handleExtendRange("right");
+        return;
+      }
+    }
+    const todayIso = isoDaysAgo(0);
+    let fetchFrom = period;
+    let fetchTo = period;
+    if (/^\d{4}-\d{2}$/.test(period)) {
+      const [yStr, mStr] = period.split("-");
+      const y = Number(yStr);
+      const m = Number(mStr);
+      fetchFrom = `${period}-01`;
+      const monthEnd = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+      fetchTo = monthEnd > todayIso ? todayIso : monthEnd;
+    }
+    if (fetchFrom > todayIso) {
+      await notifyAlert({
+        icon: "warning",
+        title: t("calendar.live_guard_title"),
+        text: t("calendar.missing_period_future", { period }),
+      });
+      return;
+    }
+    const ans = await notifyAlert({
+      icon: "question",
+      title: t("calendar.missing_period_title", { period }),
+      text: t("calendar.missing_period_ask", { from: fetchFrom, to: fetchTo }),
+      showCancelButton: true,
+      confirmButtonText: t("calendar.live_prompt_confirm"),
+      cancelButtonText: t("common.cancel"),
+    });
+    if (ans.isConfirmed) {
+      setLiveFromDate(fetchFrom);
+      setLiveToDate(fetchTo);
+      await handleFetchLiveFirms(applied.bbox, applied.geometry, undefined, fetchFrom, fetchTo);
+    }
   };
 
   // 409 recovery: the stat grid path is valid on any subset.
@@ -490,18 +954,22 @@ export function CalendarPage() {
     ? `${Math.max(2012, Number(aoiManifestRange[0].slice(0, 4)))}-${aoiManifestRange[1].slice(0, 4)}`
     : t("calendar.aoi_range_unknown");
 
-  // Empty-filter recovery: drop the spatial/temporal restrictions that matched
-  // no rows and refetch the full AOI. The map stays mounted throughout.
+  // Empty-filter recovery: return cleanly to the center of the world map
+  // instead of forcing Vietnam.
   const clearRestrictiveFilters = () => {
-    const defBbox = AOI_BBOX[applied.aoi] ?? "";
+    setHasExplicitRegion(false);
+    setAoi("vietnam");
+    const defBbox = AOI_BBOX.vietnam ?? "";
     setBbox(defBbox);
     setActiveZone(null);
     setEmptyFilter(null);
     setRangePreset("all");
+    setMapPeriod("all");
     setFromDate("");
     setToDate("");
     setApplied((prev) => ({
       ...prev,
+      aoi: "vietnam",
       bbox: defBbox,
       geometry: null,
       from_date: null,
@@ -509,15 +977,121 @@ export function CalendarPage() {
       dataset: undefined,
     }));
     const next = new URLSearchParams(search);
+    next.delete("aoi");
     next.delete("bbox");
     next.delete("geometry");
     next.delete("from");
     next.delete("to");
     next.delete("dataset");
+    next.delete("ym");
     if (next.toString() !== search.toString()) {
       setSearch(next, { replace: true });
     }
   };
+
+  // SweetAlert2 notifications: keep UI free of space-hogging inline banners.
+  useEffect(() => {
+    if (!liveFetchError) return;
+    notifyToast({ icon: "error", title: liveFetchError });
+    setLiveFetchError(null);
+  }, [liveFetchError]);
+
+  useEffect(() => {
+    if (!exportErr) return;
+    notifyToast({ icon: "error", title: exportErr });
+  }, [exportErr]);
+
+  useEffect(() => {
+    if (!saveError) return;
+    notifyToast({ icon: "error", title: saveError });
+    setSaveError(null);
+  }, [saveError]);
+
+  useEffect(() => {
+    if (!mapError) return;
+    notifyToast({ icon: "error", title: `${t("calendar.map_cells_error")}: ${mapError}` });
+  }, [mapError, t]);
+
+  const lastStatForcedKey = useRef<string | null>(null);
+  useEffect(() => {
+    const showStatForced = statForced && applied.aoi !== "custom" && !applied.dataset?.startsWith("live:");
+    if (!showStatForced) {
+      lastStatForcedKey.current = null;
+      return;
+    }
+    const key = `${applied.aoi}|${requestedMethod}|${servingMethod}`;
+    if (lastStatForcedKey.current === key) return;
+    lastStatForcedKey.current = key;
+    notifyToast({
+      icon: "info",
+      title: t("calendar.stat_forced_badge", { requested: requestedMethod, serving: servingMethod }),
+      timer: 5000,
+    });
+  }, [statForced, applied.aoi, applied.dataset, requestedMethod, servingMethod, t]);
+
+  const lastZeroFireDataset = useRef<string | null>(null);
+  useEffect(() => {
+    const isZero = Boolean((data as { live_zero_fires?: boolean } | null)?.live_zero_fires);
+    if (!isZero) {
+      lastZeroFireDataset.current = null;
+      return;
+    }
+    const key = applied.dataset ?? "live";
+    if (lastZeroFireDataset.current === key) return;
+    lastZeroFireDataset.current = key;
+    notifyToast({
+      icon: "info",
+      title: t("calendar.live_zero_fires_title"),
+      text: t("calendar.live_zero_fires_body"),
+      timer: 6500,
+    });
+  }, [data, applied.dataset, t]);
+
+  useEffect(() => {
+    if (!modelConflict) return;
+    let active = true;
+    void notifyAlert({
+      icon: "warning",
+      title: t("calendar.conflict_409_title"),
+      text: modelConflict.message,
+      showCancelButton: true,
+      confirmButtonText: t("calendar.conflict_409_retry"),
+      cancelButtonText: t("common.close"),
+    }).then((res) => {
+      if (!active) return;
+      if (res.isConfirmed) {
+        retryConflictWithStat();
+      } else {
+        setModelConflict(null);
+      }
+    });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelConflict]);
+
+  useEffect(() => {
+    if (!emptyFilter) return;
+    let active = true;
+    const canFetchLive = Boolean(parseBboxNumbers(applied.bbox));
+    void notifyAlert({
+      icon: "info",
+      title: t("calendar.empty_filter_title"),
+      text: t("calendar.empty_filter_body"),
+      showCancelButton: canFetchLive,
+      confirmButtonText: canFetchLive ? t("calendar.fetch_live_btn") : t("calendar.clear_filter"),
+      cancelButtonText: t("calendar.clear_filter"),
+    }).then((res) => {
+      if (!active) return;
+      if (res.isConfirmed && canFetchLive) {
+        setEmptyFilter(null);
+        void handleFetchLiveFirms();
+      } else {
+        clearRestrictiveFilters();
+      }
+    });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emptyFilter]);
 
   if (error) return <ErrorState error={error} onRetry={() => setApplied({ ...applied })} />;
   if (rawUnavailable && !data) {
@@ -572,36 +1146,6 @@ export function CalendarPage() {
   if (!data && (emptyFilter || modelConflict)) {
     return (
       <div className="relative flex-1 min-h-0 flex flex-col h-full w-full bg-[#060B13] text-slate-100 overflow-hidden">
-        {modelConflict && (
-          <div className="shrink-0 mx-3 mt-2 flex flex-col gap-2 rounded-xl border border-amber-500/40 bg-amber-950/50 px-3.5 py-2.5 text-xs text-amber-100">
-            <div className="font-bold text-sm">{t("calendar.conflict_409_title")}</div>
-            <p className="leading-relaxed text-amber-100/90">{modelConflict.message}</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={retryConflictWithStat}
-                className="rounded-lg border border-amber-500/50 bg-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-200 hover:bg-amber-500/30 transition"
-              >
-                {t("calendar.conflict_409_retry")}
-              </button>
-            </div>
-          </div>
-        )}
-        {emptyFilter && (
-          <div data-testid="empty-filter-banner" className="shrink-0 mx-3 mt-2 flex items-center justify-between gap-2 rounded-xl border border-cyan-500/40 bg-cyan-950/50 px-3.5 py-2 text-xs text-cyan-100">
-            <span className="flex flex-col gap-0.5">
-              <span className="font-bold">{t("calendar.empty_filter_title")}</span>
-              <span className="text-cyan-200/80">{t("calendar.empty_filter_body")}</span>
-            </span>
-            <button
-              type="button"
-              onClick={clearRestrictiveFilters}
-              className="rounded-lg border border-cyan-500/50 bg-cyan-500/20 px-2.5 py-1 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/30 transition shrink-0"
-            >
-              {t("calendar.clear_filter")}
-            </button>
-          </div>
-        )}
         <div className="relative flex-1 min-h-0 m-3 rounded-2xl overflow-hidden border border-slate-800">
           <AoiMap
             center={hasExplicitRegion ? (AOI_CENTER[aoi]?.c ?? DEFAULT_AOI_CENTER) : WORLD_CENTER}
@@ -616,10 +1160,90 @@ export function CalendarPage() {
             hideToolbar={false}
             hideLegend={false}
             onClearBbox={clearRestrictiveFilters}
-            onSelect={(b, geom) => {
-              setBbox(b);
-              setApplied({ ...applied, bbox: b, geometry: geom ?? null });
-            }}
+            onSelect={(b, geom) => selectWorldBbox(b, geom)}
+          />
+        </div>
+      </div>
+    );
+  }
+  if (!hasExplicitRegion && !loadingData && !fetchingLive) {
+    return (
+      <div className="relative flex-1 min-h-0 flex flex-col h-full w-full bg-[#060B13] text-slate-100 overflow-hidden">
+        <div className="shrink-0 mx-3 mt-2 rounded-xl border border-slate-800 bg-[#0B1220]/95 px-4 py-3 text-xs space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h1 className="text-sm font-bold text-white tracking-tight">{t("calendar.title")}</h1>
+              <p className="text-slate-400 mt-0.5">{t("calendar.world_explorer_hint")}</p>
+            </div>
+            <div data-tour="calendar-world-presets" className="flex flex-wrap items-center gap-1.5">
+              <span className="text-slate-400 font-medium mr-1">{t("calendar.guide_presets_label")}</span>
+              {(
+                [
+                  { id: "vietnam", label: "Vietnam (Central Highlands)", bbox: LIVE_FOCUS_BBOX.vietnam },
+                  { id: "amazon", label: "Amazon (Mato Grosso)", bbox: LIVE_FOCUS_BBOX.amazon },
+                  { id: "australia", label: "Australia (SE Forests)", bbox: LIVE_FOCUS_BBOX.australia },
+                ] as const
+              ).map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => selectWorldBbox(preset.bbox)}
+                  className="rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs font-semibold text-slate-200 hover:border-cyan-500/50 hover:text-cyan-200 transition"
+                >
+                  {preset.label}
+                </button>
+              ))}
+              <span className="text-slate-500 mx-1">|</span>
+              <span className="text-slate-400 font-medium mr-1">{t("calendar.global_live_label")}</span>
+              {(
+                [
+                  { id: "california", key: "calendar.region_california", bbox: "-123.5,36.5,-117.5,41.5" },
+                  { id: "mediterranean", key: "calendar.region_mediterranean", bbox: "21.0,36.5,29.5,41.5" },
+                  { id: "indonesia", key: "calendar.region_indonesia", bbox: "109.5,-3.5,116.5,2.0" },
+                  { id: "central_africa", key: "calendar.region_central_africa", bbox: "16.0,-7.0,24.0,0.0" },
+                ] as const
+              ).map((reg) => (
+                <button
+                  key={reg.id}
+                  type="button"
+                  onClick={() => selectWorldBbox(reg.bbox)}
+                  className="rounded-lg border border-orange-500/30 bg-orange-950/30 px-2.5 py-1 text-xs font-semibold text-orange-200 hover:border-orange-400 hover:bg-orange-900/40 transition"
+                >
+                  {t(reg.key)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div data-tour="calendar-world-guide" className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1 border-t border-slate-800/80">
+            <div className="rounded-lg border border-slate-800/80 bg-slate-900/50 px-3 py-2">
+              <div className="font-semibold text-cyan-300">{t("calendar.guide_step1_title")}</div>
+              <p className="text-slate-400 mt-0.5 leading-relaxed">{t("calendar.guide_step1_desc")}</p>
+            </div>
+            <div className="rounded-lg border border-slate-800/80 bg-slate-900/50 px-3 py-2">
+              <div className="font-semibold text-orange-300">{t("calendar.guide_step2_title")}</div>
+              <p className="text-slate-400 mt-0.5 leading-relaxed">{t("calendar.guide_step2_desc")}</p>
+            </div>
+            <div className="rounded-lg border border-slate-800/80 bg-slate-900/50 px-3 py-2">
+              <div className="font-semibold text-emerald-300">{t("calendar.guide_step3_title")}</div>
+              <p className="text-slate-400 mt-0.5 leading-relaxed">{t("calendar.guide_step3_desc")}</p>
+            </div>
+          </div>
+        </div>
+        <div className="relative flex-1 min-h-0 m-3 rounded-2xl overflow-hidden border border-slate-800">
+          <AoiMap
+            center={WORLD_CENTER}
+            zoom={2}
+            bbox={null}
+            geometry={null}
+            hasCustomFilter={false}
+            cells={[]}
+            preview={null}
+            fullBleed={true}
+            height="100%"
+            hideToolbar={false}
+            hideLegend={false}
+            onClearBbox={clearRestrictiveFilters}
+            onSelect={(b, geom) => selectWorldBbox(b, geom)}
           />
         </div>
       </div>
@@ -631,8 +1255,21 @@ export function CalendarPage() {
         <BackendProgressCard
           aoi={applied.aoi}
           data={applied.data}
-          label={applied.data === "raw" ? t("calendar.loading_raw") : t("calendar.loading_sample")}
-          hint={applied.data === "raw" ? t("calendar.loading_raw_hint") : t("calendar.loading_sample_hint")}
+          liveScan={fetchingLive}
+          label={
+            fetchingLive
+              ? t("calendar.loading_live_scan")
+              : applied.data === "raw"
+              ? t("calendar.loading_raw")
+              : t("calendar.loading_sample")
+          }
+          hint={
+            fetchingLive
+              ? t("calendar.loading_live_scan_hint", { days: Math.max(1, liveSpanDays) })
+              : applied.data === "raw"
+              ? t("calendar.loading_raw_hint")
+              : t("calendar.loading_sample_hint")
+          }
           unit={t("calendar.loading_elapsed")}
         />
       </div>
@@ -656,19 +1293,32 @@ export function CalendarPage() {
 
   return (
     <div className="relative flex-1 min-h-0 flex flex-col h-full w-full bg-[#060B13] text-slate-100 overflow-hidden">
-      {showLoadingOverlay && (
+      {(showLoadingOverlay || fetchingLive) && (
         <div className="fixed inset-0 z-[1500] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
           <BackendProgressCard
             aoi={applied.aoi}
             data={applied.data}
-            label={applied.data === "raw" ? t("calendar.loading_raw") : t("calendar.loading_sample")}
-            hint={applied.data === "raw" ? t("calendar.loading_raw_hint") : t("calendar.loading_sample_hint")}
+            liveScan={fetchingLive}
+            label={
+              fetchingLive
+                ? t("calendar.loading_live_scan")
+                : applied.data === "raw"
+                ? t("calendar.loading_raw")
+                : t("calendar.loading_sample")
+            }
+            hint={
+              fetchingLive
+                ? t("calendar.loading_live_scan_hint", { days: Math.max(1, liveSpanDays) })
+                : applied.data === "raw"
+                ? t("calendar.loading_raw_hint")
+                : t("calendar.loading_sample_hint")
+            }
             unit={t("calendar.loading_elapsed")}
           />
         </div>
       )}
       {/* 1. TOP HEADER & TELEMETRY STRIP */}
-      <header className="border-b border-slate-800 bg-[#0B1220]/95 backdrop-blur-md px-2.5 py-1.5 flex flex-wrap lg:flex-nowrap items-center justify-between gap-1.5 shrink-0 overflow-x-auto">
+      <header className="relative z-[1300] border-b border-slate-800 bg-[#0B1220]/95 backdrop-blur-md px-2.5 py-1.5 flex flex-wrap items-center justify-between gap-1.5 shrink-0">
         <div className="flex min-w-0 items-center gap-1.5 shrink-0">
           <div className="flex items-center gap-1.5">
             <CalendarDays className="h-4 w-4 text-cyan-400 shrink-0" />
@@ -678,131 +1328,237 @@ export function CalendarPage() {
           </div>
 
           {/* Mode Badge & Playwright Token */}
-          {applied.dataset ? (
+          {applied.dataset?.startsWith("live:") ? (
+            <span className="inline-flex items-center gap-1 rounded-md border border-orange-500/40 bg-orange-950/40 px-2 py-0.5 text-xs font-mono font-bold text-orange-300">
+              <Radio className="h-3 w-3 text-orange-400" />
+              {t("calendar.badge_nasa_live")}
+            </span>
+          ) : applied.dataset ? (
             <span className="rounded-md border border-amber-500/40 bg-amber-950/40 px-2 py-0.5 text-xs font-mono font-bold text-amber-300">
-              USER UPLOAD (UNVERIFIED)
+              {t("calendar.badge_user_upload")}
             </span>
           ) : isSynthetic ? (
             <span className="rounded-md border border-sky-500/40 bg-sky-950/40 px-2 py-0.5 text-xs font-mono font-bold text-sky-300">
-              SYNTHETIC DEMO
+              {t("calendar.badge_synthetic_demo")}
             </span>
           ) : (
             <span className="rounded-md border border-emerald-500/40 bg-emerald-950/40 px-2 py-0.5 text-xs font-mono font-bold text-emerald-300">
-              NASA OBSERVED
+              {t("calendar.badge_nasa_observed")}
             </span>
           )}
 
-          {/* Period Selector integrated cleanly in header (No floating overlay on map) */}
-          <div className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/90 px-2 py-1 text-xs">
-            <span className="text-slate-400 font-medium hidden 2xl:inline">{t("calendar.period")}</span>
-            <select
-              aria-label={t("calendar.period")}
-              value={mapPeriod}
-              onChange={(e) => setMapPeriod(e.target.value)}
-              className="rounded bg-transparent font-mono text-xs text-cyan-300 focus:outline-none cursor-pointer"
-            >
-              <option value="all" className="bg-slate-900 text-slate-200">{t("calendar.all_months")}</option>
-              {periods.map((p) => (
-                <option key={p} value={p} className="bg-slate-900 text-slate-200">
-                  {p}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Period Selector (hidden when <= 1 month) */}
+          {periods.length > 1 && (
+            <div className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/90 px-2 py-1 text-xs">
+              <span className="text-slate-400 font-medium hidden 2xl:inline">{t("calendar.period")}</span>
+              <select
+                aria-label={t("calendar.period")}
+                value={mapPeriod}
+                onChange={(e) => setMapPeriod(e.target.value)}
+                className="rounded bg-transparent font-mono text-xs text-cyan-300 focus:outline-none cursor-pointer"
+              >
+                <option value="all" className="bg-slate-900 text-slate-200">{t("calendar.all_months")}</option>
+                {periods.map((p) => (
+                  <option key={p} value={p} className="bg-slate-900 text-slate-200">
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-          <div className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/90 px-2 py-1 text-xs">
-            <span className="text-slate-400 font-medium hidden 2xl:inline">{t("calendar.date_range")}</span>
-            <select
-              value={rangePreset}
-              onChange={(e) => applyRangePreset(e.target.value as RangePreset)}
-              className="rounded bg-transparent font-mono text-xs text-cyan-300 focus:outline-none cursor-pointer"
-              aria-label={t("calendar.date_range")}
+          {/* macOS-style Taskbar Dropdown Menu */}
+          <div className="relative" ref={actionsMenuRef} data-tour="calendar-actions">
+            <button
+              type="button"
+              onClick={() => setActionsOpen((v) => !v)}
+              aria-expanded={actionsOpen}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700/80 bg-slate-900/90 px-2.5 py-1 text-xs font-semibold text-slate-200 hover:bg-slate-800 transition min-h-[30px]"
             >
-              <option value="all" className="bg-slate-900 text-slate-200">{t("calendar.range_all")}</option>
-              <option value="1m" className="bg-slate-900 text-slate-200">{t("calendar.range_1m")}</option>
-              <option value="12m" className="bg-slate-900 text-slate-200">{t("calendar.range_12m")}</option>
-              <option value="custom" className="bg-slate-900 text-slate-200">{t("calendar.range_custom")}</option>
-            </select>
-            {rangePreset === "custom" && (
-              <>
-                <input
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => setCustomRange(e.target.value, toDate)}
-                  className="rounded bg-slate-950 px-1 py-0.5 font-mono text-[11px] text-slate-200"
-                  aria-label={t("calendar.from_date")}
-                />
-                <input
-                  type="date"
-                  value={toDate}
-                  onChange={(e) => setCustomRange(fromDate, e.target.value)}
-                  className="rounded bg-slate-950 px-1 py-0.5 font-mono text-[11px] text-slate-200"
-                  aria-label={t("calendar.to_date")}
-                />
-              </>
+              {fetchingLive ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-orange-400" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
+              )}
+              <span>{t("calendar.actions_menu")}</span>
+              <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform", actionsOpen && "rotate-180")} />
+            </button>
+
+            {actionsOpen && (
+              <div className="absolute left-0 top-full mt-1.5 z-[1600] w-72 rounded-xl border border-slate-700/80 bg-[#0F172A]/95 backdrop-blur-xl shadow-2xl p-2 text-xs text-slate-200 space-y-2">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      {t("calendar.live_days_label")}
+                    </span>
+                    <span className={cn(
+                      "font-mono text-[10px] font-semibold",
+                      liveSpanDays < 1 || liveSpanDays > MAX_LIVE_DAYS ? "text-rose-400" : "text-cyan-300",
+                    )}>
+                      {liveSpanDays > 0 ? `${liveSpanDays}/${MAX_LIVE_DAYS}d` : "--"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-5 gap-1" role="group" aria-label={t("calendar.live_days_label")}>
+                    {[1, 3, 5, 14, 30].map((d) => {
+                      const activePreset = liveToDate === isoDaysAgo(0) && liveSpanDays === d;
+                      return (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => {
+                            setLiveFromDate(isoDaysAgo(d - 1));
+                            setLiveToDate(isoDaysAgo(0));
+                          }}
+                          className={cn(
+                            "rounded-lg py-1 font-mono text-[11px] font-semibold border transition",
+                            activePreset
+                              ? "border-orange-500/60 bg-orange-500/25 text-orange-200"
+                              : "border-slate-700/70 bg-slate-900/80 text-slate-400 hover:text-white",
+                          )}
+                        >
+                          {d}d
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    <label className="flex flex-col gap-0.5">
+                      <span className="px-0.5 text-[10px] text-slate-400">{t("calendar.from_label")}</span>
+                      <input
+                        type="date"
+                        value={liveFromDate}
+                        max={liveToDate || isoDaysAgo(0)}
+                        onChange={(e) => setLiveFromDate(e.target.value)}
+                        className="rounded-lg border border-slate-700/70 bg-slate-900/90 px-1.5 py-1 font-mono text-[11px] text-slate-100 focus:border-cyan-500 focus:outline-none"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-0.5">
+                      <span className="px-0.5 text-[10px] text-slate-400">{t("calendar.to_label")}</span>
+                      <input
+                        type="date"
+                        value={liveToDate}
+                        min={liveFromDate || undefined}
+                        max={isoDaysAgo(0)}
+                        onChange={(e) => setLiveToDate(e.target.value)}
+                        className="rounded-lg border border-slate-700/70 bg-slate-900/90 px-1.5 py-1 font-mono text-[11px] text-slate-100 focus:border-cyan-500 focus:outline-none"
+                      />
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={fetchingLive || !parseBboxNumbers(applied.bbox)}
+                    onClick={() => { setActionsOpen(false); void handleFetchLiveFirms(); }}
+                    className="w-full flex items-center justify-center gap-2 rounded-lg border border-orange-500/40 bg-orange-500/15 px-3 py-2 text-orange-200 hover:bg-orange-500/25 transition disabled:opacity-40 disabled:cursor-not-allowed font-semibold"
+                  >
+                    {fetchingLive ? <Loader2 className="h-3.5 w-3.5 animate-spin text-orange-400" /> : <Radio className="h-3.5 w-3.5 text-orange-400" />}
+                    <span>{fetchingLive ? t("calendar.fetch_live_loading") : `${t("calendar.fetch_live_btn")} (${liveSpanDays > 0 ? `${liveSpanDays}d` : "--"})`}</span>
+                  </button>
+                </div>
+
+                <div className="border-t border-slate-800 pt-1.5 space-y-1.5">
+                  <div className="px-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    {t("calendar.date_range")}
+                  </div>
+                  <div className="grid grid-cols-4 gap-1" role="group" aria-label={t("calendar.date_range")}>
+                    {(["all", "1m", "12m", "custom"] as RangePreset[]).map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => applyRangePreset(preset)}
+                        className={cn(
+                          "rounded-lg py-1 px-1 text-[11px] font-semibold border transition truncate",
+                          rangePreset === preset
+                            ? "border-cyan-500/60 bg-cyan-500/20 text-cyan-200"
+                            : "border-slate-700/70 bg-slate-900/80 text-slate-400 hover:text-white",
+                        )}
+                      >
+                        {preset === "all" ? "All" : preset === "1m" ? "1m" : preset === "12m" ? "12m" : "Custom"}
+                      </button>
+                    ))}
+                  </div>
+                  {rangePreset === "custom" && (
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <input
+                        type="date"
+                        value={fromDate}
+                        onChange={(e) => setCustomRange(e.target.value, toDate)}
+                        className="rounded-lg border border-slate-700 bg-slate-950 px-1.5 py-1 font-mono text-[11px] text-slate-200"
+                        aria-label={t("calendar.from_date")}
+                      />
+                      <input
+                        type="date"
+                        value={toDate}
+                        onChange={(e) => setCustomRange(fromDate, e.target.value)}
+                        className="rounded-lg border border-slate-700 bg-slate-950 px-1.5 py-1 font-mono text-[11px] text-slate-200"
+                        aria-label={t("calendar.to_date")}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t border-slate-800 pt-1.5 space-y-1">
+                  <button
+                    type="button"
+                    disabled={!hasCustomRegion}
+                    onClick={() => { setActionsOpen(false); setShowSaveDialog((v) => !v); }}
+                    className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-slate-800/90 text-emerald-200 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <BookmarkPlus className="h-3.5 w-3.5 text-emerald-400" />
+                    <span className="font-medium">{t("calendar.save_aoi_btn")}</span>
+                  </button>
+                  {mode === "research" && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={exporting !== null}
+                        onClick={() => { setActionsOpen(false); handleExport("cells"); }}
+                        className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-slate-800/90 text-slate-200 transition disabled:opacity-50"
+                      >
+                        <Download className="h-3.5 w-3.5 text-cyan-400" />
+                        <span>{exporting === "cells" ? "…" : t("calendar.export_csv")}</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={exporting !== null}
+                        onClick={() => { setActionsOpen(false); handleExport("detections"); }}
+                        className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-slate-800/90 text-slate-200 transition disabled:opacity-50"
+                      >
+                        <Download className="h-3.5 w-3.5 text-slate-400" />
+                        <span>{exporting === "detections" ? "…" : t("calendar.export_detections")}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setActionsOpen(false); window.print(); }}
+                        className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-slate-800/90 text-purple-300 transition"
+                      >
+                        <Printer className="h-3.5 w-3.5 text-purple-400" />
+                        <span>{t("calendar.export_print")}</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
             )}
           </div>
 
-          <div className="flex items-center rounded-lg border border-slate-800 bg-slate-900 overflow-hidden">
-            <button
-              type="button"
-              disabled={exporting !== null}
-              onClick={() => handleExport("cells")}
-              title={exportErr ?? t("calendar.export_csv_title")}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-300 hover:text-white transition min-h-[30px] disabled:opacity-50"
-            >
-              <Download className="h-3.5 w-3.5 text-cyan-400" />
-              <span className="hidden sm:inline">
-                {exporting === "cells" ? "…" : t("calendar.export_csv")}
-              </span>
-            </button>
-            <button
-              type="button"
-              disabled={exporting !== null}
-              onClick={() => handleExport("detections")}
-              title={exportErr ?? t("calendar.export_detections_title")}
-              className="border-l border-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-400 hover:text-white transition min-h-[30px] disabled:opacity-50"
-            >
-              {exporting === "detections" ? "…" : t("calendar.export_detections")}
-            </button>
-            <button
-              type="button"
-              onClick={() => window.print()}
-              title={t("calendar.export_print_title")}
-              className="border-l border-slate-800 px-2.5 py-1 text-xs font-semibold text-purple-300 hover:text-white transition min-h-[30px] inline-flex items-center gap-1"
-            >
-              <Printer className="h-3.5 w-3.5 text-purple-400" />
-              <span className="hidden 2xl:inline">{t("calendar.export_print")}</span>
-            </button>
-          </div>
-          {/* Phase 1+2: save the current bbox/polygon as a custom AOI. */}
-          <button
-            type="button"
-            disabled={!hasCustomRegion}
-            onClick={() => setShowSaveDialog((v) => !v)}
-            title={hasCustomRegion ? t("calendar.save_aoi_btn") : t("calendar.save_aoi_hint")}
-            className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-950/40 px-2.5 py-1 text-xs font-semibold text-emerald-200 hover:bg-emerald-900/50 transition min-h-[30px] disabled:opacity-40 disabled:cursor-not-allowed"
+          <div
+            data-testid="loaded-data-status"
+            className="hidden md:flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900/70 px-2.5 py-1 whitespace-nowrap text-[11px] text-slate-300 font-mono"
           >
-            <BookmarkPlus className="h-3.5 w-3.5 text-emerald-400" />
-            <span className="hidden sm:inline">{t("calendar.save_aoi_btn")}</span>
-          </button>
-          {exportErr && (
-            <p role="alert" className="text-xs text-rose-300 font-mono max-w-[240px] truncate" title={exportErr}>
-              {exportErr}
-            </p>
-          )}
-
-          <div className="hidden 2xl:flex items-center gap-2 whitespace-nowrap text-xs text-slate-400 font-mono">
-            <span>{compact(totalObserved)} {t("calendar.sensor_detections")}</span>
-            <span>•</span>
-            <span className="text-cyan-300">{compact(totalHarmonized)} {t("calendar.calibrated_short")}</span>
-            <span>•</span>
-            <span className="text-orange-400">{criticalCount} {t("common.anomalies")}</span>
+            {summary?.period?.from && (
+              <>
+                <span className="text-slate-400">{summary.period.from} → {summary.period.to}</span>
+                <span className="text-slate-600">|</span>
+              </>
+            )}
+            <span className="text-cyan-300 font-semibold">{compact(totalObserved)} {t("calendar.sensor_detections")}</span>
+            <span className="text-slate-600">•</span>
+            <span className="text-emerald-300">{mapCells.length} cells</span>
           </div>
         </div>
 
         {/* View Mode Tabs (Map / Matrix / Scenarios) */}
-        <div className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/80 p-0.5 text-xs">
+        <div data-tour="calendar-tabs" className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/80 p-0.5 text-xs shrink-0 whitespace-nowrap">
           <button
             type="button"
             onClick={() => setActiveTab("map")}
@@ -835,6 +1591,7 @@ export function CalendarPage() {
             <span>{t("calendar.view_matrix")}</span>
           </button>
 
+          {mode === "research" && (
           <button
             type="button"
             onClick={() => setActiveTab("scenarios")}
@@ -850,12 +1607,14 @@ export function CalendarPage() {
             <Zap className="h-3.5 w-3.5 text-amber-400" />
             <span className="hidden sm:inline">{t("calendar.view_scenarios")}</span>
           </button>
+          )}
         </div>
 
         {/* Right Action Controls */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
+            data-tour="calendar-ai-btn"
             onClick={() => {
               setActiveTab("map");
               setDockTab("ai");
@@ -872,6 +1631,7 @@ export function CalendarPage() {
             <span>{t("calendar.ask_ai")}</span>
           </button>
 
+          {mode === "research" && (
           <Link
             to={{ pathname: "/xray", search: search.toString() }}
             className="hidden sm:inline-flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-1 text-xs font-semibold text-slate-300 hover:text-white transition min-h-[30px]"
@@ -879,6 +1639,7 @@ export function CalendarPage() {
             <ScanEye className="h-3.5 w-3.5 text-cyan-400" />
             <span>{t("calendar.xray")}</span>
           </Link>
+          )}
         </div>
       </header>
 
@@ -932,76 +1693,30 @@ export function CalendarPage() {
               {t("common.cancel")}
             </button>
           </div>
-          {saveError && (
-            <p role="alert" className="font-mono text-[11px] leading-relaxed text-rose-300">
-              {saveError}
-            </p>
-          )}
-        </div>
-      )}
-
-      {modelConflict && (
-        <div className="shrink-0 mx-3 mt-2 flex flex-col gap-2 rounded-xl border border-amber-500/40 bg-amber-950/50 px-3.5 py-2.5 text-xs text-amber-100">
-          <div className="font-bold text-sm">{t("calendar.conflict_409_title")}</div>
-          <p className="leading-relaxed text-amber-100/90">{modelConflict.message}</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={retryConflictWithStat}
-              className="rounded-lg border border-amber-500/50 bg-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-200 hover:bg-amber-500/30 transition"
-            >
-              {t("calendar.conflict_409_retry")}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {emptyFilter && (
-        <div data-testid="empty-filter-banner" className="shrink-0 mx-3 mt-2 flex items-center justify-between gap-2 rounded-xl border border-cyan-500/40 bg-cyan-950/50 px-3.5 py-2 text-xs text-cyan-100 animate-fade-in">
-          <span className="flex flex-col gap-0.5">
-            <span className="font-bold">{t("calendar.empty_filter_title")}</span>
-            <span className="text-cyan-200/80">{t("calendar.empty_filter_body")}</span>
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              const defaultBbox = AOI_BBOX[aoi] ?? "";
-              setBbox(defaultBbox);
-              setEmptyFilter(null);
-              setApplied({ ...applied, bbox: defaultBbox, geometry: null, from_date: null, to_date: null });
-            }}
-            className="rounded-lg border border-cyan-500/50 bg-cyan-500/20 px-2.5 py-1 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/30 transition shrink-0"
-          >
-            {t("calendar.clear_filter")}
-          </button>
         </div>
       )}
 
       {/* P1-02: Research mode reveals provenance/coverage detail; Explore keeps
           the same page without model plumbing. */}
       {mode === "research" && summary && (
-        <div className="shrink-0 border-b border-slate-800 bg-[#08101c] px-3 py-1.5 font-mono text-[11px] text-slate-400 flex flex-wrap gap-x-4 gap-y-1">
-          <span>method_id <span className="text-cyan-300">{data.method_id ?? "-"}</span></span>
-          <span>effective <span className="text-cyan-300">{methodShown}</span></span>
-          <span>scope <span className="text-cyan-300">{summary.source_scope}</span></span>
-          <span>estimated_index <span className="text-cyan-300">{summary.estimated_index == null ? "-" : summary.estimated_index.toFixed(3)}</span></span>
-          <span>filter_hash <span className="text-cyan-300">{summary.filter_hash}</span></span>
-          {summary.period.from && (
-            <span>period <span className="text-cyan-300">{summary.period.from} → {summary.period.to}</span></span>
-          )}
-          {applied.geometry && (
-            <span>geometry_hash <span className="text-cyan-300">{data.geometry_hash}</span></span>
-          )}
-        </div>
-      )}
-
-      {/* CLAIM-034: stat-forcing used to be silent (STAN requested, stat
-          served on subsets/samples). Keep one fixed badge near the method
-          switcher quoting only fields already in the response. */}
-      {statForced && (
-        <div data-testid="stat-forced-badge" className="shrink-0 border-b border-amber-500/30 bg-amber-950/30 px-3 py-1.5 font-mono text-[11px] text-amber-200">
-          {t("calendar.stat_forced_badge", { requested: requestedMethod, serving: servingMethod })}
-        </div>
+        <details className="shrink-0 border-b border-slate-800 bg-[#08101c] px-3 py-1 font-mono text-[11px] text-slate-400">
+          <summary className="cursor-pointer select-none text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 transition">
+            {t("calendar.provenance_toggle")}
+          </summary>
+          <div className="mt-1.5 pb-1 flex flex-wrap gap-x-4 gap-y-1">
+            <span>method_id <span className="text-cyan-300">{data.method_id ?? "-"}</span></span>
+            <span>effective <span className="text-cyan-300">{methodShown}</span></span>
+            <span>scope <span className="text-cyan-300">{summary.source_scope}</span></span>
+            <span>estimated_index <span className="text-cyan-300">{summary.estimated_index == null ? "-" : summary.estimated_index.toFixed(3)}</span></span>
+            <span>filter_hash <span className="text-cyan-300">{summary.filter_hash}</span></span>
+            {summary.period.from && (
+              <span>period <span className="text-cyan-300">{summary.period.from} → {summary.period.to}</span></span>
+            )}
+            {applied.geometry && (
+              <span>geometry_hash <span className="text-cyan-300">{data.geometry_hash}</span></span>
+            )}
+          </div>
+        </details>
       )}
 
       {/* 2. BODY CONTENT */}
@@ -1022,8 +1737,16 @@ export function CalendarPage() {
           mapError={mapError}
           calendarYears={data.calendar?.years ?? []}
           scrubberYears={scrubberYears}
+          availablePeriods={periods}
+          availableDays={availableDays}
+          activeDays={activeDays}
           mapPeriod={mapPeriod}
           onSelectPeriod={setMapPeriod}
+          onMissingPeriodClick={handleMissingPeriodClick}
+          onExtendRange={handleExtendRange}
+          canExtendLeft={canExtendLeft}
+          canExtendRight={canExtendRight}
+          onCustomFetchClick={handleOpenCustomFetch}
           loadingData={loadingData}
           loadingMapCells={loadingMapCells}
           dockOpen={dockOpen}
@@ -1041,6 +1764,20 @@ export function CalendarPage() {
           onSelectQaMin={(val) => setApplied((prev) => ({ ...prev, qa_min: val }))}
           platformSet={applied.platform_set}
           onSelectPlatformSet={(val) => setApplied((prev) => ({ ...prev, platform_set: val }))}
+          daynight={applied.daynight ?? "all"}
+          onSelectDaynight={(val) => setApplied((prev) => ({ ...prev, daynight: val }))}
+          minFrp={applied.min_frp ?? 0}
+          onSelectMinFrp={(val) => setApplied((prev) => ({ ...prev, min_frp: val }))}
+          onResetFilters={() =>
+            setApplied((prev) => ({
+              ...prev,
+              source_type: "all",
+              qa_min: "all",
+              platform_set: "all",
+              daynight: "all",
+              min_frp: 0,
+            }))
+          }
           totalDetections={totalObserved}
           totalHarmonized={totalHarmonized}
           anomalyCount={criticalCount}
@@ -1066,26 +1803,8 @@ export function CalendarPage() {
           onDeleteCustomAoi={handleDeleteCustomAoi}
           modisRange={modisRange}
           viirsRange={viirsRange}
-          onSelectBbox={(b, geom) => {
-            setBbox(b);
-            setApplied({ ...applied, bbox: b, geometry: geom ?? null });
-          }}
-          onClearBbox={() => {
-            const defaultBbox = AOI_BBOX[aoi] ?? "";
-            setBbox(defaultBbox);
-            setActiveZone(null);
-            setApplied((prev) =>
-              prev.bbox === defaultBbox && prev.geometry === null
-                ? prev
-                : { ...prev, bbox: defaultBbox, geometry: null },
-            );
-            if (search.has("bbox") || search.has("geometry")) {
-              const next = new URLSearchParams(search);
-              next.delete("bbox");
-              next.delete("geometry");
-              setSearch(next, { replace: true });
-            }
-          }}
+          onSelectBbox={(b, geom) => selectWorldBbox(b, geom)}
+          onClearBbox={clearRestrictiveFilters}
         />
       )}
 

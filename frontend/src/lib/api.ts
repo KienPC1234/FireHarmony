@@ -14,6 +14,13 @@ export class ApiError extends Error {
 }
 
 /**
+ * Sentinel message for "the request hit the Anubis bot-guard challenge page
+ * instead of the API" (HTTP 200 + HTML, so `res.ok` is true). Callers map it
+ * to a localized "reload and re-solve" hint; it is never shown raw.
+ */
+export const BOT_GUARD_CHALLENGE = "BOT_GUARD_CHALLENGE";
+
+/**
  * First raw-data aggregation parses every FIRMS CSV for an AOI (Vietnam is
  * ~3.4M rows) and measured ~150s cold on this machine. Sample data answers in <1s. A single
  * 35s timeout made every raw view abort on a fresh machine, so raw requests
@@ -466,6 +473,53 @@ export const api = {
     clearApiCache();
     return created;
   },
+  deleteAoi: async (aoiId: string): Promise<{ ok: boolean; deleted: string }> => {
+    const res = await request<{ ok: boolean; deleted: string }>(
+      `/api/firms/aois/${encodeURIComponent(aoiId)}`,
+      { method: "DELETE" },
+    );
+    clearApiCache();
+    return res;
+  },
+  fetchLiveFirms: async (params: {
+    bbox: [number, number, number, number];
+    days?: number;
+    end_date?: string | null;
+    from_date?: string | null;
+    to_date?: string | null;
+    aoi?: string | null;
+    use_sample?: boolean;
+  }): Promise<{
+    ok: boolean;
+    dataset: string;
+    rows: number;
+    sample_rows?: number;
+    live_rows?: number;
+    sources_fetched: string[];
+    bbox: number[];
+    requested_range?: [string, string];
+    date_range: [string | null, string | null];
+    cached?: boolean;
+    cache_hits?: number;
+    network_fetches?: number;
+    warnings: string[];
+  }> => {
+    const res = await post<{
+      ok: boolean;
+      dataset: string;
+      rows: number;
+      sources_fetched: string[];
+      bbox: number[];
+      requested_range?: [string, string];
+      date_range: [string | null, string | null];
+      cached?: boolean;
+      cache_hits?: number;
+      network_fetches?: number;
+      warnings: string[];
+    }>("/api/firms/fetch-live", params, RAW_TIMEOUT_MS);
+    clearApiCache();
+    return res;
+  },
   dataStatus: () => cachedGet<{ datasets: Array<{ aoi: string; sample_rows: number; sample_bytes: number; raw_ready?: boolean; dataset_ready?: boolean; raw_files?: number; date_range?: [string, string] | null; full_months?: number }> ; raw_count: number; raw_files: Array<{ file: string; bytes: number }> }>("/api/firms/data-status"),
   htsStatus: () => cachedGet<{ trained: boolean; candidate?: boolean; served?: boolean; n_test?: number; hts_mae?: number; b2_mae?: number; mean_gain_vs_b2?: number; per_aoi?: Record<string, MetricRow>; comparisons?: Record<string, ComparisonRow>; gate?: { rule: string; passed: boolean }; series?: Record<string, unknown> }>("/api/firms/hts-status"),
   stanStatus: () => cachedGet<{ trained: boolean; candidate?: boolean; served?: boolean; safe?: Record<string, unknown>; retrospective?: Record<string, unknown> }>("/api/firms/stan-status"),
@@ -474,15 +528,17 @@ export const api = {
     method = "stat", dataset?: string, qa_min = "all", platform_set = "all",
     geometry?: string, from_date?: string, to_date?: string,
     source_type = "all", signal?: AbortSignal,
+    daynight = "all", min_frp = 0,
   ) =>
-    cachedGet<CalendarResponse>(`/api/firms/calendar?limit=${limit}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}&source_type=${source_type}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}`, dataTimeout(data), signal),
+    cachedGet<CalendarResponse>(`/api/firms/calendar?limit=${limit}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}&source_type=${source_type}${daynight && daynight !== "all" ? `&daynight=${daynight}` : ""}${min_frp > 0 ? `&min_frp=${min_frp}` : ""}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}`, dataTimeout(data), signal),
   mapCells: (
     ym: string, bbox?: string, aoi = "vietnam", data = "raw",
     method = "stat", dataset?: string, qa_min = "all", platform_set = "all",
     geometry?: string, zoom = 6, from_date?: string, to_date?: string,
     source_type = "all", signal?: AbortSignal, max_cells?: number,
+    daynight = "all", min_frp = 0,
   ) =>
-    cachedGet<MapCellsResponse>(`/api/firms/map-cells?ym=${ym}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}&source_type=${source_type}&zoom=${zoom}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}${max_cells != null ? `&max_cells=${max_cells}` : ""}`, dataTimeout(data), signal),
+    cachedGet<MapCellsResponse>(`/api/firms/map-cells?ym=${ym}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}&source_type=${source_type}&zoom=${zoom}${daynight && daynight !== "all" ? `&daynight=${daynight}` : ""}${min_frp > 0 ? `&min_frp=${min_frp}` : ""}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}${max_cells != null ? `&max_cells=${max_cells}` : ""}`, dataTimeout(data), signal),
   harmonize: (records: Record<string, unknown>[]) =>
     post<CalendarResponse>("/api/firms/harmonize", { records }),
   validate: (records: Record<string, unknown>[]) =>
@@ -506,24 +562,27 @@ export const api = {
    */
   evidence: (aoi: string, data: string, method: string, year: number, month: number, qa_min = "all", platform_set = "all", filters?: { bbox?: string; geometry?: string; dataset?: string; from_date?: string; to_date?: string; source_type?: string }) =>
     cachedGet<Record<string, unknown>>(
-      `/api/firms/evidence?aoi=${aoi}&data=${data}&method=${method}&year=${year}&month=${month}&qa_min=${qa_min}&platform_set=${platform_set}${filters?.bbox ? `&bbox=${encodeURIComponent(filters.bbox)}` : ""}`, dataTimeout(data)),
+      `/api/firms/evidence?aoi=${aoi}&data=${data}&method=${method}&year=${year}&month=${month}&qa_min=${qa_min}&platform_set=${platform_set}${filters?.bbox ? `&bbox=${encodeURIComponent(filters.bbox)}` : ""}${filters?.dataset ? `&dataset=${encodeURIComponent(filters.dataset)}` : ""}`, dataTimeout(data)),
   explainMonth: (body: { aoi: string; data: string; method: string; year: number; month: number; question?: string; qa_min?: string; platform_set?: string; use_llm?: boolean; bbox?: string }) =>
     post<{ answer: string; llm_used: boolean; model?: string; evidence: Record<string, unknown>; suggestions: string[] }>(
       "/api/firms/explain-month", body, dataTimeout(body.data)),
   simulate: (aoi: string, data: string, year: number, sensors?: string[], qa_min = "all", platform_set = "all") =>
     cachedGet<SimResponse>(
       `/api/firms/simulate?aoi=${aoi}&data=${data}&year=${year}&qa_min=${qa_min}&platform_set=${platform_set}${sensors?.length ? `&sensors=${encodeURIComponent(sensors.join(","))}` : ""}`, dataTimeout(data)),
-  blindSpots: (aoi: string, data: string, year: number, month: number, qa_min = "all", platform_set = "all") =>
+  blindSpots: (aoi: string, data: string, year: number, month: number, qa_min = "all", platform_set = "all", dataset?: string) =>
     cachedGet<BlindSpotResponse>(
-      `/api/firms/blind-spots?aoi=${aoi}&data=${data}&year=${year}&month=${month}&qa_min=${qa_min}&platform_set=${platform_set}`, dataTimeout(data)),
-  investigate: (body: { question: string; aoi: string; data: string; method?: string; year?: number; month?: number; use_llm?: boolean; bbox?: string }) =>
+      `/api/firms/blind-spots?aoi=${aoi}&data=${data}&year=${year}&month=${month}&qa_min=${qa_min}&platform_set=${platform_set}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}`, dataTimeout(data)),
+  investigate: (body: { question: string; aoi: string; data: string; method?: string; year?: number; month?: number; use_llm?: boolean; bbox?: string; dataset?: string }) =>
     post<{ answer: string; llm_used: boolean; tools_used: string[]; evidence: Record<string, unknown> | null; limitations: string[]; suggestions: string[]; citations: string[] }>(
       "/api/firms/investigate", body, dataTimeout(body.data)),
   investigateStream: async (
-    body: { question: string; aoi: string; data: string; method?: string; year?: number; month?: number; use_llm?: boolean; qa_min?: string; platform_set?: string; bbox?: string },
+    body: { question: string; aoi: string; data: string; method?: string; year?: number; month?: number; use_llm?: boolean; qa_min?: string; platform_set?: string; bbox?: string; dataset?: string; mode?: string; lang?: string },
     callbacks: {
+      onStatus?: (status: { stage: string; detail: string }) => void;
+      onTool?: (tool: { name: string; args?: Record<string, unknown>; summary?: string }) => void;
       onMeta?: (meta: {
         tools_used: string[];
+        tool_calls?: Array<{ name: string; args?: Record<string, unknown>; summary?: string }>;
         evidence: Record<string, unknown> | null;
         facts: Record<string, unknown>;
         suggestions: string[];
@@ -543,42 +602,90 @@ export const api = {
         body: JSON.stringify(body),
         signal,
       });
-      if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`);
+      if (!res.ok) {
+        let msg = `${res.status} ${res.statusText}`;
+        try {
+          const errJson = await res.json();
+          const d = errJson?.detail;
+          if (typeof d === "string") msg = d;
+          else if (d && typeof d.message === "string") msg = d.message;
+        } catch {
+          // keep status text
+        }
+        throw new ApiError(res.status, msg);
+      }
       if (!res.body) throw new Error("No readable stream response");
+
+      // Anubis answers cookie-less browsers with HTTP 200 + the HTML
+      // challenge page (not SSE). Without this check the parser below
+      // silently swallows it and the chat ends with an empty answer.
+      const streamType = res.headers.get("content-type") ?? "";
+      if (!streamType.includes("text/event-stream")) {
+        throw new ApiError(419, BOT_GUARD_CHALLENGE);
+      }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let finished = false;
+
+      const dispatchBlock = (block: string) => {
+        const trimmed = block.trim();
+        if (!trimmed) return;
+        let eventType = "message";
+        const dataLines: string[] = [];
+        for (const line of trimmed.split(/\r?\n/)) {
+          if (line.startsWith("event:")) eventType = line.slice(6).trim();
+          else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+        }
+        const dataStr = dataLines.join("\n");
+        if (!dataStr) return;
+        const parsed = JSON.parse(dataStr);
+        if (eventType === "status" && callbacks.onStatus) {
+          callbacks.onStatus(parsed);
+        } else if (eventType === "tool" && callbacks.onTool) {
+          callbacks.onTool(parsed);
+        } else if (eventType === "meta" && callbacks.onMeta) {
+          callbacks.onMeta(parsed);
+        } else if (eventType === "delta" && callbacks.onDelta) {
+          callbacks.onDelta(parsed.delta ?? "", parsed.llm_used);
+        } else if (eventType === "error") {
+          finished = true;
+          const errObj = new ApiError(Number(parsed.status) || 500, String(parsed.message || "Stream error"));
+          if (callbacks.onError) callbacks.onError(errObj);
+          else throw errObj;
+        } else if (eventType === "done" && callbacks.onDone) {
+          finished = true;
+          callbacks.onDone(parsed.full_answer ?? "");
+        }
+      };
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n\n");
-        buffer = lines.pop() ?? "";
-
-        for (const block of lines) {
-          const trimmed = block.trim();
-          if (!trimmed) continue;
-          let eventType = "message";
-          let dataStr = "";
-          for (const line of trimmed.split("\n")) {
-            if (line.startsWith("event: ")) eventType = line.slice(7).trim();
-            else if (line.startsWith("data: ")) dataStr = line.slice(6).trim();
-          }
-          if (!dataStr) continue;
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+        }
+        const blocks = buffer.split(/\r?\n\r?\n/);
+        buffer = done ? "" : (blocks.pop() ?? "");
+        for (const block of blocks) {
           try {
-            const parsed = JSON.parse(dataStr);
-            if (eventType === "meta" && callbacks.onMeta) {
-              callbacks.onMeta(parsed);
-            } else if (eventType === "delta" && callbacks.onDelta) {
-              callbacks.onDelta(parsed.delta ?? "", parsed.llm_used);
-            } else if (eventType === "done" && callbacks.onDone) {
-              callbacks.onDone(parsed.full_answer ?? "");
-            }
-          } catch {
-            // Partial chunk
+            dispatchBlock(block);
+          } catch (e) {
+            if (e instanceof ApiError) throw e;
           }
+        }
+        if (done) {
+          if (buffer.trim()) {
+            try {
+              dispatchBlock(buffer);
+            } catch (e) {
+              if (e instanceof ApiError) throw e;
+            }
+          }
+          if (!finished && callbacks.onDone) {
+            callbacks.onDone("");
+          }
+          break;
         }
       }
     } catch (err: unknown) {
@@ -588,9 +695,9 @@ export const api = {
       else throw err;
     }
   },
-  spatialCheck: (aoi: string, data: string, year: number, month: number, res_deg?: number, signal?: AbortSignal) =>
+  spatialCheck: (aoi: string, data: string, year: number, month: number, res_deg?: number, signal?: AbortSignal, dataset?: string) =>
     cachedGet<SpatialResponse>(
-      `/api/firms/spatial-check?aoi=${aoi}&data=${data}&year=${year}&month=${month}${res_deg != null ? `&res_deg=${res_deg}` : ""}`, dataTimeout(data), signal),
+      `/api/firms/spatial-check?aoi=${aoi}&data=${data}&year=${year}&month=${month}${res_deg != null ? `&res_deg=${res_deg}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}`, dataTimeout(data), signal),
   crossValidate: (body: { aoi: string; data: string; series: Array<{ year: number; month: number; burned_area: number }> }) =>
     post<CrossResponse>("/api/firms/cross-validate", body, dataTimeout(body.data)),
   coverage: (aoi = "vietnam", data = "raw") =>
@@ -652,9 +759,9 @@ export const api = {
       errors: Array<Record<string, unknown>>;
     };
   },
-  xray: (aoi = "vietnam", data = "raw") =>
-    cachedGet<{ aoi: string; data_source: string; units: string; backtest_metrics: Record<string, Record<string, number>> | null; stan_trained: boolean; hts_trained: boolean; primary_method_id?: string; primary_gate?: Record<string, unknown>; months: Array<{ year: number; month: number; modis_raw: number; viirs_ref: number; adjusted_stat: number; adjusted_calendar: number | null; k_used: number }> }>(
-      `/api/firms/xray?aoi=${aoi}&data=${data}`, dataTimeout(data)),
+  xray: (aoi = "vietnam", data = "raw", dataset?: string) =>
+    cachedGet<{ aoi: string; data_source: string; units: string; backtest_metrics: Record<string, Record<string, number>> | null; stan_trained: boolean; hts_trained: boolean; primary_method_id?: string; primary_gate?: Record<string, unknown>; months: Array<{ year: number; month: number; modis_raw: number; viirs_ref: number; adjusted_stat: number; adjusted_calendar: number | null; k_used: number }>; daily?: Array<{ date: string; modis_raw: number; viirs_ref: number; adjusted_stat: number; k_used: number; mean_frp: number | null }> }>(
+      `/api/firms/xray?aoi=${aoi}&data=${data}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}`, dataTimeout(data)),
   backtest: (aoi = "vietnam", data = "raw", test_years?: number, signal?: AbortSignal) =>
     cachedGet<BacktestResponse>(
       `/api/firms/backtest?aoi=${aoi}&data=${data}${test_years != null ? `&test_years=${test_years}` : ""}`, dataTimeout(data), signal),

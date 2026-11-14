@@ -51,7 +51,10 @@ export function GlobalContextBar({
     };
   }, []);
 
-  const currentAoi = (searchParams.get("aoi") as AoiId) || aoi || "vietnam";
+  const hasUrlRegion = Boolean(
+    searchParams.get("aoi") || searchParams.get("bbox") || searchParams.get("geometry") || searchParams.get("dataset"),
+  );
+  const currentAoi = hasUrlRegion ? ((searchParams.get("aoi") as AoiId) || aoi || "vietnam") : null;
   const currentData = searchParams.get("data") || dataFeed || "raw";
   const isRaw = currentData === "raw";
 
@@ -66,7 +69,7 @@ export function GlobalContextBar({
   };
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-[#0B1220] px-4 py-2.5 text-xs shadow-sm">
+    <div data-tour="global-context-bar" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-[#0B1220] px-4 py-2.5 text-xs shadow-sm">
       {/* 1. Interactive Context Segments */}
       <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-slate-300">
         {/* Interactive AOI Switcher */}
@@ -93,6 +96,19 @@ export function GlobalContextBar({
                 </button>
               );
             })}
+            <button
+              type="button"
+              onClick={() => setAoi("custom" as AoiId)}
+              aria-pressed={currentAoi === "custom"}
+              className={cn(
+                "px-2.5 py-1 rounded-md text-xs font-semibold transition min-h-[28px] flex items-center",
+                currentAoi === "custom"
+                  ? "bg-orange-500/20 text-orange-300 border border-orange-500/40 font-bold"
+                  : "text-slate-400 hover:text-orange-200 hover:bg-slate-800/80"
+              )}
+            >
+              Custom
+            </button>
             {/* CLAIM-034: registry custom AOIs beyond the 3 presets. Labels
                 and meta (coverage_class/months/dataset_ready) come from the
                 GET /api/firms/aois entry, never from a hardcoded span. */}

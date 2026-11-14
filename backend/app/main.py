@@ -1,25 +1,19 @@
 """FIRMS harmonized burning-activity calendar API (NASA Space Apps 2026)."""
 from __future__ import annotations
 
-import csv
-import hashlib
 import hmac
-import io
 import json
 import logging
-import math
 import os
 import re
 import threading
 import time
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.firms import calendar as cal
@@ -54,16 +48,31 @@ _PROGRESS_LOCK = threading.Lock()
 _PROGRESS_STATE: dict[str, dict] = {}
 
 
+def _progress_file(aoi: str, data: str) -> Path:
+    safe_aoi = re.sub(r"[^a-zA-Z0-9_-]+", "_", str(aoi or "unknown"))
+    safe_data = "raw" if data == "raw" else "sample"
+    return store.CACHE_DIR / f".progress_{safe_aoi}_{safe_data}.json"
+
+
 def _set_progress(aoi: str, data: str, stage: str, percent: int, detail: str) -> None:
+    payload = {
+        "aoi": aoi,
+        "data": data,
+        "stage": stage,
+        "percent": max(0, min(100, int(percent))),
+        "detail": detail,
+        "updated_at": time.time(),
+    }
     with _PROGRESS_LOCK:
-        _PROGRESS_STATE[f"{aoi}:{data}"] = {
-            "aoi": aoi,
-            "data": data,
-            "stage": stage,
-            "percent": max(0, min(100, int(percent))),
-            "detail": detail,
-            "updated_at": time.time(),
-        }
+        _PROGRESS_STATE[f"{aoi}:{data}"] = payload
+    try:
+        store.CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        pf = _progress_file(aoi, data)
+        tmp = pf.with_name(f".tmp_{pf.name}_{os.getpid()}")
+        tmp.write_text(json.dumps(payload), encoding="utf-8")
+        tmp.replace(pf)
+    except OSError:
+        pass
 logger = logging.getLogger("firms.api")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -259,7 +268,16 @@ def _backtest_from_manifest(manifest: dict, aoi: str, data: str,
 
 
 def _analysis_for_evidence(aoi: str, data: str, method: str, bbox, qa_min: str,
-                           platform_set: str, focus_ym: str | None = None) -> dict:
+                           platform_set: str, focus_ym: str | None = None,
+                           dataset: str | None = None) -> dict:
+    if dataset:
+        records = [r for r in _resolve_records(aoi, data, 2000000, dataset)
+                   if _in_bbox(r, _parse_bbox(bbox))]
+        if not records:
+            raise HTTPException(404, f"No {data} data in this AOI")
+        return _harmonize_from_records(records, daily_cap=2000000, data=data, aoi=aoi,
+                                       method=method, dataset=dataset, qa_min=qa_min,
+                                       platform_set=platform_set)
     if data == "raw":
         if not store.raw_ready(aoi):
             raise HTTPException(404, detail={"error_code": "no_raw_data",

@@ -66,6 +66,7 @@ vgcore.*
 
 # ===== FIRMS runtime caches (regenerable; evaluation manifests are committed) =====
 backend/data/firms/cache/
+backend/data/firms/live_cache/
 backend/data/firms/uploads/
 .ui-release-snapshots/
 backend/data/firms/models/backtest_*.json

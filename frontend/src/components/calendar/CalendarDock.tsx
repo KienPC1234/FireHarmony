@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Database, Globe, Info, Sparkles, Table as TableIcon } from "lucide-react";
 import { useLang } from "@/lib/i18n";
-import { backendMethod, type CalibMethod } from "@/lib/researchContext";
+import { backendMethod, useResearchContext, type CalibMethod } from "@/lib/researchContext";
 import { cn, compact } from "@/lib/utils";
 import { anomalyLabel } from "./anomaly";
 import { SENSOR_LEGEND_KEYS } from "../map/sensorLegend";
@@ -49,6 +49,11 @@ interface CalendarDockProps {
   onSelectQaMin?: (val: string) => void;
   platformSet?: string;
   onSelectPlatformSet?: (val: string) => void;
+  daynight?: "all" | "D" | "N";
+  onSelectDaynight?: (val: "all" | "D" | "N") => void;
+  minFrp?: number;
+  onSelectMinFrp?: (val: number) => void;
+  onResetFilters?: () => void;
   totalDetections: number;
   totalHarmonized: number;
   anomalyCount: number;
@@ -61,6 +66,8 @@ interface CalendarDockProps {
   onDeleteCustomAoi?: (id: string) => void;
   modisRange?: string | null;
   viirsRange?: string | null;
+  dataset?: string;
+  bbox?: string | null;
 }
 
 const AOI_OPTIONS = [
@@ -86,6 +93,11 @@ export function CalendarDock({
   onSelectQaMin,
   platformSet = "all",
   onSelectPlatformSet,
+  daynight = "all",
+  onSelectDaynight,
+  minFrp = 0,
+  onSelectMinFrp,
+  onResetFilters,
   totalDetections,
   totalHarmonized,
   anomalyCount,
@@ -98,8 +110,12 @@ export function CalendarDock({
   onDeleteCustomAoi,
   modisRange = null,
   viirsRange = null,
+  dataset,
+  bbox = null,
 }: CalendarDockProps) {
   const { t } = useLang();
+  const { mode, setMode } = useResearchContext();
+  const isResearch = mode === "research";
   const isSynthetic = data !== "raw";
   const ym = activeMonth ? `${activeMonth.year}-${String(activeMonth.month).padStart(2, "0")}` : null;
 
@@ -294,6 +310,7 @@ export function CalendarDock({
             </div>
           </section>
 
+          {isResearch && (
           <section className="space-y-1.5">
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
@@ -347,19 +364,45 @@ export function CalendarDock({
                 B2
               </button>
             </div>
-            <p className="rounded-lg border border-slate-800/80 bg-slate-900/40 px-2.5 py-1.5 text-[11px] leading-snug text-slate-400">
-              {method === "stan"
-                ? t("calendar.stan_desc")
-                : method === "hts_anchor"
-                ? t("calendar.hts_desc")
-                : t("calendar.b2_desc")}
-            </p>
+            <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 px-2.5 py-1.5 text-[11px] leading-snug text-slate-300 space-y-1">
+              <p>
+                {method === "stan"
+                  ? t("calendar.stan_summary_short")
+                  : method === "hts_anchor"
+                  ? t("calendar.hts_summary_short")
+                  : t("calendar.b2_summary_short")}
+              </p>
+              <details className="group">
+                <summary className="cursor-pointer select-none text-[10px] font-medium text-slate-400 hover:text-slate-200 transition">
+                  {t("calendar.model_details_toggle")}
+                </summary>
+                <p className="mt-1 pt-1 border-t border-slate-800/70 text-[11px] text-slate-400">
+                  {method === "stan"
+                    ? t("calendar.stan_desc")
+                    : method === "hts_anchor"
+                    ? t("calendar.hts_desc")
+                    : t("calendar.b2_desc")}
+                </p>
+              </details>
+            </div>
           </section>
+          )}
 
           <section className="space-y-2.5">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              {t("calendar.dock_filters_title")}
-            </h2>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                {t("calendar.dock_filters_title")}
+              </h2>
+              {(sourceType !== "all" || qaMin !== "all" || platformSet !== "all" || daynight !== "all" || minFrp > 0) && onResetFilters && (
+                <button
+                  type="button"
+                  onClick={onResetFilters}
+                  className="text-[10px] font-semibold text-cyan-400 hover:text-cyan-300 transition"
+                >
+                  {t("calendar.filters_reset")}
+                </button>
+              )}
+            </div>
             <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-900/50 p-2.5">
               <div>
                 <span className="mb-1 block text-[11px] font-medium text-slate-400">
@@ -419,6 +462,60 @@ export function CalendarDock({
                   </select>
                 </div>
               </div>
+
+              <div>
+                <span className="mb-1 block text-[11px] font-medium text-slate-400">
+                  {t("calendar.filter_daynight")}
+                </span>
+                <div className="grid grid-cols-3 gap-1 rounded-md bg-slate-950/80 p-0.5">
+                  {([
+                    { id: "all", key: "calendar.daynight_all" },
+                    { id: "D", key: "calendar.daynight_day" },
+                    { id: "N", key: "calendar.daynight_night" },
+                  ] as const).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => onSelectDaynight?.(opt.id)}
+                      className={cn(
+                        "rounded px-1.5 py-1 text-[11px] font-medium transition text-center leading-tight",
+                        daynight === opt.id
+                          ? "bg-amber-500/25 text-amber-200 border border-amber-500/40"
+                          : "text-slate-400 hover:text-white",
+                      )}
+                    >
+                      {t(opt.key)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <span className="mb-1 block text-[11px] font-medium text-slate-400">
+                  {t("calendar.filter_min_frp")}
+                </span>
+                <div className="grid grid-cols-3 gap-1 rounded-md bg-slate-950/80 p-0.5">
+                  {([
+                    { val: 0, key: "calendar.frp_all" },
+                    { val: 10, key: "calendar.frp_10" },
+                    { val: 50, key: "calendar.frp_50" },
+                  ] as const).map((opt) => (
+                    <button
+                      key={opt.val}
+                      type="button"
+                      onClick={() => onSelectMinFrp?.(opt.val)}
+                      className={cn(
+                        "rounded px-1.5 py-1 text-[11px] font-medium transition text-center leading-tight",
+                        minFrp === opt.val
+                          ? "bg-orange-500/25 text-orange-200 border border-orange-500/40"
+                          : "text-slate-400 hover:text-white",
+                      )}
+                    >
+                      {t(opt.key)}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </section>
 
@@ -437,6 +534,7 @@ export function CalendarDock({
             </div>
           </section>
 
+          {isResearch ? (
           <section className="space-y-2">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               {t("calendar.dock_sensor_title")}
@@ -463,6 +561,15 @@ export function CalendarDock({
               </tbody>
             </table>
           </section>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setMode("research")}
+              className="w-full rounded-lg border border-cyan-500/30 bg-cyan-950/20 px-3 py-2 text-left text-[11px] font-medium text-cyan-300 hover:bg-cyan-950/40 transition"
+            >
+              {t("calendar.switch_to_research")}
+            </button>
+          )}
 
           <DataStatus state={isSynthetic ? "synthetic" : "observed"} />
 
@@ -559,12 +666,14 @@ export function CalendarDock({
       {tab === "ai" && (
         <div className="min-h-0 flex-1">
           <IntegratedAiAssistant
-            key={`${aoi}-${data}-${ym ?? "all"}`}
+            key={`${aoi}-${data}-${dataset ?? ""}-${ym ?? "all"}`}
             aoi={aoi}
             data={data}
             method={backendMethod(method)}
             year={activeMonth?.year}
             month={activeMonth?.month}
+            dataset={dataset}
+            bbox={bbox}
           />
         </div>
       )}

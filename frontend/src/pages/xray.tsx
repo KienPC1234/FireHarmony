@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { applyCustomRegionParams } from "@/lib/researchContext";
 import { ScanEye, SlidersHorizontal } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, describeError } from "@/lib/api";
+import { notifyToast } from "@/lib/notify";
 import { useLang } from "@/lib/i18n";
 import { ErrorState, Loading } from "@/components/states";
 import { GlobalContextBar } from "@/components/GlobalContextBar";
+import { CustomLiveRegionPanel } from "@/components/CustomLiveRegionPanel";
 import { XraySidebar } from "@/components/xray/XraySidebar";
 import { XrayTimelineView } from "@/components/xray/XrayTimelineView";
 import { XrayTransitionIllusionView } from "@/components/xray/XrayTransitionIllusionView";
@@ -12,12 +15,27 @@ import { XrayBacktestLeaderboard } from "@/components/xray/XrayBacktestLeaderboa
 
 type XrayTab = "trajectory" | "transition" | "backtest";
 
+function parseXrayTab(raw: string | null): XrayTab {
+  if (raw === "transition" || raw === "backtest") return raw;
+  return "trajectory";
+}
+
 export function XrayPage() {
   const { t } = useLang();
   const [sp, setSp] = useSearchParams();
   const aoi = sp.get("aoi") || "vietnam";
   const data = sp.get("data") || "raw";
-  const [viewTab, setViewTab] = useState<XrayTab>("trajectory");
+  const dataset = sp.get("dataset") || undefined;
+  const bbox = sp.get("bbox") || undefined;
+  const viewTab: XrayTab = parseXrayTab(sp.get("view"));
+  const setViewTab = (nextTab: XrayTab) => {
+    setSp((prev) => {
+      const next = new URLSearchParams(prev);
+      if (nextTab === "trajectory") next.delete("view");
+      else next.set("view", nextTab);
+      return next;
+    }, { replace: true });
+  };
 
   const [xr, setXr] = useState<Awaited<ReturnType<typeof api.xray>> | null>(null);
   const [bt, setBt] = useState<Awaited<ReturnType<typeof api.backtest>> | null>(null);
@@ -26,27 +44,44 @@ export function XrayPage() {
   const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
+    if (aoi === "custom" && !dataset) {
+      setXr(null);
+      setBt(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     let active = true;
     setLoading(true);
     setError(null);
 
-    Promise.all([
-      api.xray(aoi, data).catch((err) => {
-        if (active) setError(err);
-        return null;
-      }),
-      api.backtest(aoi, data).catch(() => null),
-    ]).then(([xrayData, backtestData]) => {
-      if (!active) return;
-      if (xrayData) setXr(xrayData);
-      if (backtestData) setBt(backtestData);
-      setLoading(false);
-    });
+    api.xray(aoi, data, dataset)
+      .then((xrayData) => {
+        if (!active) return;
+        if (xrayData) setXr(xrayData);
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setError(err);
+        notifyToast({ icon: "error", title: describeError(err) });
+        setLoading(false);
+      });
+
+    if (!dataset) {
+      api.backtest(aoi, data)
+        .then((backtestData) => {
+          if (active && backtestData) setBt(backtestData);
+        })
+        .catch(() => null);
+    } else {
+      setBt(null);
+    }
 
     return () => {
       active = false;
     };
-  }, [aoi, data, reloadNonce]);
+  }, [aoi, data, dataset, reloadNonce]);
 
   const handleSetAoi = (newAoi: string) => {
     setSp((prev) => {
@@ -94,7 +129,7 @@ export function XrayPage() {
         </div>
 
         {/* Global tab navigation pills */}
-        <div className="flex max-w-full flex-wrap items-center gap-1 rounded-xl border border-slate-800 bg-slate-900/90 p-1 text-xs">
+        <div data-tour="xray-tabs" className="flex max-w-full flex-wrap items-center gap-1 rounded-xl border border-slate-800 bg-slate-900/90 p-1 text-xs">
           <button
             type="button"
             onClick={() => setViewTab("trajectory")}
@@ -135,8 +170,19 @@ export function XrayPage() {
       {/* 2. Global Context Bar */}
       <GlobalContextBar />
 
+      {aoi === "custom" && (
+        <CustomLiveRegionPanel
+          bbox={bbox}
+          geometry={sp.get("geometry")}
+          dataset={dataset}
+          fromDateProp={sp.get("from_date")}
+          toDateProp={sp.get("to_date")}
+          onLoaded={(payload) => setSp((prev) => applyCustomRegionParams(prev, payload), { replace: true })}
+        />
+      )}
+
       {/* 3. Main Cockpit Grid */}
-      {error && !xr ? (
+      {aoi === "custom" && !dataset ? null : error && !xr ? (
         <ErrorState error={error} onRetry={() => setReloadNonce((n) => n + 1)} />
       ) : !xr ? (
         <Loading label={t("xray.loading")} aoi={aoi} data={data} />
@@ -149,7 +195,7 @@ export function XrayPage() {
               <span>{t("xray.loading")}</span>
             </div>
           )}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-4 items-start">
+          <div data-tour="xray-cockpit" className="grid grid-cols-1 gap-6 lg:grid-cols-4 items-start">
           {/* Left Control Sidebar */}
           <div className="lg:col-span-1">
             <XraySidebar
@@ -170,7 +216,7 @@ export function XrayPage() {
           {/* Right Main Dissection Canvas */}
           <div className="lg:col-span-3">
             {viewTab === "trajectory" && (
-              <XrayTimelineView months={xr.months} units={xr.units} />
+              <XrayTimelineView months={xr.months} daily={xr.daily} units={xr.units} />
             )}
 
             {viewTab === "transition" && (
@@ -181,6 +227,8 @@ export function XrayPage() {
               <XrayBacktestLeaderboard
                 metrics={xr.backtest_metrics ?? null}
                 backtest={bt}
+                isCustomDataset={Boolean(dataset)}
+                onSelectBenchmarkAoi={() => handleSetAoi("vietnam")}
               />
             )}
           </div>

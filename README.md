@@ -60,6 +60,8 @@ Real FIRMS pulls are stored under `backend/data/firms/raw/` and are **gitignored
 
 `fetch_full_month` stitches 5-day windows across every day of each month (including day 31 and leap years) and records requests in a ledger; `fetch_missing` downloads only missing intervals.
 
+> **Sensor/platform availability note:** Current historical raw archive pulls contain only Suomi-NPP VIIRS rows and lack historical NOAA-20/21 rows (tracked as P1-C in [`docs/AUDIT_BACKLOG.md`](docs/AUDIT_BACKLOG.md)). Live NRT fetching (`backend/scripts/firms/fetch_firms.py`) supports `VIIRS_SNPP_NRT`, `VIIRS_NOAA20_NRT`, and `VIIRS_NOAA21_NRT`.
+
 ### Latency & filters
 
 | Path (full Vietnam pull) | Cold | Warm (disk cache) |
@@ -74,15 +76,25 @@ Every response includes `X-Elapsed-Ms`. Warm caches with `make prewarm` (`AOI=..
 
 Three served methods only:
 
-| Role | Method | MAE (headline, 72 AOI-months) |
-|---|---|---:|
-| Primary (recommended) | `stan_safe_v1` | 3765.8 |
-| Baseline | `b2_seasonal_ratio` | 4411.8 |
-| Fallback | `hts_anchor_v1` | 4154.4 |
+<!-- BEGIN GENERATED README METRICS -->
+_Generated from `evaluation_raw.json` (eval-v4); headline = full-month AOIs ['vietnam', 'amazon', 'australia'], n=72. Primary: `stan_safe_v1`._
 
-> _Headline = full-month AOIs Vietnam, Amazon, Australia (n=72), eval-v4, `evaluation_raw.json`._
+| Method | MAE (headline) |
+|---|---:|
+| `b0_raw_modis` | 38119.8 |
+| `b1_global_ratio` | 5853.6 |
+| `b2_seasonal_ratio` | 4462.6 |
+| `stan_safe_v1` | 3899.5 |
+| `hts_anchor_v1` | 4172.7 |
 
-STAN vs B2: **−14.6% MAE, −27.3% RMSE**, 2.94 vs 1.69 / 2.57 pp 80%/90% band coverage, CI **[−1452.9, +81.8]** (includes 0). **Verdict:** recommended primary, **not** statistically established over B2 by this CI. `recommended_primary` is an operational serve decision (counts quality + band/coverage gate + robustness), not a claim of statistical superiority. LOO still favours HTS on all AOIs. See [`docs/FIRMS_MODEL_CARD.md`](docs/FIRMS_MODEL_CARD.md) and [`docs/METRIC_POLICY.md`](docs/METRIC_POLICY.md).
+`stan_safe_v1` − `b2_seasonal_ratio` ΔMAE -563.1, 95% CI [-1184.4, +50.8] — CI includes 0, so the gain is not established.
+<!-- END GENERATED README METRICS -->
+
+The point estimate favors STAN, but the 95% bootstrap confidence interval
+still includes zero; statistical superiority over B2 is not established.
+The operational recommendation and statistical evidence are separate
+decisions. See [the model card](docs/FIRMS_MODEL_CARD.md) and
+[metric policy](docs/METRIC_POLICY.md).
 
 ### STAN architecture (`stan_safe_v1`)
 
@@ -106,7 +118,7 @@ STAN vs B2: **−14.6% MAE, −27.3% RMSE**, 2.94 vs 1.69 / 2.57 pp 80%/90% band
 | `GET /api/firms/coverage-xray` | Per-AOI/year MODIS/VIIRS observation density and confidence labels |
 | `GET /api/firms/export` / `brief` | CSV export and one-page brief |
 
-Every response includes `X-Elapsed-Ms`. In production the app is served behind nginx (PM2 `alphacentauriab`, port 8000); use `/api/firms/health` for proxy health checks. `/api/firms/calendar` reads the raw pull and can be slow on a cold cache.
+Every response includes `X-Elapsed-Ms`. In production the app is served behind nginx (PM2 `alphacentauriab`, port 8000); use `/api/firms/health` for proxy health checks. `/api/firms/calendar` reads the raw pull and can be slow on a cold cache. Optional bot-guard: Anubis PoW reverse-proxy in front of `:8000`, PM2-managed without Docker — see [docs/ANUBIS.md](docs/ANUBIS.md).
 
 ## Project structure
 

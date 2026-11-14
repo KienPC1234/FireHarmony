@@ -14,14 +14,23 @@ import {
   Send,
   ShieldCheck,
   Sparkles,
+  Wrench,
 } from "lucide-react";
-import { api, describeError } from "@/lib/api";
-import { backendMethod, type CalibMethod } from "@/lib/researchContext";
+import { api, describeError, ApiError, BOT_GUARD_CHALLENGE } from "@/lib/api";
+import { applyCustomRegionParams, backendMethod, useResearchContext, type CalibMethod } from "@/lib/researchContext";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/lib/i18n";
 import { GlobalContextBar } from "@/components/GlobalContextBar";
+import { CustomLiveRegionPanel } from "@/components/CustomLiveRegionPanel";
 import { SectionQuickNav } from "@/components/common/SectionQuickNav";
 import { ReasoningPipelineIllustration } from "@/components/illustrations";
+import { MarkdownView } from "@/components/markdown";
+
+interface ToolCallEntry {
+  name: string;
+  args?: Record<string, unknown>;
+  summary?: string;
+}
 
 interface ChatMessage {
   id: string;
@@ -30,6 +39,7 @@ interface ChatMessage {
   evidenceText?: string;
   uncertainty?: string;
   actions?: Array<{ label: string; to: string }>;
+  toolCalls?: ToolCallEntry[];
   rawText?: string;
   citations?: string[];
   via?: string;
@@ -45,17 +55,26 @@ interface TelemetryState {
 }
 
 export function InvestigatorPage() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
+  const { mode } = useResearchContext();
 
-  const [sp] = useSearchParams();
+  const [sp, setSp] = useSearchParams();
   const aoi = sp.get("aoi") || "vietnam";
   const data = sp.get("data") || "raw";
+  const dataset = sp.get("dataset") || undefined;
+  const bbox = sp.get("bbox") || undefined;
   const ymParam = sp.get("ym") || "2025-03";
+  const sharedQuery = (() => {
+    const p = new URLSearchParams(sp);
+    p.set("aoi", aoi);
+    p.set("data", data);
+    p.set("ym", ymParam);
+    return p.toString();
+  })();
 
   const [yearStr, monthStr] = ymParam.split("-");
-  const rawYear = parseInt(yearStr, 10) || 2025;
-  const year = rawYear > 2025 ? 2025 : rawYear;
-  const month = rawYear > 2025 ? 12 : (parseInt(monthStr, 10) || 3);
+  const year = parseInt(yearStr, 10) || 2025;
+  const month = parseInt(monthStr, 10) || 3;
   const rawMethod = sp.get("method");
   const method = data !== "raw"
     ? "stat"
@@ -109,6 +128,24 @@ export function InvestigatorPage() {
   }, [aoi, data, method, year, month, qaMin, platformSet]);
 
   const promptChips = [
+    {
+      id: "help-fetch",
+      tag: "HELP GUIDE",
+      label: t("ai.chip_help_fetch"),
+      query: t("ai.query_help_fetch"),
+    },
+    {
+      id: "help-map",
+      tag: "UI OPERATIONS",
+      label: t("ai.chip_help_map_filters"),
+      query: t("ai.query_help_map_filters"),
+    },
+    {
+      id: "help-export",
+      tag: "EXPORT & EVIDENCE",
+      label: t("ai.chip_help_export"),
+      query: t("ai.query_help_export"),
+    },
     {
       id: "anomalous",
       tag: "ANOMALY ISOLATION",
@@ -180,26 +217,54 @@ export function InvestigatorPage() {
     const ctl = new AbortController();
     streamCtl.current = ctl;
 
+    const isLiveOrRaw =
+      data === "raw" ||
+      Boolean(dataset && (dataset.startsWith("live:") || dataset.startsWith("upload:")));
+    const effectiveMethod =
+      isLiveOrRaw && (method === "hts" || method === "stan") ? "stat" : method;
     try {
       await api.investigateStream(
         {
           question: q,
           aoi,
           data,
-          method,
+          method: effectiveMethod,
           year,
           month,
           use_llm: true,
           qa_min: qaMin,
           platform_set: platformSet,
+          bbox,
+          dataset,
+          mode,
+          lang,
         },
         {
+          onStatus: (st) => {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === botMsgId ? { ...msg, via: st.detail } : msg,
+              ),
+            );
+          },
+          onTool: (tool) => {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === botMsgId
+                  ? { ...msg, toolCalls: [...(msg.toolCalls || []), tool] }
+                  : msg,
+              ),
+            );
+          },
           onMeta: (meta) => {
+            const dsParam = dataset ? `&dataset=${encodeURIComponent(dataset)}` : "";
+            const bboxParam = bbox ? `&bbox=${encodeURIComponent(bbox)}` : "";
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === botMsgId
                   ? {
                       ...msg,
+                      toolCalls: meta.tool_calls?.length ? meta.tool_calls : msg.toolCalls,
                       evidenceText: meta.evidence
                         ? t("ai.derived_fields", {
                             count: Object.keys(meta.evidence).length,
@@ -208,9 +273,9 @@ export function InvestigatorPage() {
                         : t("ai.derived_verified"),
                       uncertainty: meta.limitations?.length ? meta.limitations.join(" ") : undefined,
                       actions: [
-                        { label: t("ai.view_calendar_btn"), to: `/calendar?aoi=${aoi}&data=${data}` },
-                        { label: t("ai.view_lab_btn"), to: `/lab?tab=xray&aoi=${aoi}&data=${data}` },
-                        { label: t("ai.view_evidence_btn"), to: `/evidence?aoi=${aoi}&data=${data}&ym=${ymParam}` },
+                        { label: t("ai.view_calendar_btn"), to: `/calendar?aoi=${aoi}&data=${data}${dsParam}${bboxParam}` },
+                        { label: t("ai.view_lab_btn"), to: `/lab?tab=xray&aoi=${aoi}&data=${data}${dsParam}${bboxParam}` },
+                        { label: t("ai.view_evidence_btn"), to: `/evidence?aoi=${aoi}&data=${data}&ym=${ymParam}${dsParam}${bboxParam}` },
                       ],
                     }
                   : msg,
@@ -236,6 +301,7 @@ export function InvestigatorPage() {
                   ? {
                       ...msg,
                       finding: fullAnswer || msg.finding,
+                      via: "Tool Agent · gemma4:cloud",
                       isStreaming: false,
                     }
                   : msg,
@@ -244,12 +310,16 @@ export function InvestigatorPage() {
           },
           onError: (err) => {
             if ((err as { name?: string })?.name === "AbortError") return;
+            const expired =
+              err instanceof ApiError && err.message === BOT_GUARD_CHALLENGE;
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === botMsgId
                   ? {
                       ...msg,
-                      rawText: t("ai.conn_error", { err: describeError(err) }),
+                      rawText: expired
+                        ? t("ai.botguard_expired")
+                        : t("ai.conn_error", { err: describeError(err) }),
                       isStreaming: false,
                     }
                   : msg,
@@ -267,12 +337,16 @@ export function InvestigatorPage() {
           ),
         );
       } else {
+        const expired =
+          err instanceof ApiError && err.message === BOT_GUARD_CHALLENGE;
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === botMsgId
               ? {
                   ...msg,
-                  rawText: t("ai.engine_note", { err: describeError(err) }),
+                  rawText: expired
+                    ? t("ai.botguard_expired")
+                    : t("ai.engine_note", { err: describeError(err) }),
                   isStreaming: false,
                 }
               : msg,
@@ -328,7 +402,7 @@ export function InvestigatorPage() {
 
         {/* Action Link to Evidence */}
         <Link
-          to={`/evidence?aoi=${aoi}&data=${data}&ym=${ymParam}`}
+          to={`/evidence?${sharedQuery}`}
           className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-200 transition min-h-[40px]"
         >
           <FileCheck2 className="h-4 w-4 text-cyan-400" />
@@ -337,7 +411,19 @@ export function InvestigatorPage() {
       </div>
 
       {/* 2. Global Context Bar */}
-      <GlobalContextBar />
+      <div data-tour="ai-context">
+        <GlobalContextBar />
+      </div>
+      {aoi === "custom" && (
+        <CustomLiveRegionPanel
+          bbox={bbox}
+          geometry={sp.get("geometry")}
+          dataset={dataset}
+          fromDateProp={sp.get("from_date")}
+          toDateProp={sp.get("to_date")}
+          onLoaded={(payload) => setSp((prev) => applyCustomRegionParams(prev, payload), { replace: true })}
+        />
+      )}
       <SectionQuickNav title={t("ai.title")}
         items={[
           { id: "ai-questions", label: t("ai.chip_anomaly") },
@@ -351,7 +437,7 @@ export function InvestigatorPage() {
         {/* Left Column: Chat Stream & Interactive Scenarios (7 cols on lg = ~58%) */}
         <div className="lg:col-span-7 space-y-4">
           {/* Context-driven Inquiries: Visual Cards */}
-          <div id="ai-questions" className="scroll-mt-16 space-y-2">
+          <div id="ai-questions" data-tour="ai-prompts" className="scroll-mt-16 space-y-2">
             <div className="flex items-center justify-between px-1">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 {t("ai.context_inquiries")}
@@ -421,17 +507,48 @@ export function InvestigatorPage() {
                     </div>
                   )}
 
+                  {m.toolCalls && m.toolCalls.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-emerald-300">
+                        <Wrench className="h-3.5 w-3.5 text-emerald-400" />
+                        <span>{t("ai.tools_called_heading")}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {m.toolCalls.map((tc, idx) => {
+                          const argStr =
+                            tc.args && Object.keys(tc.args).length > 0
+                              ? `(${Object.entries(tc.args)
+                                  .map(([k, v]) => `${k}=${String(v)}`)
+                                  .join(", ")})`
+                              : "()";
+                          return (
+                            <span
+                              key={`${tc.name}-${idx}`}
+                              title={tc.summary || tc.name}
+                              className="inline-flex flex-wrap items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-950/40 px-2.5 py-1 text-[11px] font-mono text-emerald-200"
+                            >
+                              <span className="font-semibold text-emerald-300">{`${tc.name}${argStr}`}</span>
+                              {tc.summary && (
+                                <span className="text-emerald-200/80">
+                                  · {tc.summary}
+                                </span>
+                              )}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {m.finding && (
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
                       <div className="font-bold text-white text-sm flex items-center gap-2">
                         <span>{t("ai.finding_heading")}</span>
                       </div>
-                      <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
-                        {m.finding}
-                        {m.isStreaming && (
-                          <span className="inline-block w-1.5 h-3.5 ml-1 bg-cyan-400 animate-pulse align-middle" />
-                        )}
-                      </p>
+                      <MarkdownView content={m.finding} className="text-xs sm:text-sm text-slate-200" />
+                      {m.isStreaming && (
+                        <span className="inline-block w-1.5 h-3.5 bg-cyan-400 animate-pulse align-middle" />
+                      )}
                     </div>
                   )}
 
@@ -483,6 +600,7 @@ export function InvestigatorPage() {
 
           {/* Input Bar */}
           <form
+            data-tour="ai-input-form"
             onSubmit={(e) => {
               e.preventDefault();
               handleSend();
@@ -655,7 +773,7 @@ export function InvestigatorPage() {
             {/* Direct Deep Link Actions */}
             <div className="space-y-2 pt-2 border-t border-slate-800">
               <Link
-                to={`/calendar?aoi=${aoi}&data=${data}`}
+                to={`/calendar?${sharedQuery}`}
                 className="flex items-center justify-between rounded-xl border border-slate-700 bg-slate-900/80 p-3 text-xs font-semibold text-slate-200 hover:bg-slate-800 hover:text-white transition min-h-[44px]"
               >
                 <div className="flex items-center gap-2">
@@ -666,7 +784,7 @@ export function InvestigatorPage() {
               </Link>
 
               <Link
-                to={`/lab?tab=xray&aoi=${aoi}&data=${data}&${filterQuery}`}
+                to={`/lab?tab=xray&${sharedQuery}&${filterQuery}`}
                 className="flex items-center justify-between rounded-xl border border-slate-700 bg-slate-900/80 p-3 text-xs font-semibold text-slate-200 hover:bg-slate-800 hover:text-white transition min-h-[44px]"
               >
                 <div className="flex items-center gap-2">

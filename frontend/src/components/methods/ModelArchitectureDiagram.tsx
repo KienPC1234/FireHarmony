@@ -107,8 +107,8 @@ const ARCH_NODES_DATA: Record<string, NodePayload> = {
     titleEn: "Branch A: Operational B2 Seasonal Baseline",
     categoryVi: "Mỏ neo đối chứng nền tảng",
     categoryEn: "Baseline Reference Backbone",
-    badgeVi: "ĐỐI CHỨNG · MAE 4.411,8",
-    badgeEn: "BASELINE · MAE 4,411.8",
+    badgeVi: "ĐỐI CHỨNG · MAE 4.462,6",
+    badgeEn: "BASELINE · MAE 4,462.6",
     badgeTone: "sky",
     shape: "[12] Monthly Ratios",
     formula: "k_m = \\text{median}_{y \\in \\text{train}} \\left( \\frac{y_{viirs, y, m}}{x_{modis, y, m}} \\right)",
@@ -124,13 +124,13 @@ const ARCH_NODES_DATA: Record<string, NodePayload> = {
     titleEn: "Branch C: HTS 1° Tile-Seasonal Spatial Anchor",
     categoryVi: "Mô hình không gian dự phòng",
     categoryEn: "Spatial Fallback Anchor",
-    badgeVi: "NEO KHÔNG GIAN · MAE 4.154,4",
-    badgeEn: "SPATIAL ANCHOR · MAE 4,154.4",
+    badgeVi: "NEO KHÔNG GIAN · MAE 4.172,7",
+    badgeEn: "SPATIAL ANCHOR · MAE 4,172.7",
     badgeTone: "amber",
     shape: "[AOI-month]",
     formula: "\\hat{y}_{tile,m} = w\\,\\mathrm{median}_{tile,m} + (1-w)\\,B2_{aoi,m}",
     descVi:
-      "Chia AOI thành ô 1°, mỗi ô có tỷ lệ mùa riêng co về B2 (w=n/(n+3)); cộng ô-tháng lên AOI. Giảm MAE 5,8% và là mỏ neo không gian cho STAN.",
+      "Chia AOI thành ô 1°, mỗi ô có tỷ lệ mùa riêng co về B2 (w=n/(n+3)); cộng ô-tháng lên AOI. Giảm MAE 6,5% và là mỏ neo không gian cho STAN.",
     descEn:
       "Split the AOI into 1° tiles, each with a seasonal ratio shrunk toward B2 (w=n/(n+3)); spatial anchor for STAN.",
   },
@@ -140,15 +140,15 @@ const ARCH_NODES_DATA: Record<string, NodePayload> = {
     titleEn: "Branch B: STAN Spatio-Temporal Core (Operational)",
     categoryVi: "Mô hình Deep Learning chủ lực",
     categoryEn: "Primary Operational Deep Model",
-    badgeVi: "CHỦ LỰC · MAE 3.765,8 (-14,6%)",
-    badgeEn: "OPERATIONAL · MAE 3,765.8 (-14.6%)",
+    badgeVi: "CHỦ LỰC · MAE 3.899,5 (-12,6%)",
+    badgeEn: "OPERATIONAL · MAE 3,899.5 (-12.6%)",
     badgeTone: "emerald",
     shape: "Causal TCN + FiLM + Attention · NB2",
     formula: "\\hat{y}_{t} = \\text{HTS}_{t} \\cdot \\exp(f_{\\theta}(X_{t-11:t}, m_t, \\text{AOI}))",
     descVi:
-      "Kiến trúc học sâu chủ lực vận hành: Dilated Causal TCN kết hợp điều biến mùa FiLM, cơ chế chú ý tháng đích và hàm mất mát Negative Binomial NB2. Giảm -14,6% MAE (tỷ lệ thắng 95,8%; 3.765,8 vs B2 4.411,8).",
+      "Kiến trúc học sâu chủ lực vận hành: Dilated Causal TCN kết hợp điều biến mùa FiLM, cơ chế chú ý tháng đích và hàm mất mát Negative Binomial NB2. Giảm -12,6% MAE trên eval-v4 (P(STAN tốt hơn) = 96,5%; 3.899,5 vs B2 4.462,6).",
     descEn:
-      "Primary operational architecture: Dilated causal TCN with seasonal FiLM modulation, target-month attention, and NB2 loss. Achieves -14.6% MAE reduction (95.8% win rate; 3,765.8 vs B2 4,411.8).",
+      "Primary operational architecture: Dilated causal TCN with seasonal FiLM modulation, target-month attention, and NB2 loss. Achieves -12.6% MAE reduction on eval-v4 (P(STAN better) = 96.5%; 3,899.5 vs B2 4,462.6).",
     active: true,
   },
   gate_controller: {
@@ -161,11 +161,11 @@ const ARCH_NODES_DATA: Record<string, NodePayload> = {
     badgeEn: "PRIMARY · STAN SERVED",
     badgeTone: "emerald",
     shape: "Boolean Control {0, 1}",
-    formula: "\\Delta \\text{MAE} = -14.6\\% \\land \\text{Win} = 95.8\\% \\land \\text{All 3 AOIs} > \\text{B2}",
+    formula: "\\Delta \\text{MAE} = -12.6\\% \\land P(\\text{STAN} > \\text{B2}) = 96.5\\% \\land \\text{statistically\\_established} = \\text{false}",
     descVi:
-      "Kiểm định lựa chọn vận hành: STAN đạt MAE gộp thấp nhất (-14,6% vs B2, tỷ lệ thắng 95,8%) và cải thiện cả 3 vùng; 95% bootstrap CI [-1.452,9, +81,8] vẫn chứa 0.",
+      "Kiểm định lựa chọn vận hành (eval-v4): STAN đạt MAE gộp thấp nhất (-12,6% vs B2, P(STAN tốt hơn) = 96,5%), tuy nhiên 95% bootstrap CI [-1.184,4, +50,8] vẫn chứa 0 (statistically_established: false).",
     descEn:
-      "Operational selection check: STAN achieves the lowest pooled MAE (-14.6% vs B2, 95.8% win rate) and improves every AOI over B2, though 95% bootstrap CI [-1,452.9, +81.8] includes 0.",
+      "Operational selection check (eval-v4): STAN achieves the lowest pooled MAE (-12.6% vs B2, P(STAN better) = 96.5%), though 95% bootstrap CI [-1,184.4, +50.8] includes 0 (statistically_established: false).",
     active: true,
   },
   output_telemetry: {

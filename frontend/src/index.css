@@ -1,3 +1,5 @@
+@import "./styles/driver-theme.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -220,8 +222,13 @@ html, body {
   border-radius: 6px !important;
   font-size: 12px !important;
   font-weight: 500 !important;
-  padding: 4px 8px !important;
+  padding: 6px 10px !important;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5) !important;
+  white-space: normal !important;
+  width: max-content !important;
+  min-width: 220px !important;
+  max-width: 300px !important;
+  word-wrap: break-word !important;
 }
 
 /* Audit P1-06: the audit counted 9-11px labels across dense panels. Keep the
@@ -252,5 +259,23 @@ html, body {
     transform: none !important;
     scroll-behavior: auto !important;
   }
+}
+
+.leaflet-container .leaflet-control-attribution {
+  font-size: 9px;
+  line-height: 1.2;
+  padding: 1px 6px;
+  background: rgba(11, 18, 32, 0.72);
+  color: #94a3b8;
+  border-top-left-radius: 6px;
+  backdrop-filter: blur(4px);
+  max-width: 55vw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leaflet-container .leaflet-control-attribution a {
+  color: #67e8f9;
 }
 

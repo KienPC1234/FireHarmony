@@ -35,13 +35,23 @@ const BASEMAPS: Record<BasemapKey, { label: string; url: string; attribution: st
 const SATELLITE_LABELS_URL =
   "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
 
-function MapResizer({ center, zoom }: { center: [number, number]; zoom: number }) {
+function parseBboxBounds(bbox?: string | null): [[number, number], [number, number]] | null {
+  if (!bbox) return null;
+  const parts = bbox.split(",").map((p) => Number(p.trim()));
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return null;
+  const [w, s, e, n] = parts;
+  if (w >= e || s >= n) return null;
+  return [[s, w], [n, e]];
+}
+
+function MapResizer({ center, zoom, bbox, hasCustomFilter }: { center: [number, number]; zoom: number; bbox?: string | null; hasCustomFilter?: boolean }) {
   const map = useMap();
   const mountedRef = useRef(false);
   // P2-12: remember the last applied view so a parent re-render that passes
   // an equal (but newly allocated) center/zoom does not yank the map back
   // while the user is panning.
   const appliedRef = useRef<{ lat: number; lng: number; zoom: number } | null>(null);
+  const bboxRef = useRef<string | null>(null);
 
   useEffect(() => {
     map.invalidateSize();
@@ -64,6 +74,17 @@ function MapResizer({ center, zoom }: { center: [number, number]; zoom: number }
 
   const [lat, lng] = center;
   useEffect(() => {
+    const customBounds = hasCustomFilter ? parseBboxBounds(bbox) : null;
+    if (customBounds) {
+      if (bboxRef.current !== bbox) {
+        bboxRef.current = bbox ?? null;
+        map.fitBounds(customBounds, { padding: [36, 36], maxZoom: 10, animate: mountedRef.current });
+      }
+      mountedRef.current = true;
+      appliedRef.current = { lat, lng, zoom };
+      return;
+    }
+    bboxRef.current = null;
     if (!mountedRef.current) {
       mountedRef.current = true;
       appliedRef.current = { lat, lng, zoom };
@@ -73,7 +94,7 @@ function MapResizer({ center, zoom }: { center: [number, number]; zoom: number }
     if (prev && prev.lat === lat && prev.lng === lng && prev.zoom === zoom) return;
     appliedRef.current = { lat, lng, zoom };
     map.setView([lat, lng], zoom, { animate: true });
-  }, [map, lat, lng, zoom]);
+  }, [map, lat, lng, zoom, bbox, hasCustomFilter]);
 
   return null;
 }
@@ -132,7 +153,7 @@ export function AoiMap({
   const { t } = useLang();
 
   const [basemap, setBasemap] = useState<BasemapKey>("satellite");
-  const [layerMode, setLayerMode] = useState<LayerMode>("points");
+  const [layerMode, setLayerMode] = useState<LayerMode>("all");
   const [drawMode, setDrawMode] = useState<DrawMode>("none");
   const [drawVertices, setDrawVertices] = useState<[number, number][]>([]);
   const [showLegend, setShowLegend] = useState<boolean>(true);
@@ -223,7 +244,7 @@ export function AoiMap({
             className="h-full w-full"
             style={{ height: "100%", width: "100%", background: "#060B13", cursor: drawMode !== "none" ? "crosshair" : undefined }}
           >
-            <MapResizer center={center} zoom={zoom} />
+            <MapResizer center={center} zoom={zoom} bbox={bbox} hasCustomFilter={hasCustomFilter} />
 
             <TileLayer
               key={basemap}
@@ -378,7 +399,7 @@ export function AoiMap({
               })}
 
             {/* 4. PRIMARY CLUSTER FOCUS NODES */}
-            {(layerMode === "all" || layerMode === "clusters") &&
+            {(layerMode === "all" || layerMode === "points" || layerMode === "clusters") &&
               primaryCells.map((c, i) => {
                 const isEst = c.estimate_type !== "viirs_observed";
                 const color = isEst ? "#60A5FA" : "#2DD4BF";
@@ -460,7 +481,7 @@ export function AoiMap({
           </div>
         )}
 
-        {drawMode === "none" && (hasCustomFilter || Boolean(drawnRing)) && onClearBbox && (
+        {hideToolbar && drawMode === "none" && (hasCustomFilter || Boolean(drawnRing)) && onClearBbox && (
           <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-[900]">
             <button
               type="button"

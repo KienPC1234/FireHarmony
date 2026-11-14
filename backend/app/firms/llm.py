@@ -28,7 +28,10 @@ SYSTEM = (
     "coverage ratio and missing days, anomaly z, k and the effective method; "
     "(6) if coverage is partial or unknown, say so before interpreting the month; "
     "(7) cite the endpoints in `citations` when relevant, without inventing URLs; "
-    "(8) if the answer is not in the facts, say what is missing. "
+    "(8) if the answer is not in the facts, say what is missing; "
+    "(9) adapt tone to `audience_mode`: in `explore`, explain plainly what the project/map shows, "
+    "satellite differences (MODIS 1km vs VIIRS 375m) and key numbers for non-specialists; "
+    "in `research`, give concise technical analysis of k-factor, z-anomalies, QA/platform filters and model parity. "
     "Reply in the same language as the user question (Vietnamese or English). "
     "Keep answers under 220 words."
 )
@@ -119,6 +122,7 @@ def ask_llm(question: str, facts: dict, fallback_answer: str) -> dict:
         "messages": [
             {"role": "system", "content": SYSTEM},
             {"role": "user", "content": f"QUESTION: {question}\nVERIFIED FACTS:\n{json.dumps(facts, ensure_ascii=False)[:12000]}"},
+            {"role": "user", "content": f"QUESTION: {question}\nVERIFIED FACTS:\n{json.dumps(facts, ensure_ascii=False)[:16000]}"},
         ],
         "stream": False,
         "options": {"temperature": 0.1},
@@ -152,6 +156,7 @@ def stream_llm(question: str, facts: dict, fallback_answer: str):
         "messages": [
             {"role": "system", "content": SYSTEM},
             {"role": "user", "content": f"QUESTION: {question}\nVERIFIED FACTS:\n{json.dumps(facts, ensure_ascii=False)[:12000]}"},
+            {"role": "user", "content": f"QUESTION: {question}\nVERIFIED FACTS:\n{json.dumps(facts, ensure_ascii=False)[:16000]}"},
         ],
         "stream": True,
         "options": {"temperature": 0.1},

@@ -134,9 +134,121 @@ def _dedup_key_rec(rec) -> tuple:
             round(float(rec.longitude), 4), str(rec.version))
 
 
+from app.firms.schema import INSTRUMENT_PLATFORMS, PLATFORM_FROM
+
+_SAT_ALIASES = {
+    "N": "NPP", "NPP": "NPP", "SNPP": "NPP",
+    "SUOMI NPP": "NPP", "SUOMI-NPP": "NPP", "S-NPP": "NPP", "S NPP": "NPP",
+    "N20": "NOAA-20", "N-20": "NOAA-20",
+    "N21": "NOAA-21", "N-21": "NOAA-21",
+}
+_VALID_CONF = {"l", "n", "h"}
+
+
+def _fast_parse_and_qa(r: dict, keys_lower: bool = True):
+    """Fast-path equivalent of FirmsRecord(**kw) + rec.qa() when keep_clean is None."""
+    kw = r if keys_lower else {k.lower(): v for k, v in r.items()}
+    try:
+        lat = float(kw["latitude"])
+        lon = float(kw["longitude"])
+        if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+            return None
+        b_raw = kw.get("brightness")
+        if b_raw in (None, ""):
+            b_raw = kw.get("bright_ti4")
+        brightness = float(b_raw)
+        if not (0.0 < brightness < 2000.0):
+            return None
+        scan = float(kw["scan"])
+        track = float(kw["track"])
+        if not (0.0 < scan < 50.0 and 0.0 < track < 50.0):
+            return None
+        bt31_raw = kw.get("bright_t31")
+        if bt31_raw in (None, ""):
+            bt31_raw = kw.get("bright_ti5")
+        if bt31_raw not in (None, ""):
+            bt31 = float(bt31_raw)
+            if not (0.0 <= bt31 < 2000.0):
+                return None
+        inst_raw = str(kw.get("instrument") or "").strip().upper()
+        if inst_raw.startswith("VIIRS"):
+            inst = "VIIRS"
+        elif inst_raw == "MODIS":
+            inst = "MODIS"
+        else:
+            return None
+        d_raw = kw.get("acq_date")
+        if isinstance(d_raw, date):
+            day = d_raw.isoformat()
+        else:
+            day = str(d_raw or "")[:10]
+            if len(day) != 10 or day[4] != "-" or day[7] != "-":
+                return None
+            date.fromisoformat(day)
+        t_raw = str(kw.get("acq_time") or "").strip()
+        if not t_raw.isdigit() or not (1 <= len(t_raw) <= 4):
+            return None
+        t_pad = t_raw.zfill(4)
+        hh = int(t_pad[:2])
+        mm = int(t_pad[2:4])
+        if not (0 <= hh <= 23 and 0 <= mm <= 59):
+            return None
+        frp_raw = kw.get("frp")
+        if frp_raw in (None, ""):
+            frp = None
+        else:
+            frp = float(frp_raw)
+            if frp < 0.0:
+                return None
+        dn_raw = kw.get("daynight")
+        if dn_raw not in (None, "", "D", "N"):
+            return None
+        tp_raw = kw.get("type")
+        if tp_raw in (None, ""):
+            tp = None
+        else:
+            tp = int(tp_raw)
+            if not (0 <= tp <= 3):
+                return None
+        conf_raw = str(kw.get("confidence", "n") or "n").strip().lower()
+        if conf_raw.isdigit() and 1 <= len(conf_raw) <= 3:
+            pct = int(conf_raw)
+            if pct > 100:
+                return None
+            conf = "h" if pct >= 80 else ("n" if pct >= 40 else "l")
+        elif conf_raw in _VALID_CONF:
+            conf = conf_raw
+        else:
+            return None
+        sat_raw = str(kw.get("satellite") or "UNKNOWN").strip()
+        if "NOAA" in sat_raw:
+            sat_raw = (sat_raw.replace("NOAA20", "NOAA-20").replace("NOAA21", "NOAA-21")
+                       .replace("NOAA_20", "NOAA-20").replace("NOAA_21", "NOAA-21")
+                       .replace("NOAA 20", "NOAA-20").replace("NOAA 21", "NOAA-21"))
+        sat = _SAT_ALIASES.get(sat_raw.upper(), sat_raw) or "UNKNOWN"
+        ver = str(kw.get("version", "unknown") or "unknown")
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    # QA
+    plats = INSTRUMENT_PLATFORMS.get(inst)
+    if sat != "UNKNOWN" and plats is not None and sat not in plats:
+        q = "anachronistic_platform"
+    else:
+        start = PLATFORM_FROM.get(sat)
+        if start is not None and day < start:
+            q = "anachronistic_platform"
+        elif conf == "l" and (frp or 0.0) < 1.0:
+            q = "low_confidence"
+        else:
+            q = "keep"
+    return (lat, lon, day, t_pad, inst, sat, conf, frp, tp, ver, q)
+
+
 def aggregate_iter(records, res_deg: float = RES_DEG, keep_clean=None,
                    qa_min: str = "all", platform_set: str = "all",
-                   source_type: str = "all", keys_lower: bool = True):
+                   source_type: str = "all", keys_lower: bool = True,
+                   daynight: str = "all", min_frp: float = 0.0):
     """Streaming aggregate used for large raw pulls (never builds a row list).
 
     `keep_clean` is an optional callable receiving each validated dict (used by
@@ -156,6 +268,54 @@ def aggregate_iter(records, res_deg: float = RES_DEG, keep_clean=None,
              "filtered_platform": 0, "filtered_source_type": 0,
              "filters": {"qa_min": qa_min, "platform_set": platform_set,
                          **({"source_type": source_type} if source_type != "all" else {})}}
+    if keep_clean is None:
+        qa_counts = stats["qa_counts"]
+        for r in records:
+            parsed = _fast_parse_and_qa(r, keys_lower=keys_lower)
+            if parsed is None:
+                stats["rejected"] += 1
+                continue
+            lat, lon, day, t_pad, inst, sat, conf, frp, tp, ver, q = parsed
+            qa_counts[q] = qa_counts.get(q, 0) + 1
+            if q == "anachronistic_platform":
+                stats["rejected"] += 1
+                continue
+            if qa_min in ("nominal", "high") and q == "low_confidence":
+                stats["filtered_low_confidence"] += 1
+                continue
+            if qa_min == "high" and conf != "h":
+                stats["filtered_confidence"] += 1
+                continue
+            if platform_set == "snpp" and inst == "VIIRS" and sat != "NPP":
+                stats["filtered_platform"] += 1
+                continue
+            if source_type == "land" and tp == 3:
+                stats["filtered_source_type"] += 1
+                continue
+            if source_type == "vegetation" and tp in (1, 2, 3):
+                stats["filtered_source_type"] += 1
+                continue
+            if daynight != "all":
+                dn = str(r.get("daynight") if keys_lower else (r.get("daynight") or r.get("DAYNIGHT") or "")).strip().upper()
+                if dn != daynight:
+                    continue
+            if min_frp > 0.0 and (frp or 0.0) < min_frp:
+                continue
+            stats["clean"] += 1
+            sig = (inst, sat, day, t_pad, round(lat, 4), round(lon, 4), ver)
+            if sig in seen:
+                continue
+            seen.add(sig)
+            la = math.floor(lat / res_deg) * res_deg
+            lo = math.floor(lon / res_deg) * res_deg
+            agg = out[(f"{la:.2f}_{lo:.2f}", day, inst)]
+            agg.count += 1
+            agg.platforms.add(sat)
+            agg.platform_counts[sat] = agg.platform_counts.get(sat, 0) + 1
+            fval = frp or 0.0
+            agg.frp += fval
+            agg.platform_frp[sat] = agg.platform_frp.get(sat, 0.0) + fval
+        return out, stats
     for r in records:
         # `iter_raw_rows` and sample loaders already lowercase keys; avoid a
         # second dict+lower pass on the 2M-row hot path.
@@ -185,6 +345,10 @@ def aggregate_iter(records, res_deg: float = RES_DEG, keep_clean=None,
             continue
         if source_type == "vegetation" and rec.type in (1, 2, 3):
             stats["filtered_source_type"] += 1
+            continue
+        if daynight != "all" and (rec.daynight or "").upper() != daynight:
+            continue
+        if min_frp > 0.0 and (rec.frp or 0.0) < min_frp:
             continue
         stats["clean"] += 1
         sig = _dedup_key_rec(rec)
@@ -237,8 +401,14 @@ def estimate_efficiency_ratio(
     """
     exclude = set(exclude_months or ())
     monthly: dict[str, dict[str, float]] = defaultdict(lambda: {"MODIS": 0.0, "VIIRS": 0.0})
+    monthly_viirs_sats: dict[str, set[str]] = defaultdict(set)
     for (cell, day, inst), a in agg.items():
-        monthly[day[:7]][inst] += a.count
+        ym = day[:7]
+        monthly[ym][inst] += a.count
+        if inst == "VIIRS":
+            for sat in (a.platforms or set()):
+                if sat and sat != "UNKNOWN":
+                    monthly_viirs_sats[ym].add(sat)
     ratios: dict[str, float] = {}
     all_r: list[float] = []
     used_months: list[str] = []
@@ -292,6 +462,16 @@ def estimate_efficiency_ratio(
         "_calibration_window": [used_months[0], used_months[-1]] if used_months else None,
         "_train_end": used_months[-1] if used_months else None,
         "_sensor_set": ["MODIS", "VIIRS"],
+        "_active_viirs_platforms": {
+            m: {
+                "count": len(monthly_viirs_sats[m]),
+                "platforms": sorted(monthly_viirs_sats[m]),
+            }
+            for m in sorted(monthly) if monthly_viirs_sats.get(m)
+        },
+        "_multi_satellite_pooling": any(
+            len(sats) > 1 for sats in monthly_viirs_sats.values()
+        ),
         "_data_version": ALGORITHM_VERSION,
         **{m: round(float(np.clip(v, 0.05, 1.5)), 4) for m, v in ratios.items()},
     }
@@ -310,6 +490,7 @@ def _provenance(ratios: dict) -> dict:
         "calibration_note": ratios.get("_calibration_note"),
         "calibration_min_months": ratios.get("_calibration_min_months", 3),
         "calibration_clipped_fraction": ratios.get("_clipped_fraction"),
+        "multi_satellite_pooling": bool(ratios.get("_multi_satellite_pooling", False)),
     }
 
 
@@ -549,6 +730,7 @@ def reconfigure_daily(daily: list[dict], allowed_platforms: list[str],
     fallback = float(np.clip(fallback, 0.05, 1.5))
     out: list[dict] = []
     dropped = 0
+    monthly_viirs_sats: dict[str, set[str]] = defaultdict(set)
     for c in daily:
         ym = str(c["date"])[:7]
         mo_counts = c.get("modis_platform_counts") or {}
@@ -562,6 +744,9 @@ def reconfigure_daily(daily: list[dict], allowed_platforms: list[str],
         sel_counts = {p: int(n) for p, n in {**mo_counts, **{
             p: vi_counts.get(p, 0) + mo_counts.get(p, 0) for p in vi_counts
         }}.items() if p in allowed or ("MODIS" in allowed and p in {"Terra", "Aqua"})}
+        for p, n in vi_counts.items():
+            if p in allowed and float(n or 0) > 0 and p != "UNKNOWN":
+                monthly_viirs_sats[ym].add(p)
         if vi > 0:
             h, est = vi, "viirs_observed"
             h_frp = _platform_sum(c.get("viirs_platform_frp") or {}, allowed)
@@ -570,20 +755,25 @@ def reconfigure_daily(daily: list[dict], allowed_platforms: list[str],
             h, est = mo / k, "modis_upscaled_estimated"
             h_frp = None
             sensors = "MODIS"
-        out.append({**c,
-                    "modis_count": int(mo), "viirs_count": int(vi),
-                    "harmonized_count": round(float(h), 3),
-                    "harmonized_frp": None if h_frp is None else round(float(h_frp), 3),
-                    "estimate_type": est, "sensors": sensors,
-                    "platform_counts": sel_counts,
-                    "platforms": "+".join(sorted(sel_counts)) or "UNKNOWN",
-                    "platform_single": (next(iter(sel_counts)) if len(sel_counts) == 1
-                                        else ("mixed" if sel_counts else "UNKNOWN")),
-                    "coverage_status": "observed" if vi > 0 else "unknown",
-                    "k_used": round(float(k), 4),
-                    "sensor_config": label,
-                    "viirs_available": vi > 0,
-                    "algorithm_version": ALGORITHM_VERSION})
+        h_round = round(float(h), 3)
+        cell_km2 = c.get("cell_km2")
+        row_out = {**c,
+                   "modis_count": int(mo), "viirs_count": int(vi),
+                   "harmonized_count": h_round,
+                   "harmonized_frp": None if h_frp is None else round(float(h_frp), 3),
+                   "estimate_type": est, "sensors": sensors,
+                   "platform_counts": sel_counts,
+                   "platforms": "+".join(sorted(sel_counts)) or "UNKNOWN",
+                   "platform_single": (next(iter(sel_counts)) if len(sel_counts) == 1
+                                       else ("mixed" if sel_counts else "UNKNOWN")),
+                   "coverage_status": "observed" if vi > 0 else "unknown",
+                   "k_used": round(float(k), 4),
+                   "sensor_config": label,
+                   "viirs_available": vi > 0,
+                   "algorithm_version": ALGORITHM_VERSION}
+        if cell_km2 is not None and float(cell_km2) > 0:
+            row_out["harmonized_per_km2"] = round(h_round / float(cell_km2), 4)
+        out.append(row_out)
     meta = {
         "sensor_config": label,
         "allowed_platforms": sorted(allowed),
@@ -594,6 +784,10 @@ def reconfigure_daily(daily: list[dict], allowed_platforms: list[str],
         "k_fallback": round(fallback, 4),
         "k_measured_months": len(measured),
         "k_by_month": {k: round(float(v), 4) for k, v in measured.items()},
+        "active_viirs_platforms": {
+            m: {"count": len(sats), "platforms": sorted(sats)}
+            for m, sats in sorted(monthly_viirs_sats.items()) if sats
+        },
         "dropped_cells": dropped,
         "ratio_mode": "simulated",
     }

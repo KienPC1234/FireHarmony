@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
+import { applyCustomRegionParams } from "@/lib/researchContext";
 import {
   CalendarDays,
   CheckCircle2,
@@ -9,11 +10,13 @@ import {
   Globe,
   ShieldAlert,
 } from "lucide-react";
-import { api, type BlindSpotResponse } from "@/lib/api";
+import { api, describeError, type BlindSpotResponse } from "@/lib/api";
+import { notifyToast } from "@/lib/notify";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/lib/i18n";
 import { ErrorState, Loading } from "@/components/states";
 import { GlobalContextBar } from "@/components/GlobalContextBar";
+import { CustomLiveRegionPanel } from "@/components/CustomLiveRegionPanel";
 import { SectionQuickNav } from "@/components/common/SectionQuickNav";
 
 const AOIS = [
@@ -45,12 +48,34 @@ export function EvidencePage() {
   // Same filter keys as /calendar so the evidence card quotes the same cells.
   const qaMin = sp.get("qa_min") || "all";
   const platformSet = sp.get("platform_set") || "all";
+  const dataset = sp.get("dataset") || undefined;
 
   const [yearStr, monthStr] = ymParam.split("-");
   // No year clamp: raw carries NRT months past 2025 and the calendar renders
   // them with partial/NRT coverage flags, so ?ym=2026-11 must stay 2026.
   const year = parseInt(yearStr, 10) || 2025;
   const month = parseInt(monthStr, 10) || 3;
+
+  const [aoiOptions, setAoiOptions] = useState(AOIS);
+
+  useEffect(() => {
+    let alive = true;
+    api.aois().then((res) => {
+      if (!alive || !res.aois?.length) return;
+      const presetIds = new Set(AOIS.map((p) => p.id));
+      const extras = res.aois
+        .filter((a) => !presetIds.has(a.id))
+        .map((a) => ({
+          id: a.id,
+          name: { vi: a.label || a.id, en: a.label || a.id },
+          desc: { vi: a.bbox || "Custom AOI", en: a.bbox || "Custom AOI" },
+        }));
+      if (extras.length > 0) setAoiOptions([...AOIS, ...extras]);
+    }).catch(() => {
+      // Keep preset fallback when offline or /aois is unavailable
+    });
+    return () => { alive = false; };
+  }, []);
 
   const [spots, setSpots] = useState<BlindSpotResponse | null>(null);
   const [coverage, setCoverage] = useState<Record<string, unknown> | null>(null);
@@ -70,16 +95,26 @@ export function EvidencePage() {
   }, [aoi, year, month]);
 
   useEffect(() => {
+    if (aoi === "custom" && !dataset) {
+      setSpots(null);
+      setCoverage(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     let active = true;
     setLoading(true);
     setError(null);
 
     Promise.all([
-      api.blindSpots(aoi, data, year, month, qaMin, platformSet).catch((err) => {
-        if (active) setError(err);
+      api.blindSpots(aoi, data, year, month, qaMin, platformSet, dataset).catch((err) => {
+        if (active) {
+          setError(err);
+          notifyToast({ icon: "error", title: describeError(err) });
+        }
         return null;
       }),
-      api.coverage(aoi, data).catch(() => null),
+      dataset ? Promise.resolve(null) : api.coverage(aoi, data).catch(() => null),
     ]).then(([spotRes, covRes]) => {
       if (!active) return;
       if (spotRes) setSpots(spotRes);
@@ -90,7 +125,7 @@ export function EvidencePage() {
     return () => {
       active = false;
     };
-  }, [aoi, data, year, month, qaMin, platformSet, reloadNonce]);
+  }, [aoi, data, year, month, qaMin, platformSet, dataset, reloadNonce]);
 
   const handleAoiChange = (newAoi: string) => {
     setSp((prev) => {
@@ -180,7 +215,17 @@ export function EvidencePage() {
 
       {/* 2. Global Context Bar */}
       <GlobalContextBar />
-      {!loading && (
+      {aoi === "custom" && (
+        <CustomLiveRegionPanel
+          bbox={sp.get("bbox")}
+          geometry={sp.get("geometry")}
+          dataset={dataset}
+          fromDateProp={sp.get("from_date")}
+          toDateProp={sp.get("to_date")}
+          onLoaded={(payload) => setSp((prev) => applyCustomRegionParams(prev, payload), { replace: true })}
+        />
+      )}
+      {!loading && !(aoi === "custom" && !dataset) && (
       <SectionQuickNav
         title={t("evidence.quick_nav_title")}
         items={[
@@ -293,7 +338,7 @@ export function EvidencePage() {
               onChange={(e) => handleAoiChange(e.target.value)}
               className="bg-transparent font-bold text-white focus:outline-none"
             >
-              {AOIS.map((a) => (
+              {aoiOptions.map((a) => (
                 <option key={a.id} value={a.id} className="bg-slate-900">
                   {vi ? a.name.vi : a.name.en} ({vi ? a.desc.vi : a.desc.en})
                 </option>
@@ -574,23 +619,23 @@ export function EvidencePage() {
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono">
                 <div className="rounded-lg bg-slate-900 p-2.5 border border-slate-800">
-                  <span className="text-slate-400 text-xs block font-sans">MODIS Requested:</span>
+                  <span className="text-slate-400 text-xs block font-sans">{t("evidence.modis_requested_label")}</span>
                   <span className="text-blue-300 font-bold">
                     {selectedDay.modisReq ? t("evidence.granule_yes") : t("evidence.granule_no")}
                   </span>
                 </div>
                 <div className="rounded-lg bg-slate-900 p-2.5 border border-slate-800">
-                  <span className="text-slate-400 text-xs block font-sans">MODIS Detections:</span>
+                  <span className="text-slate-400 text-xs block font-sans">{t("evidence.modis_detections_label")}</span>
                   <span className="text-white font-bold">{selectedDay.modisDetect}</span>
                 </div>
                 <div className="rounded-lg bg-slate-900 p-2.5 border border-slate-800">
-                  <span className="text-slate-400 text-xs block font-sans">VIIRS Requested:</span>
+                  <span className="text-slate-400 text-xs block font-sans">{t("evidence.viirs_requested_label")}</span>
                   <span className="text-teal-300 font-bold">
                     {selectedDay.viirsReq ? t("evidence.granule_yes") : t("evidence.granule_no")}
                   </span>
                 </div>
                 <div className="rounded-lg bg-slate-900 p-2.5 border border-slate-800">
-                  <span className="text-slate-400 text-xs block font-sans">VIIRS Detections:</span>
+                  <span className="text-slate-400 text-xs block font-sans">{t("evidence.viirs_detections_label")}</span>
                   <span className="text-white font-bold">{selectedDay.viirsDetect}</span>
                 </div>
               </div>

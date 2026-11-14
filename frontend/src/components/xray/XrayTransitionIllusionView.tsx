@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
   Legend,
   ReferenceLine,
@@ -61,6 +63,39 @@ export function XrayTransitionIllusionView({ months }: XrayTransitionIllusionVie
     });
   }, [months]);
 
+  const renderTransitionTooltip = ({
+    active,
+    payload,
+  }: {
+    active?: boolean;
+    payload?: ReadonlyArray<{ payload?: (typeof transitionData)[number] }>;
+  }) => {
+    const d = payload?.[0]?.payload;
+    if (!active || !d) return null;
+    return (
+      <div className="rounded-xl border border-border/80 bg-slate-900/95 p-3 font-mono text-xs shadow-2xl backdrop-blur space-y-1.5 min-w-[220px]">
+        <div className="font-bold text-white border-b border-border/40 pb-1 flex justify-between">
+          <span>{t("xray.trans_tip_year", { year: d.year })}</span>
+          <span className="text-amber-400">{t("xray.trans_tip_jump", { ratio: d.stepJumpRatio })}</span>
+        </div>
+        <div className="flex justify-between text-slate-400">
+          <span>{t("xray.trans_tip_modis")}</span>
+          <span className="text-slate-200">{num(d.modisOnly)}</span>
+        </div>
+        <div className="flex justify-between text-rose-400 font-semibold">
+          <span>{t("xray.trans_tip_naive")}</span>
+          <span>{num(d.naiveRawSwitched)}</span>
+        </div>
+        {showHarmonized && (
+          <div className="flex justify-between text-cyan-300 font-bold border-t border-border/30 pt-1">
+            <span>{t("xray.trans_tip_harm")}</span>
+            <span>{num(d.harmonizedContinuous)}</span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-5 animate-fade-in">
       {/* Educational Banner */}
@@ -109,80 +144,81 @@ export function XrayTransitionIllusionView({ months }: XrayTransitionIllusionVie
         {/* Chart View */}
         <div style={{ height: 340 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={transitionData} margin={{ top: 10, right: 15, left: -10, bottom: 0 }}>
-              <defs>
-                <linearGradient id="harmFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
-                </linearGradient>
-                <linearGradient id="naiveFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0.0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-              <XAxis dataKey="yearLabel" stroke="#94a3b8" fontSize={12} />
-              <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={(v) => compact(v)} />
-              <ReferenceLine
-                x="2012"
-                stroke="#f59e0b"
-                strokeWidth={2}
-                strokeDasharray="4 4"
-                label={{
-                  value: t("xray.trans_ref_label"),
-                  fill: "#f59e0b",
-                  fontSize: 12,
-                  position: "insideTopLeft",
-                }}
-              />
-              <Tooltip
-                content={({ active, payload }) => {
-                  if (!active || !payload?.length) return null;
-                  const d = payload[0].payload;
-                  return (
-                    <div className="rounded-xl border border-border/80 bg-slate-900/95 p-3 font-mono text-xs shadow-2xl backdrop-blur space-y-1.5 min-w-[220px]">
-                      <div className="font-bold text-white border-b border-border/40 pb-1 flex justify-between">
-                        <span>{t("xray.trans_tip_year", { year: d.year })}</span>
-                        <span className="text-amber-400">{t("xray.trans_tip_jump", { ratio: d.stepJumpRatio })}</span>
-                      </div>
-                      <div className="flex justify-between text-slate-400">
-                        <span>{t("xray.trans_tip_modis")}</span>
-                        <span className="text-slate-200">{num(d.modisOnly)}</span>
-                      </div>
-                      <div className="flex justify-between text-rose-400 font-semibold">
-                        <span>{t("xray.trans_tip_naive")}</span>
-                        <span>{num(d.naiveRawSwitched)}</span>
-                      </div>
-                      {showHarmonized && (
-                        <div className="flex justify-between text-cyan-300 font-bold border-t border-border/30 pt-1">
-                          <span>{t("xray.trans_tip_harm")}</span>
-                          <span>{num(d.harmonizedContinuous)}</span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                }}
-              />
-              <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }} />
-              <Area
-                type="monotone"
-                dataKey="naiveRawSwitched"
-                stroke="#ef4444"
-                strokeWidth={2}
-                fill="url(#naiveFill)"
-                name={t("xray.trans_legend_naive")}
-              />
-              {showHarmonized && (
+            {transitionData.length <= 1 ? (
+              <BarChart data={transitionData} margin={{ top: 12, right: 16, left: 4, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="yearLabel" stroke="#94a3b8" fontSize={12} />
+                <YAxis width={44} stroke="#94a3b8" fontSize={12} tickFormatter={(v) => compact(v)} />
+                <Tooltip cursor={{ fill: "rgba(56, 189, 248, 0.08)" }} content={renderTransitionTooltip} />
+                <Legend align="center" wrapperStyle={{ fontSize: "12px", paddingTop: "8px", width: "100%", left: 0 }} />
+                <Bar
+                  dataKey="naiveRawSwitched"
+                  fill="#ef4444"
+                  maxBarSize={64}
+                  radius={[4, 4, 0, 0]}
+                  name={t("xray.trans_legend_naive")}
+                />
+                {showHarmonized && (
+                  <Bar
+                    dataKey="harmonizedContinuous"
+                    fill="#06b6d4"
+                    maxBarSize={64}
+                    radius={[4, 4, 0, 0]}
+                    name={t("xray.trans_legend_harm")}
+                  />
+                )}
+              </BarChart>
+            ) : (
+              <AreaChart data={transitionData} margin={{ top: 12, right: 16, left: 4, bottom: 4 }}>
+                <defs>
+                  <linearGradient id="harmFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
+                  </linearGradient>
+                  <linearGradient id="naiveFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="yearLabel" stroke="#94a3b8" fontSize={12} />
+                <YAxis width={44} stroke="#94a3b8" fontSize={12} tickFormatter={(v) => compact(v)} />
+                <ReferenceLine
+                  x="2012"
+                  stroke="#f59e0b"
+                  strokeWidth={2}
+                  strokeDasharray="4 4"
+                  label={{
+                    value: t("xray.trans_ref_label"),
+                    fill: "#f59e0b",
+                    fontSize: 12,
+                    position: "insideTopLeft",
+                  }}
+                />
+                <Tooltip cursor={{ stroke: "#475569", strokeDasharray: "3 3" }} content={renderTransitionTooltip} />
+                <Legend align="center" wrapperStyle={{ fontSize: "12px", paddingTop: "8px", width: "100%", left: 0 }} />
                 <Area
                   type="monotone"
-                  dataKey="harmonizedContinuous"
-                  stroke="#06b6d4"
-                  strokeWidth={2.5}
-                  fill="url(#harmFill)"
-                  name={t("xray.trans_legend_harm")}
+                  dataKey="naiveRawSwitched"
+                  stroke="#ef4444"
+                  strokeWidth={2}
+                  dot={transitionData.length <= 8 ? { r: 4, strokeWidth: 2, fill: "#0b1220" } : false}
+                  fill="url(#naiveFill)"
+                  name={t("xray.trans_legend_naive")}
                 />
-              )}
-            </AreaChart>
+                {showHarmonized && (
+                  <Area
+                    type="monotone"
+                    dataKey="harmonizedContinuous"
+                    stroke="#06b6d4"
+                    strokeWidth={2.5}
+                    dot={transitionData.length <= 8 ? { r: 4, strokeWidth: 2, fill: "#0b1220" } : false}
+                    fill="url(#harmFill)"
+                    name={t("xray.trans_legend_harm")}
+                  />
+                )}
+              </AreaChart>
+            )}
           </ResponsiveContainer>
         </div>
 

@@ -3,40 +3,64 @@ from __future__ import annotations
 
 import csv
 import hashlib
-import hmac
 import io
 import json
-import logging
-import math
-import os
-import re
-import threading
-import time
-import uuid
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import datetime
 
-from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 
-from app.firms import calendar as cal
-from app.firms import (coverage as cov, dl, evaluation, evidence as evd,
-                       explain as ex, harmonize, hts, llm, ml_cal, registry,
-                       stan, spatial, store)
-from app.firms.service import (_activity_summary, _empty_month_slot,
-                               _forecast, _latest_summary, _round4,
-                               _slot_add)
-from app.firms.spatial import (_geometry_bbox, _geometry_hash, _in_bbox,
-                               _in_dates, _norm_confidence_filter,
-                               _norm_satellite_filter, _parse_bbox,
-                               _parse_date_range, _parse_geometry,
-                               _point_in_geometry, _point_in_ring,
-                               _row_in_scope)
-from app.firms.schema import FirmsRecord
+from app.firms import coverage as cov, harmonize, store
+from app.firms.spatial import (
+    _geometry_hash,
+    _in_bbox,
+    _in_dates,
+    _norm_confidence_filter,
+    _norm_satellite_filter,
+    _parse_bbox,
+    _parse_date_range,
+    _parse_geometry,
+    _row_in_scope,
+)
 # CLAIM-019: pipeline owns these helpers; import forward, not from app.main.
 from app.firms.pipeline import (_block_raw_ml_ts, _data_source_label, _harmonize_from_records, _harmonize_stream, _raw_agg, _require_aoi, _resolve_records)
 
 router = APIRouter()
+
+
+def _guard_model_full_aoi(
+    method: str,
+    bbox: str | None,
+    from_date: str | None,
+    to_date: str | None,
+    qa_min: str,
+    platform_set: str,
+    source_type: str,
+    geom: dict | None = None,
+    geom_msg: str = ("Custom geometry uses method=stat: model targets are "
+                     "AOI-level monthly totals for the full AOI, not per-polygon "
+                     "predictions, and cannot be reallocated to an arbitrary "
+                     "polygon without inventing numbers. Retry the same polygon "
+                     "with method=stat (the grid ratio path)."),
+) -> None:
+    if method not in ("hts", "stan"):
+        return
+    if (bbox is not None or from_date or to_date
+            or qa_min != "all" or platform_set != "all" or source_type != "all"):
+        raise HTTPException(409, detail={
+            "error_code": "model_requires_full_aoi",
+            "message": ("Monthly model targets are AOI-level totals for the full "
+                        "AOI and full month: they are not per-polygon predictions "
+                        "and cannot be reallocated to a bbox/geometry, date, QA, "
+                        "platform, or source-type subset without inventing numbers. "
+                        "A filtered request must use method=stat (the grid ratio "
+                        "path, valid on any subset); do not filter after a model total."),
+            "method": method})
+    if geom is not None:
+        raise HTTPException(409, detail={
+            "error_code": "geometry_requires_stat_method",
+            "message": geom_msg,
+            "method": method})
 
 
 @router.get("/api/firms/calendar")
@@ -48,6 +72,8 @@ def firms_calendar(limit: int = Query(2000, ge=1, le=2000000),
                    qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
                    platform_set: str = Query("all", pattern="^(all|snpp)$"),
                    source_type: str = Query("all", pattern="^(all|land|vegetation)$"),
+                   daynight: str = Query("all", pattern="^(all|D|N)$"),
+                   min_frp: float = Query(0.0, ge=0.0),
                    dataset: str | None = Query(None, description="session upload id (upload:<hex>)"),
                    geometry: str | None = Query(None, description="GeoJSON Polygon/MultiPolygon"),
                    from_date: str | None = Query(None, description="inclusive YYYY-MM-DD"),
@@ -55,26 +81,8 @@ def firms_calendar(limit: int = Query(2000, ge=1, le=2000000),
     # P0-06: aggregate the FULL filtered set, slice only the daily response.
     geom = _parse_geometry(geometry)
     from_date, to_date = _parse_date_range(from_date, to_date)
-    if method in ("hts", "stan") and (
-            bbox is not None or from_date or to_date):
-        raise HTTPException(409, detail={
-            "error_code": "model_requires_full_aoi",
-            "message": ("Monthly model targets are AOI-level totals for the full "
-                        "AOI and full month: they are not per-polygon predictions "
-                        "and cannot be reallocated to a bbox/geometry or date "
-                        "subset without inventing numbers. A filtered request "
-                        "must use method=stat (the grid ratio path, valid on any "
-                        "subset); do not filter after a model total."),
-            "method": method})
-    if geom is not None and method in ("hts", "stan"):
-        raise HTTPException(409, detail={
-            "error_code": "geometry_requires_stat_method",
-            "message": ("Custom geometry uses method=stat: model targets are "
-                       "AOI-level monthly totals for the full AOI, not per-polygon "
-                       "predictions, and cannot be reallocated to an arbitrary "
-                       "polygon without inventing numbers. Retry the same polygon "
-                       "with method=stat (the grid ratio path)."),
-            "method": method})
+    _guard_model_full_aoi(method, bbox, from_date, to_date, qa_min,
+                          platform_set, source_type, geom=geom)
     _block_raw_ml_ts(method, data, aoi)
     if data == "raw" and not dataset and not store.raw_ready(aoi):
         raise HTTPException(404, detail={
@@ -87,7 +95,8 @@ def firms_calendar(limit: int = Query(2000, ge=1, le=2000000),
             out = _harmonize_stream(aoi, data, bbox, method, daily_cap=min(limit, 5000),
                                     qa_min=qa_min, platform_set=platform_set,
                                     geom=geom, from_date=from_date, to_date=to_date,
-                                    source_type=source_type)
+                                    source_type=source_type, daynight=daynight,
+                                    min_frp=min_frp)
         except HTTPException as exc:
             if exc.status_code != 404 or not (geom is not None or bbox is not None or from_date or to_date):
                 raise
@@ -120,14 +129,44 @@ def firms_calendar(limit: int = Query(2000, ge=1, le=2000000),
     else:
         records = [r for r in _resolve_records(aoi, data, 2000000, dataset)
                    if _in_bbox(r, _parse_bbox(bbox))]
-        if not records:
+        if not records and dataset and dataset.startswith("live:"):
+            empty_cal = {
+                "years": [], "months": list(range(1, 13)),
+                "values": [], "anomalies": [], "row_totals": [],
+                "baseline": [], "k": [], "coverage": [],
+            }
+            out = {
+                "daily_cells": 0, "ratios": {}, "calendar": empty_cal,
+                "critical_periods": [], "latest": None,
+                "data_source": "NASA FIRMS live (0 active fires)",
+                "method_id": "seasonal_ratio_v1",
+                "effective_method": "stat",
+                "daily": [],
+                "empty_filter": False,
+                "live_zero_fires": True,
+                "summary": {
+                    "sensor_detections_total": 0,
+                    "modis_detections": 0,
+                    "viirs_detections": 0,
+                    "harmonized_total": 0,
+                    "n_daily_cells_returned": 0,
+                    "n_daily_cells_total": 0,
+                    "source_scope": f"{aoi}/live",
+                    "estimated_index": None,
+                    "filter_hash": "live-zero",
+                    "period": {"from": from_date, "to": to_date},
+                },
+            }
+        elif not records:
             raise HTTPException(404, f"No {data} data in this AOI")
-        out = _harmonize_from_records(records, daily_cap=min(limit, 5000),
-                                      data=data, aoi=aoi, method=method,
-                                      dataset=dataset, qa_min=qa_min,
-                                      platform_set=platform_set, geom=geom,
-                                      from_date=from_date, to_date=to_date,
-                                      bbox=bbox, source_type=source_type)
+        else:
+            out = _harmonize_from_records(records, daily_cap=min(limit, 5000),
+                                          data=data, aoi=aoi, method=method,
+                                          dataset=dataset, qa_min=qa_min,
+                                          platform_set=platform_set, geom=geom,
+                                          from_date=from_date, to_date=to_date,
+                                          bbox=bbox, source_type=source_type,
+                                          daynight=daynight, min_frp=min_frp)
     out["bbox"] = bbox
     out["aoi"] = aoi
     out["data"] = data
@@ -151,6 +190,8 @@ def firms_map_cells(ym: str = Query(..., description="YYYY-MM"),
                     qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
                     platform_set: str = Query("all", pattern="^(all|snpp)$"),
                     source_type: str = Query("all", pattern="^(all|land|vegetation)$"),
+                    daynight: str = Query("all", pattern="^(all|D|N)$"),
+                    min_frp: float = Query(0.0, ge=0.0),
                     dataset: str | None = Query(None),
                     geometry: str | None = Query(None),
                     from_date: str | None = Query(None),
@@ -168,42 +209,43 @@ def firms_map_cells(ym: str = Query(..., description="YYYY-MM"),
         raise HTTPException(400, "ym must be YYYY-MM")
     geom = _parse_geometry(geometry)
     from_date, to_date = _parse_date_range(from_date, to_date)
-    if method in ("hts", "stan") and (
-            bbox is not None or from_date or to_date):
-        raise HTTPException(409, detail={
-            "error_code": "model_requires_full_aoi",
-            "message": ("Monthly model targets are AOI-level totals for the full "
-                        "AOI and full month: they are not per-polygon predictions "
-                        "and cannot be reallocated to a bbox/geometry or date "
-                        "subset without inventing numbers. A filtered request "
-                        "must use method=stat (the grid ratio path, valid on any "
-                        "subset); do not filter after a model total."),
-            "method": method})
-    if geom is not None and method in ("hts", "stan"):
-        raise HTTPException(409, detail={
-            "error_code": "geometry_requires_stat_method",
-            "message": ("Custom geometry map cells only support method=stat: model "
-                       "targets are AOI-level monthly totals for the full AOI, "
-                       "not per-polygon predictions, and cannot be reallocated "
-                       "to an arbitrary polygon without inventing numbers."),
-            "method": method})
+    _guard_model_full_aoi(
+        method, bbox, from_date, to_date, qa_min, platform_set, source_type,
+        geom=geom,
+        geom_msg=("Custom geometry map cells only support method=stat: model "
+                  "targets are AOI-level monthly totals for the full AOI, "
+                  "not per-polygon predictions, and cannot be reallocated "
+                  "to an arbitrary polygon without inventing numbers."),
+    )
     _block_raw_ml_ts(method, data, aoi)
     if data == "raw" and not dataset and not store.raw_ready(aoi):
         raise HTTPException(404, detail={"error_code": "no_raw_data",
                                          "message": "No raw FIRMS data on this server.",
                                          "aoi": aoi})
     if data == "raw" and not dataset:
+        map_ckey = (
+            f"mapcells_{aoi}_{method}_{ym}_{store.raw_fingerprint(aoi)}_"
+            f"{bbox or 'all'}_{qa_min}_{platform_set}_{source_type}_"
+            f"{_geometry_hash(geom)}_{from_date or 'all'}_{to_date or 'all'}_"
+            f"{max_cells}_{zoom}_{harmonize.ALGORITHM_VERSION}_{harmonize.cache_behavior()}"
+            + (f"_{daynight}_{min_frp}" if (daynight != "all" or min_frp > 0.0) else "")
+        )
+        map_hit = store.cache_get(map_ckey)
+        if map_hit is not None:
+            return JSONResponse(map_hit)
         try:
             out = _harmonize_stream(aoi, data, bbox, method, daily_cap=1000000,
                                     qa_min=qa_min, platform_set=platform_set,
                                     focus_ym=ym, cache_result=False, geom=geom,
                                     from_date=from_date, to_date=to_date,
-                                    source_type=source_type)
+                                    source_type=source_type, daynight=daynight,
+                                    min_frp=min_frp)
         except HTTPException as exc:
             if exc.status_code != 404:
                 raise
             out = {"method_id": method, "effective_method": method, "daily": [], "summary": {}}
     else:
+        map_ckey = None
         records = [r for r in _resolve_records(aoi, data, 2000000, dataset)
                    if _in_bbox(r, _parse_bbox(bbox))]
         if not records:
@@ -213,7 +255,8 @@ def firms_map_cells(ym: str = Query(..., description="YYYY-MM"),
                                       dataset=dataset, qa_min=qa_min,
                                       platform_set=platform_set, geom=geom,
                                       from_date=from_date, to_date=to_date,
-                                      source_type=source_type)
+                                      source_type=source_type, daynight=daynight,
+                                      min_frp=min_frp)
     agg_cells: dict[str, dict] = {}
     for c in out.get("daily") or []:
         if str(c.get("date", ""))[:7] != ym:
@@ -241,7 +284,7 @@ def firms_map_cells(ym: str = Query(..., description="YYYY-MM"),
                                 else sorted(c["estimate_types"])[0])}
              for c in capped]
     summary = out.get("summary") or {}
-    return JSONResponse({
+    payload = {
         "aoi": aoi, "data": data, "ym": ym, "zoom": zoom,
         "bbox": bbox, "geometry_hash": _geometry_hash(geom),
         "from_date": from_date, "to_date": to_date,
@@ -257,7 +300,10 @@ def firms_map_cells(ym: str = Query(..., description="YYYY-MM"),
         "capped_at": max_cells,
         "filter_hash": summary.get("filter_hash"),
         "source_scope": summary.get("source_scope"),
-    })
+    }
+    if map_ckey is not None:
+        store.cache_put(map_ckey, payload)
+    return JSONResponse(payload)
 
 
 @router.get("/api/firms/export")
@@ -269,74 +315,77 @@ def firms_export(limit: int = Query(2000000, ge=100, le=2000000),
                  qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
                  platform_set: str = Query("all", pattern="^(all|snpp)$"),
                  source_type: str = Query("all", pattern="^(all|land|vegetation)$"),
+                 daynight: str = Query("all", pattern="^(all|D|N)$"),
+                 min_frp: float = Query(0.0, ge=0.0),
                  dataset: str | None = Query(None, description="session upload id"),
                  geometry: str | None = Query(None, description="GeoJSON Polygon/MultiPolygon"),
                  from_date: str | None = Query(None),
                  to_date: str | None = Query(None)):
     # P0-06: export the FULL filtered set through the same harmonize path
     # as the dashboard so the CSV matches /calendar (P1-07: no silent cap).
-    _block_raw_ml_ts(method, data, aoi)
     geom = _parse_geometry(geometry)
     from_date, to_date = _parse_date_range(from_date, to_date)
-    if method in ("hts", "stan") and (
-            bbox is not None or from_date or to_date):
-        raise HTTPException(409, detail={
-            "error_code": "model_requires_full_aoi",
-            "message": ("Monthly model targets are AOI-level totals for the full "
-                        "AOI and full month: they are not per-polygon predictions "
-                        "and cannot be reallocated to a bbox/geometry or date "
-                        "subset without inventing numbers. A filtered request "
-                        "must use method=stat (the grid ratio path, valid on any "
-                        "subset); do not filter after a model total."),
-            "method": method})
-    if geom is not None and method in ("hts", "stan"):
-        raise HTTPException(409, detail={
-            "error_code": "geometry_requires_stat_method",
-            "message": ("Custom geometry exports only support method=stat: model "
-                       "targets are AOI-level monthly totals for the full AOI, "
-                       "not per-polygon predictions, and cannot be reallocated "
-                       "to an arbitrary polygon without inventing numbers."),
-            "method": method})
+    _guard_model_full_aoi(
+        method, bbox, from_date, to_date, qa_min, platform_set, source_type,
+        geom=geom,
+        geom_msg=("Custom geometry exports only support method=stat: model "
+                  "targets are AOI-level monthly totals for the full AOI, "
+                  "not per-polygon predictions, and cannot be reallocated "
+                  "to an arbitrary polygon without inventing numbers."),
+    )
+    _block_raw_ml_ts(method, data, aoi)
     if data == "raw" and not dataset and not store.raw_ready(aoi):
         raise HTTPException(404, detail={"error_code": "no_raw_data",
                                          "message": "No raw FIRMS data on this server.",
                                          "aoi": aoi})
+    has_filter = bool(bbox is not None or geom is not None or from_date or to_date)
     stream_cells = None
     n_rows = 0
     if data == "raw" and not dataset and method == "stat":
         # Stream the CSV straight from the aggregate: retaining 1.4M cell dicts
         # only to write them out was the peak-memory path of the whole API.
         agg, _stats = _raw_agg(aoi, bbox, qa_min, platform_set, geom=geom,
-                               source_type=source_type)
+                               source_type=source_type, daynight=daynight,
+                               min_frp=min_frp)
         if not agg:
-            raise HTTPException(404, f"No raw data in this AOI")
-        ratios = harmonize.estimate_efficiency_ratio(agg)
-        n_rows = sum(1 for _cell, day, _per in harmonize.iter_cell_days(agg)
-                     if _in_dates({"acq_date": day}, from_date, to_date))
-        stream_cells = (row for row in harmonize.iter_daily(agg, ratios)
-                        if _in_dates({"acq_date": row.get("date", "")},
-                                     from_date, to_date))
+            if not has_filter:
+                raise HTTPException(404, "No raw data in this AOI")
+            n_rows = 0
+            stream_cells = iter(())
+        else:
+            ratios = harmonize.estimate_efficiency_ratio(agg)
+            n_rows = sum(1 for _cell, day, _per in harmonize.iter_cell_days(agg)
+                         if _in_dates({"acq_date": day}, from_date, to_date))
+            stream_cells = (row for row in harmonize.iter_daily(agg, ratios)
+                            if _in_dates({"acq_date": row.get("date", "")},
+                                         from_date, to_date))
     elif data == "raw" and not dataset:
         full_daily = _harmonize_stream(aoi, data, bbox, method, daily_cap=2000000,
                                        qa_min=qa_min, platform_set=platform_set,
                                        cache_result=False, geom=geom,
                                        from_date=from_date, to_date=to_date,
-                                       source_type=source_type)["daily"]
+                                       source_type=source_type, daynight=daynight,
+                                       min_frp=min_frp)["daily"]
         n_rows = len(full_daily)
         stream_cells = iter(full_daily)
     else:
         records = [r for r in _resolve_records(aoi, data, limit, dataset)
                    if _in_bbox(r, _parse_bbox(bbox))]
         if not records:
-            raise HTTPException(404, f"No {data} data in this AOI")
-        full_daily = _harmonize_from_records(records, daily_cap=2000000,
-                                             data=data, aoi=aoi, method=method,
-                                             dataset=dataset, qa_min=qa_min,
-                                             platform_set=platform_set, geom=geom,
-                                             from_date=from_date, to_date=to_date,
-                                             bbox=bbox, source_type=source_type)["daily"]
-        n_rows = len(full_daily)
-        stream_cells = iter(full_daily)
+            if not has_filter:
+                raise HTTPException(404, f"No {data} data in this AOI")
+            n_rows = 0
+            stream_cells = iter(())
+        else:
+            full_daily = _harmonize_from_records(records, daily_cap=2000000,
+                                                 data=data, aoi=aoi, method=method,
+                                                 dataset=dataset, qa_min=qa_min,
+                                                 platform_set=platform_set, geom=geom,
+                                                 from_date=from_date, to_date=to_date,
+                                                 bbox=bbox, source_type=source_type,
+                                                 daynight=daynight, min_frp=min_frp)["daily"]
+            n_rows = len(full_daily)
+            stream_cells = iter(full_daily)
     fields = ["cell_id", "date", "lat", "lon",
               "modis_count", "viirs_count", "modis_frp", "viirs_frp",
               "harmonized_count", "harmonized_count_low",
@@ -391,6 +440,8 @@ def firms_export_detections(bbox: str | None = Query(None),
                             qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
                             platform_set: str = Query("all", pattern="^(all|snpp)$"),
                             source_type: str = Query("all", pattern="^(all|land|vegetation)$"),
+                            daynight: str = Query("all", pattern="^(all|D|N)$"),
+                            min_frp: float = Query(0.0, ge=0.0),
                             geometry: str | None = Query(None),
                             from_date: str | None = Query(None),
                             to_date: str | None = Query(None),
@@ -436,6 +487,15 @@ def firms_export_detections(bbox: str | None = Query(None),
             if source_type == "land" and tval == 3:
                 return False
             if source_type == "vegetation" and tval in (1, 2, 3):
+                return False
+        if daynight != "all" and str(r.get("daynight") or "").strip().upper() != daynight:
+            return False
+        if min_frp > 0.0:
+            try:
+                fval = float(r.get("frp") or 0.0)
+            except (TypeError, ValueError):
+                fval = 0.0
+            if fval < min_frp:
                 return False
         return True
 

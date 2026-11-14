@@ -23,6 +23,7 @@
     "@xyflow/react": "^12.12.1",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "driver.js": "^1.14.0",
     "i18next": "^27.1.1",
     "katex": "^0.19.1",
     "leaflet": "^1.9.4",
@@ -35,6 +36,7 @@
     "react-router-dom": "^7.18.4",
     "recharts": "^2.12.7",
     "remark-gfm": "^4.0.1",
+    "sweetalert2": "^11.26.25",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7"
   },

@@ -10,17 +10,7 @@ import {
   type ActiveMonth as DockActiveMonth,
 } from "@/components/calendar/CalendarDock";
 import type { HotspotCell, HotspotCluster } from "./clusterZones";
-
-const AOI_CENTER: Record<string, { c: [number, number]; z: number }> = {
-  vietnam: { c: [13, 106.5], z: 6 },
-  amazon: { c: [-4, -60], z: 4 },
-  australia: { c: [-26, 133], z: 4 },
-};
-
-// P2-12: named view fallbacks instead of inline literals, so the AOI-center
-// rule has one home and the map never depends on a fresh array identity.
-const DEFAULT_AOI_CENTER: [number, number] = [13, 106.5];
-const WORLD_CENTER: [number, number] = [15, 20];
+import { AOI_CENTER, DEFAULT_AOI_CENTER, WORLD_CENTER } from "@/hooks/useCalendarData";
 
 /**
  * CLAIM-017: satellite GIS workstation view (AoiMap + temporal scrubber +
@@ -39,9 +29,12 @@ export function CalendarMapView({
   preview,
   activeZone,
   onSelectZone,
-  mapError,
+  mapError: _mapError,
   calendarYears,
   scrubberYears,
+  availablePeriods = [],
+  availableDays = [],
+  activeDays = [],
   mapPeriod,
   onSelectPeriod,
   loadingData,
@@ -73,12 +66,24 @@ export function CalendarMapView({
   onDeleteCustomAoi,
   modisRange,
   viirsRange,
+  appliedDataset,
   onSelectBbox,
   onClearBbox,
+  onMissingPeriodClick,
+  onExtendRange,
+  canExtendLeft = true,
+  canExtendRight = true,
+  onCustomFetchClick,
+  daynight = "all",
+  onSelectDaynight,
+  minFrp = 0,
+  onSelectMinFrp,
+  onResetFilters,
 }: {
   aoi: string;
   appliedAoi: string;
   appliedBbox: string | null;
+  appliedDataset?: string;
   appliedGeometry: string | null;
   hasCustomFilter: boolean;
   hasExplicitRegion: boolean;
@@ -89,6 +94,9 @@ export function CalendarMapView({
   mapError: string | null;
   calendarYears: number[];
   scrubberYears: number[];
+  availablePeriods?: string[];
+  availableDays?: string[];
+  activeDays?: string[];
   mapPeriod: string;
   onSelectPeriod: (p: string) => void;
   loadingData: boolean;
@@ -108,6 +116,13 @@ export function CalendarMapView({
   onSelectQaMin: (val: string) => void;
   platformSet: string;
   onSelectPlatformSet: (val: string) => void;
+  daynight?: "all" | "D" | "N";
+  onSelectDaynight?: (val: "all" | "D" | "N") => void;
+  minFrp?: number;
+  onSelectMinFrp?: (val: number) => void;
+  onResetFilters?: () => void;
+  canExtendLeft?: boolean;
+  canExtendRight?: boolean;
   totalDetections: number;
   totalHarmonized: number;
   anomalyCount: number;
@@ -122,16 +137,26 @@ export function CalendarMapView({
   viirsRange: string | null;
   onSelectBbox: (b: string, geom?: string | null) => void;
   onClearBbox: () => void;
+  onMissingPeriodClick?: (period: string) => void;
+  onExtendRange?: (direction: "left" | "right") => void;
+  onCustomFetchClick?: () => void;
 }) {
   const { t } = useLang();
+
+  const customCenter = (() => {
+    if (!hasCustomFilter || !appliedBbox) return null;
+    const parts = appliedBbox.split(",").map((p) => Number(p.trim()));
+    if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return null;
+    return [(parts[1] + parts[3]) / 2, (parts[0] + parts[2]) / 2] as [number, number];
+  })();
 
   return (
     <div className="relative isolate flex-1 min-h-0 min-w-0 w-full h-full flex items-stretch overflow-hidden">
       {/* Main Map Canvas: retain width when the mobile inspector is open. */}
       <div className="relative flex-1 min-w-0 min-h-0 h-full self-stretch flex flex-col overflow-hidden">
         <AoiMap
-          center={hasExplicitRegion ? (AOI_CENTER[aoi]?.c ?? DEFAULT_AOI_CENTER) : WORLD_CENTER}
-          zoom={hasExplicitRegion ? (AOI_CENTER[aoi]?.z ?? 6) : 2}
+          center={customCenter ?? (hasExplicitRegion ? (AOI_CENTER[aoi]?.c ?? DEFAULT_AOI_CENTER) : WORLD_CENTER)}
+          zoom={customCenter ? 7 : (hasExplicitRegion ? (AOI_CENTER[aoi]?.z ?? 6) : 2)}
           bbox={appliedBbox}
           geometry={appliedGeometry}
           hasCustomFilter={hasCustomFilter}
@@ -148,17 +173,20 @@ export function CalendarMapView({
         />
 
         {/* Interactive Temporal Scrubber & Playback Bar */}
-        {mapError && (
-          <div className="absolute left-3 top-14 z-[800] rounded-lg border border-rose-500/40 bg-rose-950/90 px-3 py-2 text-xs text-rose-200">
-            {t("calendar.map_cells_error")}: {mapError}
-          </div>
-        )}
-        {calendarYears.length > 0 && (
+        {(hasExplicitRegion || (calendarYears.length > 0 && (availablePeriods.length > 1 || availableDays.length > 1))) && (
           <MapTimeScrubber
             currentPeriod={mapPeriod}
             onSelectPeriod={(p) => onSelectPeriod(p)}
             availableYears={scrubberYears.length > 0 ? scrubberYears : calendarYears}
+            availablePeriods={availablePeriods}
+            availableDays={availableDays}
+            activeDays={activeDays}
             isLoading={loadingData || loadingMapCells}
+            onMissingPeriodClick={onMissingPeriodClick}
+            onExtendRange={onExtendRange}
+            canExtendLeft={canExtendLeft}
+            canExtendRight={canExtendRight}
+            onCustomFetchClick={onCustomFetchClick}
           />
         )}
       </div>
@@ -186,6 +214,11 @@ export function CalendarMapView({
         onSelectQaMin={(val) => onSelectQaMin(val)}
         platformSet={platformSet}
         onSelectPlatformSet={(val) => onSelectPlatformSet(val)}
+        daynight={daynight}
+        onSelectDaynight={onSelectDaynight}
+        minFrp={minFrp}
+        onSelectMinFrp={onSelectMinFrp}
+        onResetFilters={onResetFilters}
         totalDetections={totalDetections}
         totalHarmonized={totalHarmonized}
         anomalyCount={anomalyCount}
@@ -198,6 +231,8 @@ export function CalendarMapView({
         onDeleteCustomAoi={onDeleteCustomAoi}
         modisRange={modisRange}
         viirsRange={viirsRange}
+        dataset={appliedDataset}
+        bbox={appliedBbox}
       />
     </div>
   );

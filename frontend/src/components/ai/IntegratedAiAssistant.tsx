@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import { ArrowRight, Loader2, Send } from "lucide-react";
-import { api, describeError } from "@/lib/api";
+import { Link, useSearchParams } from "react-router-dom";
+import { ArrowRight, Loader2, Send, Wrench } from "lucide-react";
+import { api, describeError, ApiError, BOT_GUARD_CHALLENGE } from "@/lib/api";
 import { useLang } from "@/lib/i18n";
+import { useResearchContext } from "@/lib/researchContext";
 import { cn } from "@/lib/utils";
+import { MarkdownView } from "@/components/markdown";
 
 interface ChatMessage {
   id: string;
@@ -11,6 +13,7 @@ interface ChatMessage {
   text: string;
   evidence?: string;
   limitations?: string;
+  toolCalls?: Array<{ name: string; args?: Record<string, unknown>; summary?: string }>;
   actions?: Array<{ label: string; to: string }>;
   isStreaming?: boolean;
 }
@@ -21,39 +24,90 @@ interface IntegratedAiAssistantProps {
   year?: number;
   month?: number;
   method?: string;
+  dataset?: string;
+  bbox?: string | null;
 }
 
 /**
  * Grounded assistant rendered inside a container (dock tab or sheet).
  * It fills the parent height; answers come only from the backend investigate tool.
  */
-export function IntegratedAiAssistant({ aoi, data, year, month, method = "stat" }: IntegratedAiAssistantProps) {
-  const { t } = useLang();
+export function IntegratedAiAssistant({
+  aoi,
+  data,
+  year,
+  month,
+  method = "stat",
+  dataset,
+  bbox,
+}: IntegratedAiAssistantProps) {
+  const { t, lang } = useLang();
+  const { mode } = useResearchContext();
+  const [sp] = useSearchParams();
+  const effectiveDataset = dataset ?? sp.get("dataset") ?? undefined;
+  const effectiveBbox = (bbox ?? sp.get("bbox")) || undefined;
   const hasMonth = year !== undefined && month !== undefined;
   const ym = hasMonth ? `${year}-${String(month).padStart(2, "0")}` : null;
   const isSynthetic = data !== "raw";
 
-  const suggestions = [
-    ...(ym
-      ? [
-          {
-            id: "month",
-            label: t("ai.chip_why_unusual", { ym }),
-            query: t("ai.query_month", { ym, aoi }),
-          },
-        ]
-      : []),
-    {
-      id: "transition",
-      label: t("ai.chip_transition"),
-      query: t("ai.query_transition"),
-    },
-    {
-      id: "coverage",
-      label: t("ai.chip_coverage"),
-      query: t("ai.query_coverage", { aoi }),
-    },
-  ];
+  const suggestions = mode === "explore"
+    ? [
+        ...(ym
+          ? [
+              {
+                id: "month",
+                label: t("ai.chip_why_unusual", { ym }),
+                query: t("ai.query_month", { ym, aoi }),
+              },
+            ]
+          : []),
+        {
+          id: "project",
+          label: t("ai.chip_explore_project"),
+          query: t("ai.query_explore_project"),
+        },
+        {
+          id: "numbers",
+          label: t("ai.chip_explore_numbers"),
+          query: t("ai.query_explore_numbers", { aoi }),
+        },
+        {
+          id: "satellite",
+          label: t("ai.chip_explore_satellite"),
+          query: t("ai.query_explore_satellite"),
+        },
+      ]
+    : [
+        ...(ym
+          ? [
+              {
+                id: "month",
+                label: t("ai.chip_why_unusual", { ym }),
+                query: t("ai.query_month", { ym, aoi }),
+              },
+            ]
+          : []),
+        {
+          id: "transition",
+          label: t("ai.chip_transition"),
+          query: t("ai.query_transition"),
+        },
+        {
+          id: "coverage",
+          label: t("ai.chip_coverage"),
+          query: t("ai.query_coverage", { aoi }),
+        },
+        {
+          id: "calibration",
+          label: t("ai.chip_research_calibration"),
+          query: t("ai.query_research_calibration"),
+        },
+        {
+          id: "filters",
+          label: t("ai.chip_research_filters"),
+          query: t("ai.query_research_filters", { aoi }),
+        },
+      ];
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -74,18 +128,47 @@ export function IntegratedAiAssistant({ aoi, data, year, month, method = "stat" 
       { id: `u-${stamp}`, role: "user", text: question },
       { id: botId, role: "assistant", text: "", isStreaming: true },
     ]);
+    const isLiveOrRaw =
+      data === "raw" ||
+      Boolean(effectiveDataset && (effectiveDataset.startsWith("live:") || effectiveDataset.startsWith("upload:")));
+    const effectiveMethod =
+      isLiveOrRaw && (method === "hts" || method === "stan") ? "stat" : method;
     setInput("");
     setBusy(true);
     try {
       await api.investigateStream(
-        { question, aoi, data, method, year, month, use_llm: true },
         {
+          question,
+          aoi,
+          data,
+          method: effectiveMethod,
+          year,
+          month,
+          dataset: effectiveDataset,
+          bbox: effectiveBbox,
+          mode,
+          lang,
+          use_llm: true,
+        },
+        {
+          onTool: (tool) => {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === botId
+                  ? { ...msg, toolCalls: [...(msg.toolCalls || []), tool] }
+                  : msg,
+              ),
+            );
+          },
           onMeta: (meta) => {
+            const dsParam = effectiveDataset ? `&dataset=${encodeURIComponent(effectiveDataset)}` : "";
+            const bboxParam = effectiveBbox ? `&bbox=${encodeURIComponent(effectiveBbox)}` : "";
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === botId
                   ? {
                       ...msg,
+                      toolCalls: meta.tool_calls?.length ? meta.tool_calls : msg.toolCalls,
                       evidence:
                         meta.tools_used.length > 0
                           ? t("ai.computed_by", { tools: meta.tools_used.join(", ") })
@@ -94,9 +177,12 @@ export function IntegratedAiAssistant({ aoi, data, year, month, method = "stat" 
                       actions: [
                         {
                           label: t("ai.inspect_evidence"),
-                          to: `/evidence?aoi=${aoi}&data=${data}${ym ? `&ym=${ym}` : ""}`,
+                          to: `/evidence?aoi=${aoi}&data=${data}${ym ? `&ym=${ym}` : ""}${dsParam}${bboxParam}`,
                         },
-                        { label: t("ai.compare_sensor"), to: `/lab?tab=xray&aoi=${aoi}&data=${data}` },
+                        {
+                          label: t("ai.compare_sensor"),
+                          to: `/lab?tab=xray&aoi=${aoi}&data=${data}${ym ? `&ym=${ym}` : ""}${dsParam}${bboxParam}`,
+                        },
                       ],
                     }
                   : msg,
@@ -129,12 +215,16 @@ export function IntegratedAiAssistant({ aoi, data, year, month, method = "stat" 
             );
           },
           onError: (err) => {
+            const expired =
+              err instanceof ApiError && err.message === BOT_GUARD_CHALLENGE;
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === botId
                   ? {
                       ...msg,
-                      text: t("ai.error_analysis", { error: describeError(err) }),
+                      text: expired
+                        ? t("ai.botguard_expired")
+                        : t("ai.error_analysis", { error: describeError(err) }),
                       isStreaming: false,
                     }
                   : msg,
@@ -144,12 +234,16 @@ export function IntegratedAiAssistant({ aoi, data, year, month, method = "stat" 
         },
       );
     } catch (err) {
+      const expired =
+        err instanceof ApiError && err.message === BOT_GUARD_CHALLENGE;
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === botId
             ? {
                 ...msg,
-                text: t("ai.error_could_not_get", { error: describeError(err) }),
+                text: expired
+                  ? t("ai.botguard_expired")
+                  : t("ai.error_could_not_get", { error: describeError(err) }),
                 isStreaming: false,
               }
             : msg,
@@ -177,9 +271,21 @@ export function IntegratedAiAssistant({ aoi, data, year, month, method = "stat" 
       <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
         {messages.length === 0 && !busy && (
           <div className="space-y-2">
-            <p className="text-xs text-slate-400">
-              {t("ai.pick_suggested")}
-            </p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-slate-400">
+                {t("ai.pick_suggested")}
+              </p>
+              <span
+                className={cn(
+                  "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+                  mode === "explore"
+                    ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
+                    : "border-cyan-500/40 bg-cyan-500/15 text-cyan-300",
+                )}
+              >
+                {mode === "explore" ? t("ai.mode_explore_badge") : t("ai.mode_research_badge")}
+              </span>
+            </div>
             {suggestions.map((s) => (
               <button
                 key={s.id}
@@ -201,12 +307,24 @@ export function IntegratedAiAssistant({ aoi, data, year, month, method = "stat" 
             </div>
           ) : (
             <div key={m.id} className="space-y-2 rounded-lg border border-slate-800 bg-slate-900/70 p-3">
-              <p className="whitespace-pre-line leading-relaxed text-slate-100">
-                {m.text}
-                {m.isStreaming && (
-                  <span className="inline-block w-1.5 h-3.5 ml-1 bg-cyan-400 animate-pulse align-middle" />
-                )}
-              </p>
+              {m.toolCalls && m.toolCalls.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 pb-1">
+                  <Wrench className="h-3 w-3 text-emerald-400 shrink-0" />
+                  {m.toolCalls.map((tc, idx) => (
+                    <span
+                      key={`${tc.name}-${idx}`}
+                      title={tc.summary || tc.name}
+                      className="rounded border border-emerald-500/30 bg-emerald-950/40 px-1.5 py-0.5 text-[10px] font-mono text-emerald-200"
+                    >
+                      {tc.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {m.text && <MarkdownView content={m.text} className="text-xs sm:text-sm text-slate-100" />}
+              {m.isStreaming && m.text && (
+                <span className="inline-block w-1.5 h-3.5 bg-cyan-400 animate-pulse align-middle" />
+              )}
               {m.isStreaming && !m.text && (
                 <div className="flex items-center gap-2 text-xs font-mono text-cyan-300 py-1">
                   <div className="h-3 w-3 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />

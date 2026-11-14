@@ -6,6 +6,42 @@ interface ConstellationProps {
   className?: string;
 }
 
+/** Clean Earth-observation satellite glyph centered inside the card's middle band
+ * (y: -13..+11) so it stays crisp and clear of the title and spec labels. */
+function SatelliteGlyph({ body, panel, dish }: { body: string; panel: string; dish: string }) {
+  return (
+    <g transform="translate(0, 1)">
+      {/* Solar array struts */}
+      <rect x="-12" y="-1.5" width="4.5" height="3" rx="0.8" fill={dish} fillOpacity="0.8" />
+      <rect x="7.5" y="-1.5" width="4.5" height="3" rx="0.8" fill={dish} fillOpacity="0.8" />
+
+      {/* Left solar wing + photovoltaic grid */}
+      <rect x="-34" y="-5.5" width="22" height="11" rx="1.8" fill={panel} fillOpacity="0.28" stroke={panel} strokeWidth="1.2" />
+      <line x1="-26.5" y1="-5.5" x2="-26.5" y2="5.5" stroke={panel} strokeOpacity="0.65" strokeWidth="0.9" />
+      <line x1="-19.5" y1="-5.5" x2="-19.5" y2="5.5" stroke={panel} strokeOpacity="0.65" strokeWidth="0.9" />
+      <line x1="-34" y1="0" x2="-12" y2="0" stroke={panel} strokeOpacity="0.65" strokeWidth="0.9" />
+
+      {/* Right solar wing + photovoltaic grid */}
+      <rect x="12" y="-5.5" width="22" height="11" rx="1.8" fill={panel} fillOpacity="0.28" stroke={panel} strokeWidth="1.2" />
+      <line x1="19.5" y1="-5.5" x2="19.5" y2="5.5" stroke={panel} strokeOpacity="0.65" strokeWidth="0.9" />
+      <line x1="26.5" y1="-5.5" x2="26.5" y2="5.5" stroke={panel} strokeOpacity="0.65" strokeWidth="0.9" />
+      <line x1="12" y1="0" x2="34" y2="0" stroke={panel} strokeOpacity="0.65" strokeWidth="0.9" />
+
+      {/* Top telemetry antenna */}
+      <line x1="0" y1="-7" x2="0" y2="-11" stroke={dish} strokeWidth="1.3" strokeLinecap="round" />
+      <circle cx="0" cy="-11.8" r="1.5" fill={dish} />
+
+      {/* Spacecraft bus */}
+      <rect x="-8" y="-7" width="16" height="14" rx="2.5" fill="#0f172a" stroke={body} strokeWidth="1.5" />
+      <rect x="-4.5" y="-3.5" width="9" height="6" rx="1" fill={body} fillOpacity="0.35" stroke={panel} strokeWidth="0.8" />
+
+      {/* Nadir thermal / optical sensor pod */}
+      <path d="M-4.5,7 L4.5,7 L3,10.5 L-3,10.5 Z" fill={body} />
+      <circle cx="0" cy="9.2" r="1.3" fill={dish} />
+    </g>
+  );
+}
+
 export function ConstellationOrbitIllustration({ activeSensors, className }: ConstellationProps) {
   const { t } = useLang();
 
@@ -145,10 +181,10 @@ export function ConstellationOrbitIllustration({ activeSensors, className }: Con
 
           {/* Opaque Satellite Shield to prevent lines slicing through text */}
           <rect
-            x="-60"
-            y="-30"
-            width="120"
-            height="60"
+            x="-62"
+            y="-36"
+            width="124"
+            height="72"
             rx="8"
             fill="#070c18"
             stroke={hasModis ? "#f59e0b" : "#334155"}
@@ -157,18 +193,19 @@ export function ConstellationOrbitIllustration({ activeSensors, className }: Con
           />
 
           {/* Satellite Title ABOVE */}
-          <text x="0" y="-14" textAnchor="middle" fill={hasModis ? "#f59e0b" : "#64748b"} fontSize="13" fontWeight="bold">
+          <text x="0" y="-20" textAnchor="middle" fill={hasModis ? "#f59e0b" : "#64748b"} fontSize="13" fontWeight="bold">
             MODIS
           </text>
 
-          {/* Body Box */}
-          <rect x="-16" y="-8" width="32" height="16" rx="3" fill="#0f172a" stroke={hasModis ? "#f59e0b" : "#475569"} strokeWidth="1.5" />
-          <line x1="-36" y1="0" x2="-16" y2="0" stroke="#f59e0b" strokeWidth="3.5" strokeLinecap="round" />
-          <line x1="16" y1="0" x2="36" y2="0" stroke="#f59e0b" strokeWidth="3.5" strokeLinecap="round" />
-          <circle cx="0" cy="0" r="3.5" fill={hasModis ? "#fbbf24" : "#475569"} />
+          {/* Satellite glyph (user SVG, themed amber for MODIS) */}
+          {hasModis ? (
+            <SatelliteGlyph body="#f59e0b" panel="#fcd34d" dish="#fde68a" />
+          ) : (
+            <SatelliteGlyph body="#475569" panel="#334155" dish="#64748b" />
+          )}
 
           {/* Spec Label BELOW */}
-          <text x="0" y="20" textAnchor="middle" fill="#cbd5e1" fontSize="11" fontFamily="monospace">
+          <text x="0" y="26" textAnchor="middle" fill="#cbd5e1" fontSize="11" fontFamily="monospace">
             {hasModis ? "1000m thermal" : "BYPASSED"}
           </text>
         </g>
@@ -180,10 +217,10 @@ export function ConstellationOrbitIllustration({ activeSensors, className }: Con
           )}
 
           <rect
-            x="-60"
-            y="-30"
-            width="120"
-            height="60"
+            x="-62"
+            y="-36"
+            width="124"
+            height="72"
             rx="8"
             fill="#070c18"
             stroke={hasSnpp ? "#f97316" : "#334155"}
@@ -191,16 +228,18 @@ export function ConstellationOrbitIllustration({ activeSensors, className }: Con
             strokeOpacity="0.7"
           />
 
-          <text x="0" y="-14" textAnchor="middle" fill={hasSnpp ? "#f97316" : "#64748b"} fontSize="13" fontWeight="bold">
+          <text x="0" y="-20" textAnchor="middle" fill={hasSnpp ? "#f97316" : "#64748b"} fontSize="13" fontWeight="bold">
             Suomi NPP
           </text>
 
-          <rect x="-16" y="-8" width="32" height="16" rx="3" fill="#0f172a" stroke={hasSnpp ? "#f97316" : "#475569"} strokeWidth="1.5" />
-          <line x1="-36" y1="0" x2="-16" y2="0" stroke="#f97316" strokeWidth="3.5" strokeLinecap="round" />
-          <line x1="16" y1="0" x2="36" y2="0" stroke="#f97316" strokeWidth="3.5" strokeLinecap="round" />
-          <circle cx="0" cy="0" r="3.5" fill={hasSnpp ? "#fb923c" : "#475569"} />
+          {/* Satellite glyph (user SVG, themed orange for SNPP) */}
+          {hasSnpp ? (
+            <SatelliteGlyph body="#f97316" panel="#fdba74" dish="#ffedd5" />
+          ) : (
+            <SatelliteGlyph body="#475569" panel="#334155" dish="#64748b" />
+          )}
 
-          <text x="0" y="20" textAnchor="middle" fill="#cbd5e1" fontSize="11" fontFamily="monospace">
+          <text x="0" y="26" textAnchor="middle" fill="#cbd5e1" fontSize="11" fontFamily="monospace">
             {hasSnpp ? "375m active" : "BYPASSED"}
           </text>
         </g>
@@ -212,10 +251,10 @@ export function ConstellationOrbitIllustration({ activeSensors, className }: Con
           )}
 
           <rect
-            x="-60"
-            y="-30"
-            width="120"
-            height="60"
+            x="-62"
+            y="-36"
+            width="124"
+            height="72"
             rx="8"
             fill="#070c18"
             stroke={hasNoaa20 ? "#38bdf8" : "#334155"}
@@ -223,16 +262,18 @@ export function ConstellationOrbitIllustration({ activeSensors, className }: Con
             strokeOpacity="0.7"
           />
 
-          <text x="0" y="-14" textAnchor="middle" fill={hasNoaa20 ? "#38bdf8" : "#64748b"} fontSize="13" fontWeight="bold">
+          <text x="0" y="-20" textAnchor="middle" fill={hasNoaa20 ? "#38bdf8" : "#64748b"} fontSize="13" fontWeight="bold">
             NOAA-20
           </text>
 
-          <rect x="-16" y="-8" width="32" height="16" rx="3" fill="#0f172a" stroke={hasNoaa20 ? "#38bdf8" : "#475569"} strokeWidth="1.5" />
-          <line x1="-36" y1="0" x2="-16" y2="0" stroke="#38bdf8" strokeWidth="3.5" strokeLinecap="round" />
-          <line x1="16" y1="0" x2="36" y2="0" stroke="#38bdf8" strokeWidth="3.5" strokeLinecap="round" />
-          <circle cx="0" cy="0" r="3.5" fill={hasNoaa20 ? "#38bdf8" : "#475569"} />
+          {/* Satellite glyph (user SVG, themed sky-blue for NOAA-20) */}
+          {hasNoaa20 ? (
+            <SatelliteGlyph body="#38bdf8" panel="#7dd3fc" dish="#e0f2fe" />
+          ) : (
+            <SatelliteGlyph body="#475569" panel="#334155" dish="#64748b" />
+          )}
 
-          <text x="0" y="20" textAnchor="middle" fill="#cbd5e1" fontSize="11" fontFamily="monospace">
+          <text x="0" y="26" textAnchor="middle" fill="#cbd5e1" fontSize="11" fontFamily="monospace">
             {hasNoaa20 ? "Tandem 50min" : "BYPASSED"}
           </text>
         </g>
@@ -244,10 +285,10 @@ export function ConstellationOrbitIllustration({ activeSensors, className }: Con
           )}
 
           <rect
-            x="-60"
-            y="-30"
-            width="120"
-            height="60"
+            x="-62"
+            y="-36"
+            width="124"
+            height="72"
             rx="8"
             fill="#070c18"
             stroke={hasNoaa21 ? "#a855f7" : "#334155"}
@@ -255,16 +296,18 @@ export function ConstellationOrbitIllustration({ activeSensors, className }: Con
             strokeOpacity="0.7"
           />
 
-          <text x="0" y="-14" textAnchor="middle" fill={hasNoaa21 ? "#a855f7" : "#64748b"} fontSize="13" fontWeight="bold">
+          <text x="0" y="-20" textAnchor="middle" fill={hasNoaa21 ? "#a855f7" : "#64748b"} fontSize="13" fontWeight="bold">
             NOAA-21
           </text>
 
-          <rect x="-16" y="-8" width="32" height="16" rx="3" fill="#0f172a" stroke={hasNoaa21 ? "#a855f7" : "#475569"} strokeWidth="1.5" />
-          <line x1="-36" y1="0" x2="-16" y2="0" stroke="#a855f7" strokeWidth="3.5" strokeLinecap="round" />
-          <line x1="16" y1="0" x2="36" y2="0" stroke="#a855f7" strokeWidth="3.5" strokeLinecap="round" />
-          <circle cx="0" cy="0" r="3.5" fill={hasNoaa21 ? "#c084fc" : "#475569"} />
+          {/* Satellite glyph (user SVG, themed violet for NOAA-21) */}
+          {hasNoaa21 ? (
+            <SatelliteGlyph body="#a855f7" panel="#c084fc" dish="#ede9fe" />
+          ) : (
+            <SatelliteGlyph body="#475569" panel="#334155" dish="#64748b" />
+          )}
 
-          <text x="0" y="20" textAnchor="middle" fill="#cbd5e1" fontSize="11" fontFamily="monospace">
+          <text x="0" y="26" textAnchor="middle" fill="#cbd5e1" fontSize="11" fontFamily="monospace">
             {hasNoaa21 ? "Interleaved" : "BYPASSED"}
           </text>
         </g>

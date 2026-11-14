@@ -11,13 +11,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 
 from fastapi import HTTPException
 
 from app.firms import calendar as cal
 from app.firms import (coverage as cov, evaluation, harmonize, hts, ml_cal,
-                        stan, store)
+                        parquet_cache, stan, store)
 from app.firms.schema import FirmsRecord
 from app.firms.service import (_activity_summary, _empty_month_slot,
                                 _forecast, _latest_summary, _slot_add)
@@ -192,12 +193,50 @@ def _block_raw_ml_ts(method: str, data: str, aoi: str = "vietnam") -> None:
     return
 
 
+def _try_aggregate_duckdb(
+    aoi: str,
+    b: tuple[float, float, float, float] | None,
+    qa_min: str,
+    platform_set: str,
+    source_type: str,
+    year: int | None,
+    ym: str | None,
+):
+    """Fast DuckDB SQL aggregation over Parquet partitions when eligible."""
+    if os.getenv("FIRMS_DUCKDB") == "0":
+        return None
+    if os.getenv("FIRMS_DUCKDB") != "1":
+        try:
+            if Path(store.RAW_DIR).resolve() != Path(store._DEFAULT_RAW_DIR).resolve():
+                return None
+        except OSError:
+            return None
+    try:
+        return parquet_cache.aggregate_duckdb(
+            aoi,
+            raw_dir=store.RAW_DIR,
+            bbox=b,
+            qa_min=qa_min,
+            platform_set=platform_set,
+            source_type=source_type,
+            year=year,
+            ym=ym,
+        )
+    except Exception:
+        return None
+
+
 def _raw_agg(aoi: str, bbox=None, qa_min: str = "all",
              platform_set: str = "all", year: int | None = None,
              ym: str | None = None, geom: dict | None = None,
-             source_type: str = "all"):
+             source_type: str = "all", daynight: str = "all",
+             min_frp: float = 0.0):
     """Aggregate raw rows for one AOI without materialising cell-day dicts."""
     b = _parse_bbox(bbox) if isinstance(bbox, str) else bbox
+    if geom is None and daynight == "all" and min_frp <= 0.0:
+        fast = _try_aggregate_duckdb(aoi, b, qa_min, platform_set, source_type, year, ym)
+        if fast is not None:
+            return fast
 
     def rows():
         for r in store.iter_raw_rows(aoi, limit=None, year=year, ym=ym):
@@ -207,7 +246,9 @@ def _raw_agg(aoi: str, bbox=None, qa_min: str = "all",
 
     return harmonize.aggregate_iter(rows(), qa_min=qa_min,
                                     platform_set=platform_set,
-                                    source_type=source_type)
+                                    source_type=source_type,
+                                    daynight=daynight,
+                                    min_frp=min_frp)
 
 
 def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
@@ -220,7 +261,9 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
                       geom: dict | None = None,
                       from_date: str | None = None,
                       to_date: str | None = None,
-                      source_type: str = "all") -> dict:
+                      source_type: str = "all",
+                      daynight: str = "all",
+                      min_frp: float = 0.0) -> dict:
     """Memory-bounded pipeline for large raw pulls (1.4M+ rows).
 
     Validates, dedups and aggregates while streaming from disk; only the
@@ -254,7 +297,8 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
             f"{model_key}_{manifest_key}_{sim_key}_{geom_key}_"
             f"{from_date or 'all'}_{to_date or 'all'}_sum-v3_"
             f"{harmonize.ALGORITHM_VERSION}_{hts.ALGORITHM_VERSION}_"
-            f"{stan.ALGORITHM_VERSION}_{harmonize.cache_behavior()}")
+            f"{stan.ALGORITHM_VERSION}_{harmonize.cache_behavior()}"
+            + (f"_{daynight}_{min_frp}" if (daynight != "all" or min_frp > 0.0) else ""))
 
     def _finish(d: dict) -> dict:
         cap = int(daily_cap or 0)
@@ -274,22 +318,38 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
     if hit is not None:
         _set_progress(aoi, data, "done", 100, "Loaded from cache")
         return _finish(hit)
+    # Short-circuit immediately if requested bbox is disjoint from preset AOI bounds.
+    if b is not None and aoi in store.PRESET_AOIS:
+        ab = [float(x) for x in store.PRESET_AOIS[aoi]["bbox"].split(",")]
+        if b[2] < ab[0] or b[0] > ab[2] or b[3] < ab[1] or b[1] > ab[3]:
+            _set_progress(aoi, data, "done", 100, "No matching rows")
+            raise HTTPException(404, detail={
+                "error_code": "no_raw_data",
+                "message": f"Requested bbox is outside preset AOI {aoi}. Use Fetch Live NASA FIRMS.",
+                "aoi": aoi})
     _set_progress(aoi, data, "aggregating", 35, f"Scanning and aggregating {aoi} FIRMS rows...")
     keep = None
-    def rows():
-        n_scanned = 0
-        for r in store.iter_raw_rows(aoi, limit=None, year=simulate_year, ym=focus_ym):
-            n_scanned += 1
-            if n_scanned % 25000 == 0:
-                pct = min(70, 35 + (n_scanned // 25000) * 3)
-                _set_progress(aoi, data, "aggregating", pct, f"Scanning {n_scanned:,} FIRMS rows for {aoi}...")
-            if not _row_in_scope(r, b, geom):
-                continue
-            yield r
-    agg, stats = harmonize.aggregate_iter(rows(), keep_clean=keep,
-                                          qa_min=qa_min,
-                                          platform_set=platform_set,
-                                          source_type=source_type)
+    fast = (_try_aggregate_duckdb(aoi, b, qa_min, platform_set, source_type, simulate_year, focus_ym)
+            if (geom is None and daynight == "all" and min_frp <= 0.0) else None)
+    if fast is not None:
+        agg, stats = fast
+    else:
+        def rows():
+            n_scanned = 0
+            for r in store.iter_raw_rows(aoi, limit=None, year=simulate_year, ym=focus_ym, dedup=False):
+                n_scanned += 1
+                if n_scanned % 25000 == 0:
+                    pct = min(70, 35 + (n_scanned // 25000) * 3)
+                    _set_progress(aoi, data, "aggregating", pct, f"Scanning {n_scanned:,} FIRMS rows for {aoi}...")
+                if not _row_in_scope(r, b, geom):
+                    continue
+                yield r
+        agg, stats = harmonize.aggregate_iter(rows(), keep_clean=keep,
+                                              qa_min=qa_min,
+                                              platform_set=platform_set,
+                                              source_type=source_type,
+                                              daynight=daynight,
+                                              min_frp=min_frp)
     if not agg:
         _set_progress(aoi, data, "done", 100, "No matching rows")
         raise HTTPException(404, detail={
@@ -364,13 +424,22 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
         if not targets:
             raise HTTPException(404, f"No STAN series for aoi={aoi}")
         bands = stan.bands(aoi)
+        from app.firms import registry
+        reg_status = registry.status(MODEL_DIR)
+        stan_row = next(
+            (m for m in reg_status.get("models", []) if m.get("method_id") == "stan_safe_v1"),
+            {},
+        )
+        stan_gate_passed = bool(stan_row.get("gate_passed", False))
+        stan_stat_est = bool(stan_row.get("statistically_established", False))
         cell_days, ml_meta = hts.apply_monthly(
             harmonize.harmonize_daily(agg, ratios), targets,
             method_id="stan_safe_v1", requested="stan",
-            candidate=False, gate_passed=True,
+            candidate=not stan_gate_passed, gate_passed=stan_gate_passed,
             method_by_month=stan.sources(aoi),
             targets_low={k: v[0] for k, v in bands.items()},
             targets_high={k: v[1] for k, v in bands.items()})
+        ml_meta["statistically_established"] = stan_stat_est
         ml_meta["interval"] = stan.interval_status()
         for c in cell_days:
             _accumulate(c)
@@ -458,6 +527,7 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
         "_fallback", "_fallback_rel_iqr", "_n_months", "_calibration_status",
         "_calibration_note", "_calibration_min_months", "_clipped_months", "_clipped_fraction",
         "_mode", "_calibration_window", "_train_end", "_sensor_set",
+        "_active_viirs_platforms", "_multi_satellite_pooling",
         "_data_version", "_excluded_months")}
     out = {"daily_cells": n_cells, "ratios": ratios, "calendar": calen,
            # Top-level alias for old frontend readers; calendar.platform_mix
@@ -499,7 +569,9 @@ def _harmonize_from_records(records: list[dict], daily_cap: int = 2000,
                               from_date: str | None = None,
                               to_date: str | None = None,
                               bbox: str | None = None,
-                              source_type: str = "all") -> dict:
+                              source_type: str = "all",
+                              daynight: str = "all",
+                              min_frp: float = 0.0) -> dict:
     """Validate -> QA -> dedup -> harmonize. Single path for sample/raw/upload (P0-07)."""
     _block_raw_ml_ts(method, data, aoi)
     if method in ("hts", "stan"):
@@ -538,6 +610,10 @@ def _harmonize_from_records(records: list[dict], daily_cap: int = 2000,
         if source_type == "vegetation" and rec.type in (1, 2, 3):
             filtered_source += 1
             continue
+        if daynight != "all" and (rec.daynight or "").upper() != daynight:
+            continue
+        if min_frp > 0.0 and (rec.frp or 0.0) < min_frp:
+            continue
         clean.append(d)
     agg = harmonize.aggregate(clean)
     ratios = harmonize.estimate_efficiency_ratio(agg)
@@ -562,6 +638,7 @@ def _harmonize_from_records(records: list[dict], daily_cap: int = 2000,
         "_fallback", "_fallback_rel_iqr", "_n_months", "_calibration_status",
         "_calibration_note", "_calibration_min_months", "_clipped_months", "_clipped_fraction",
         "_mode", "_calibration_window", "_train_end", "_sensor_set",
+        "_active_viirs_platforms", "_multi_satellite_pooling",
         "_data_version", "_excluded_months")}
     monthly: dict[str, dict] = {}
     for c in daily:

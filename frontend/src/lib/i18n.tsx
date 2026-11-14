@@ -7,12 +7,29 @@ import { en } from "@/locales/en";
 
 export type Lang = "vi" | "en";
 
+const VIETNAM_TIMEZONES = new Set(["Asia/Ho_Chi_Minh", "Asia/Saigon"]);
+
+export function detectDefaultLang(
+  saved?: string | null,
+  timeZone?: string,
+  navLang?: string,
+): Lang {
+  if (saved === "vi" || saved === "en") return saved;
+  const tz = (timeZone ?? "").trim();
+  if (VIETNAM_TIMEZONES.has(tz)) return "vi";
+  if (tz) return "en";
+  if ((navLang ?? "").toLowerCase().startsWith("vi")) return "vi";
+  return "en";
+}
+
 const initialLang: Lang = (() => {
   try {
     const saved = localStorage.getItem("firms-lang");
-    return saved === "en" ? "en" : "vi";
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const nav = typeof navigator !== "undefined" ? navigator.language : undefined;
+    return detectDefaultLang(saved, tz, nav);
   } catch {
-    return "vi";
+    return "en";
   }
 })();
 

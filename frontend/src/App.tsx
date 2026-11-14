@@ -9,6 +9,7 @@ const XrayPage = lazy(() => import("@/pages/xray").then((m) => ({ default: m.Xra
 const EvidencePage = lazy(() => import("@/pages/evidence").then((m) => ({ default: m.EvidencePage })));
 const InvestigatorPage = lazy(() => import("@/pages/investigator").then((m) => ({ default: m.InvestigatorPage })));
 const MethodsPage = lazy(() => import("@/pages/methods").then((m) => ({ default: m.MethodsPage })));
+const GuidePage = lazy(() => import("@/pages/guide").then((m) => ({ default: m.GuidePage })));
 const AboutPage = lazy(() => import("@/pages/about").then((m) => ({ default: m.AboutPage })));
 
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="ask" element={<InvestigatorPage />} />
         <Route path="methods" element={<MethodsPage />} />
         <Route path="method" element={<MethodsPage />} />
+        <Route path="guide" element={<GuidePage />} />
         <Route path="about" element={<AboutPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

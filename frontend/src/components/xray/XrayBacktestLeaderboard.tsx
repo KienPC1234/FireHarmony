@@ -17,6 +17,8 @@ interface XrayBacktestLeaderboardProps {
       b2_pred: number;
     }>;
   } | null;
+  isCustomDataset?: boolean;
+  onSelectBenchmarkAoi?: () => void;
 }
 
 const fmtYears = (years: number[]) => {
@@ -79,9 +81,43 @@ const MODEL_SPECS = [
   },
 ] as const;
 
-export function XrayBacktestLeaderboard({ metrics, backtest }: XrayBacktestLeaderboardProps) {
+export function XrayBacktestLeaderboard({
+  metrics,
+  backtest,
+  isCustomDataset = false,
+  onSelectBenchmarkAoi,
+}: XrayBacktestLeaderboardProps) {
   const { lang, t } = useLang();
   const vi = lang === "vi";
+
+  if (isCustomDataset && !backtest && !metrics) {
+    return (
+      <div className="rounded-2xl border border-amber-500/35 bg-amber-950/20 p-5 space-y-3 text-xs">
+        <div className="flex items-center gap-2 font-bold text-amber-200">
+          <Trophy className="h-4 w-4 text-amber-400" />
+          <span>
+            {vi
+              ? "Backtest đa năm chỉ áp dụng cho 3 vùng chuẩn"
+              : "Multi-year holdout backtest applies to benchmark regions only"}
+          </span>
+        </div>
+        <p className="text-slate-300 leading-relaxed">
+          {vi
+            ? "Dữ liệu Live FIRMS hoặc file tải lên thường chỉ phủ một khoảng thời gian ngắn, nên không có chuỗi nhiều năm để chia tập train/test holdout. Hãy xem tab Trajectory & Residual hoặc chuyển sang vùng chuẩn (Việt Nam, Amazon, Úc) để đối chiếu Backtest."
+            : "Live FIRMS or uploaded datasets cover a short session window without multi-year train/test holdout splits. Use Trajectory & Residual for this dataset, or switch to a benchmark region (Vietnam, Amazon, Australia) to inspect the leaderboard."}
+        </p>
+        {onSelectBenchmarkAoi && (
+          <button
+            type="button"
+            onClick={onSelectBenchmarkAoi}
+            className="rounded-lg border border-cyan-500/40 bg-cyan-950/40 px-3 py-1.5 font-semibold text-cyan-200 hover:bg-cyan-900/50 transition"
+          >
+            {vi ? "Chuyển sang vùng chuẩn Việt Nam" : "Switch to Vietnam benchmark"}
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 animate-fade-in">

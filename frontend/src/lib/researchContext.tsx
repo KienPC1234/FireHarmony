@@ -13,6 +13,25 @@ export function backendMethod(method: CalibMethod): "stat" | "hts" | "stan" {
   return "stat";
 }
 
+export function applyCustomRegionParams(
+  prev: URLSearchParams,
+  payload: { dataset: string; bbox: string; geometry?: string | null; fromDate: string; toDate: string },
+): URLSearchParams {
+  const next = new URLSearchParams(prev);
+  next.set("aoi", "custom");
+  next.set("data", "raw");
+  next.set("dataset", payload.dataset);
+  next.set("bbox", payload.bbox);
+  if (payload.geometry) next.set("geometry", payload.geometry);
+  else next.delete("geometry");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(payload.fromDate)) next.set("from_date", payload.fromDate);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(payload.toDate)) {
+    next.set("to_date", payload.toDate);
+    next.set("ym", payload.toDate.slice(0, 7));
+  }
+  return next;
+}
+
 export interface ResearchContextValue {
   aoi: AoiId;
   dataFeed: DataFeedKind;
@@ -65,7 +84,19 @@ export function ResearchContextProvider({ children }: { children: React.ReactNod
     mode,
     yearMonth,
     method,
-    setAoi: (nextAoi) => updateParams({ aoi: nextAoi }),
+    setAoi: (nextAoi) =>
+      updateParams(
+        nextAoi === "custom"
+          ? { aoi: nextAoi }
+          : {
+              aoi: nextAoi,
+              dataset: null,
+              bbox: null,
+              geometry: null,
+              from_date: null,
+              to_date: null,
+            },
+      ),
     // One URL transition for feed+method: the sample feed has no STAN/HTS
     // tiles. Do not briefly expose an incompatible method or raw request.
     setDataFeed: (nextFeed) => updateParams({

@@ -1,38 +1,30 @@
 """FIRMS models/backtest/xray/evidence routes (split from app.main — CLAIM-016, contract unchanged)."""
 from __future__ import annotations
 
-import csv
-import hashlib
-import hmac
-import io
 import json
-import logging
 import math
-import os
-import re
 import threading
-import time
-import uuid
-from datetime import datetime, timezone
-from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
-from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 
-from app.firms import calendar as cal
-from app.firms import (coverage as cov, dl, evaluation, evidence as evd,
-                       explain as ex, harmonize, hts, llm, ml_cal, registry,
-                       stan, spatial, store)
-from app.firms.service import (_activity_summary, _empty_month_slot,
-                               _forecast, _latest_summary, _round4,
-                               _slot_add)
-from app.firms.spatial import (_geometry_bbox, _geometry_hash, _in_bbox,
-                               _in_dates, _norm_confidence_filter,
-                               _norm_satellite_filter, _parse_bbox,
-                               _parse_date_range, _parse_geometry,
-                               _point_in_geometry, _point_in_ring,
-                               _row_in_scope)
-from app.firms.schema import FirmsRecord
+from app.firms import (
+    calendar as cal,
+    coverage as cov,
+    evaluation,
+    evidence as evd,
+    explain as ex,
+    harmonize,
+    hts,
+    llm,
+    ml_cal,
+    registry,
+    spatial,
+    stan,
+)
+
+_XRAY_MEM_CACHE: dict[tuple[str, str, str], dict] = {}
+_XRAY_CACHE_LOCK = threading.Lock()
 # CLAIM-019: pipeline owns these helpers; import forward, not from app.main.
 from app.firms.pipeline import (_block_raw_ml_ts, _data_source_label, _harmonize_from_records, _harmonize_stream, _require_aoi, _resolve_records)
 
@@ -147,16 +139,45 @@ def firms_backtest(request: Request,
 
 @router.get("/api/firms/xray")
 def firms_xray(aoi: str = Query("vietnam"),
-               data: str = Query("sample", pattern="^(sample|raw)$")):
-    from app.main import MODEL_DIR, _stan_meta
+               data: str = Query("sample", pattern="^(sample|raw)$"),
+               dataset: str | None = Query(None)):
+    from app.main import MODEL_DIR, _stan_meta, logger
     """Sensor Bias X-Ray: per-month MODIS raw vs VIIRS reference vs adjusted.
 
     Audit P0-09: this used to train the legacy model and load the sample
     artifact even for data=raw. It now reads the unified evaluation manifest
     and the artifact with the correct data tag.
     """
-    _require_aoi(aoi, data)
-    if data == "raw":
+    if not (dataset and (dataset.startswith("live:") or dataset.startswith("upload:"))):
+        _require_aoi(aoi, data)
+    manifest = evaluation.load_manifest(data, MODEL_DIR)
+    manifest_sig = str((manifest or {}).get("dataset_sha256") or "")
+    mem_key = (aoi, data, f"{dataset or ''}:{manifest_sig}")
+    with _XRAY_CACHE_LOCK:
+        cached_mem = _XRAY_MEM_CACHE.get(mem_key)
+    if cached_mem is not None:
+        return JSONResponse(cached_mem)
+
+    disk_cache_path = None
+    if not dataset:
+        cache_key = evaluation.cache_key(aoi, data, 0, extra=f"xray:{manifest_sig}")
+        disk_cache_path = MODEL_DIR / f"xray_{aoi}_{data}_{cache_key}.json"
+        if disk_cache_path.exists():
+            try:
+                cached_disk = json.loads(disk_cache_path.read_text(encoding="utf-8"))
+                with _XRAY_CACHE_LOCK:
+                    _XRAY_MEM_CACHE[mem_key] = cached_disk
+                return JSONResponse(cached_disk)
+            except (OSError, ValueError):
+                pass
+    if dataset:
+        records = _resolve_records(aoi, data, 2000000, dataset)
+        pairs = ml_cal.build_monthly_pairs(records)
+        cal_out = _harmonize_from_records(records, daily_cap=0, data=data,
+                                          aoi=aoi, method="stat", dataset=dataset)
+        by_ym = {(p["year"], p["month"]): {"modis": p["modis"], "viirs": p["viirs"]}
+                 for p in pairs}
+    elif data == "raw":
         # P1-12: stream 1.4M+ rows; monthly summary avoids returning 600k cells.
         cal_out = _harmonize_stream(aoi, data, None, "stat", daily_cap=0)
         by_ym: dict[tuple[int, int], dict] = {}
@@ -201,18 +222,67 @@ def firms_xray(aoi: str = Query("vietnam"),
                        "adjusted_calendar": cal_by_ym.get((y, m)),
                        "k_used": round(math.exp(log_r), 4),
                        "ratio_source": ratio_source})
-    return JSONResponse({"aoi": aoi, "data": data,
-                         "data_source": _data_source_label(data),
-                         "units": "hotspot detections per month (NOT fires)",
-                         "evaluation_version": (manifest or {}).get("evaluation_version"),
-                         "eval_unit": (manifest or {}).get("eval_unit"),
-                         "backtest_metrics": metrics,
-                         "primary_method_id": registry.PRIMARY,
-                         "primary_gate": evaluation.primary_status(data, MODEL_DIR),
-                         "stan_trained": data == "raw" and _stan_meta("safe") is not None,
-                         "hts_trained": data == "raw" and (
-                             MODEL_DIR / "hts_anchor_raw.json").exists(),
-                         "months": months})
+    daily_rows = []
+    if dataset:
+        by_day: dict[str, dict] = {}
+        for r in records:
+            ds = str(getattr(r, "acq_date", None) or (r.get("acq_date") if isinstance(r, dict) else "") or "")[:10]
+            if not ds:
+                continue
+            inst = str(getattr(r, "instrument", None) or (r.get("instrument") if isinstance(r, dict) else "") or "").upper()
+            frp_raw = getattr(r, "frp", None) if not isinstance(r, dict) else r.get("frp")
+            bucket = by_day.setdefault(ds, {"modis": 0, "viirs": 0, "frp_sum": 0.0, "frp_n": 0})
+            if inst == "MODIS":
+                bucket["modis"] += 1
+            elif inst == "VIIRS":
+                bucket["viirs"] += 1
+            if frp_raw is not None and frp_raw != "":
+                try:
+                    fval = float(frp_raw)
+                    if math.isfinite(fval):
+                        bucket["frp_sum"] += fval
+                        bucket["frp_n"] += 1
+                except (TypeError, ValueError):
+                    pass
+        for ds in sorted(by_day):
+            b = by_day[ds]
+            m_num = int(ds[5:7]) if len(ds) >= 7 else 1
+            log_r = b2_log.get(m_num, b1_log)
+            adjusted = evaluation._counts(b["modis"], log_r)  # noqa: SLF001
+            daily_rows.append({
+                "date": ds,
+                "modis_raw": b["modis"],
+                "viirs_ref": b["viirs"],
+                "adjusted_stat": round(adjusted, 2),
+                "k_used": round(math.exp(log_r), 4),
+                "mean_frp": round(b["frp_sum"] / b["frp_n"], 1) if b["frp_n"] else None,
+            })
+    payload = {
+        "aoi": aoi,
+        "data": data,
+        "data_source": _data_source_label(data),
+        "units": "hotspot detections per month (NOT fires)",
+        "evaluation_version": (manifest or {}).get("evaluation_version"),
+        "eval_unit": (manifest or {}).get("eval_unit"),
+        "backtest_metrics": metrics,
+        "primary_method_id": registry.PRIMARY,
+        "primary_gate": evaluation.primary_status(data, MODEL_DIR),
+        "stan_trained": data == "raw" and _stan_meta("safe") is not None,
+        "hts_trained": data == "raw" and (MODEL_DIR / "hts_anchor_raw.json").exists(),
+        "months": months,
+        "daily": daily_rows,
+    }
+    with _XRAY_CACHE_LOCK:
+        if len(_XRAY_MEM_CACHE) > 24:
+            _XRAY_MEM_CACHE.clear()
+        _XRAY_MEM_CACHE[mem_key] = payload
+    if disk_cache_path is not None:
+        try:
+            MODEL_DIR.mkdir(parents=True, exist_ok=True)
+            disk_cache_path.write_text(json.dumps(payload), encoding="utf-8")
+        except OSError:
+            logger.warning("xray cache write failed for %s/%s", aoi, data)
+    return JSONResponse(payload)
 
 
 @router.get("/api/firms/simulate")
@@ -299,7 +369,8 @@ def firms_blind_spots(aoi: str = Query("vietnam"),
                       year: int = Query(2025, ge=2000, le=2100),
                       month: int = Query(1, ge=1, le=12),
                       qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
-                      platform_set: str = Query("all", pattern="^(all|snpp)$")):
+                      platform_set: str = Query("all", pattern="^(all|snpp)$"),
+                      dataset: str | None = Query(None)):
     """Sensor Blind Spot Explorer: day × sensor request/detection states.
 
     `unknown` means the request ledger has no evidence that the sensor looked;
@@ -307,15 +378,23 @@ def firms_blind_spots(aoi: str = Query("vietnam"),
     hotspot row was returned (still not proof of no fire, because clouds/smoke
     and sub-pixel fires remain).
     """
-    _require_aoi(aoi, data)
+    if not (dataset and (dataset.startswith("live:") or dataset.startswith("upload:"))):
+        _require_aoi(aoi, data)
     ym = f"{year}-{month:02d}"
-    per_source = cov.requested_days(aoi) if data == "raw" else {}
+    per_source = cov.requested_days(aoi) if (data == "raw" and not dataset) else {}
     fam_days: dict[str, set[int]] = {"MODIS": set(), "VIIRS": set()}
     for src, days in (per_source.get(ym) or {}).items():
         fam = "MODIS" if src.upper().startswith("MODIS") else (
             "VIIRS" if src.upper().startswith("VIIRS") else "OTHER")
         fam_days.setdefault(fam, set()).update(days)
-    if data == "raw":
+    if dataset:
+        records = _resolve_records(aoi, data, 2000000, dataset)
+        out = _harmonize_from_records(records, daily_cap=2000000, data=data,
+                                      aoi=aoi, dataset=dataset, qa_min=qa_min,
+                                      platform_set=platform_set)
+        cells = [c for c in out["daily"] if str(c["date"])[:7] == ym]
+        comp = (out["calendar"].get("completeness") or {}).get(ym, {})
+    elif data == "raw":
         out = _harmonize_stream(aoi, data, None, "stat", daily_cap=2000000,
                                 qa_min=qa_min, platform_set=platform_set,
                                 focus_ym=ym)
@@ -446,11 +525,18 @@ def firms_spatial_check(aoi: str = Query("vietnam"),
                         data: str = Query("raw", pattern="^(sample|raw)$"),
                         year: int = Query(2025, ge=2000, le=2100),
                         month: int = Query(1, ge=1, le=12),
-                        res_deg: float = Query(0.25, ge=0.05, le=1.0)):
+                        res_deg: float = Query(0.25, ge=0.05, le=1.0),
+                        dataset: str | None = Query(None)):
     """Coarse co-observation consistency; explicitly NOT a spatial holdout."""
-    _require_aoi(aoi, data)
+    if not (dataset and (dataset.startswith("live:") or dataset.startswith("upload:"))):
+        _require_aoi(aoi, data)
     ym = f"{year}-{month:02d}"
-    if data == "raw":
+    if dataset:
+        records = _resolve_records(aoi, data, 2000000, dataset)
+        out = _harmonize_from_records(records, daily_cap=2000000, data=data,
+                                      aoi=aoi, dataset=dataset)
+        daily = out.get("daily") or []
+    elif data == "raw":
         out = _harmonize_stream(aoi, data, None, "stat", daily_cap=2000000,
                                 focus_ym=ym)
         daily = out.get("daily") or []
@@ -482,10 +568,11 @@ def firms_evidence(aoi: str = Query("vietnam"),
                         "Use method=stat at one of those endpoints, e.g. "
                         "/api/firms/calendar?dataset=<id>&method=stat."),
         })
-    _require_aoi(aoi, data)
+    if not (dataset and dataset.startswith("live:")):
+        _require_aoi(aoi, data)
     _block_raw_ml_ts(method, data, aoi)
     out = _analysis_for_evidence(aoi, data, method, bbox, qa_min, platform_set,
-                                 focus_ym=f"{year}-{month:02d}")
+                                 focus_ym=f"{year}-{month:02d}", dataset=dataset)
     ev = evd.build_evidence(out, out.get("daily") or [], aoi, data, method,
                             year, month)
     return JSONResponse(ev)

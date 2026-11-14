@@ -78,7 +78,7 @@ export function HomePage() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 max-w-7xl mx-auto w-full space-y-12 pb-24">
       {/* 1. Hero Console */}
-      <section data-enter className="relative overflow-hidden rounded-2xl border border-slate-800 bg-[#111C2E] p-6 sm:p-10 shadow-sm">
+      <section data-enter data-tour="home-hero" className="relative overflow-hidden rounded-2xl border border-slate-800 bg-[#111C2E] p-6 sm:p-10 shadow-sm">
         <div className="relative z-10 max-w-3xl space-y-4">
           <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3.5 py-1 text-xs font-semibold text-cyan-300">
             <Radio className="h-3.5 w-3.5 text-cyan-400" />
@@ -96,7 +96,7 @@ export function HomePage() {
           {/* Action CTAs */}
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <Link
-              to={hasRawData ? "/calendar?data=raw&aoi=vietnam" : "/calendar?data=sample&aoi=vietnam"}
+              to={hasRawData ? "/calendar?data=raw" : "/calendar?data=sample"}
               className="inline-flex items-center gap-2 rounded-xl bg-orange-600 px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-orange-500 transition active:scale-95 min-h-[44px]"
             >
               <span>{t("home.cta_explore")}</span>
@@ -123,7 +123,7 @@ export function HomePage() {
       </section>
 
       {/* 2. Scientific Telemetry KPI Ribbon */}
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-4 tabular-nums">
+      <section data-tour="home-kpis" className="grid grid-cols-2 md:grid-cols-4 gap-4 tabular-nums">
         <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4.5 space-y-1">
           <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono font-bold uppercase">
             <CalendarDays className="h-4 w-4" />
@@ -162,7 +162,7 @@ export function HomePage() {
       </section>
 
       {/* 3. Constellation Orbital Architecture Illustration */}
-      <section className="space-y-4">
+      <section data-tour="home-orbits" className="space-y-4">
         <div className="space-y-1.5">
           <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
             {t("home.orbit_section_title")}
@@ -228,7 +228,7 @@ export function HomePage() {
           {/* Interactive Multi-Decadal Signal: 5 cols */}
           <div className="lg:col-span-5 rounded-xl border border-slate-800 bg-slate-900/60 p-5 space-y-4 flex flex-col justify-between">
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <span className="font-bold text-xs uppercase tracking-wider text-slate-300">
                   {t("home.ts_impact_title")}
                 </span>
@@ -244,6 +244,9 @@ export function HomePage() {
                     : t("home.badge_calibrated_record")}
                 </span>
               </div>
+              <p className="text-[11px] font-mono text-slate-400">
+                {t("home.ts_impact_illustrative")}
+              </p>
 
               {/* Dynamic Bars (GPU-accelerated scaleX transform under 300ms) */}
               <div className="space-y-3 py-2 font-mono text-xs tabular-nums">
@@ -303,7 +306,7 @@ export function HomePage() {
       </section>
 
       {/* 5. Explore a Question (3 Action Cards) */}
-      <section className="space-y-4">
+      <section data-tour="home-cards" className="space-y-4">
         <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
           {t("home.explore_title")}
         </h2>
@@ -311,7 +314,7 @@ export function HomePage() {
         <div className="grid gap-4 md:grid-cols-3">
           <Link
             data-fh-card-link
-            to="/calendar?aoi=vietnam"
+            to="/calendar"
             className="group rounded-2xl border border-slate-800 bg-[#111C2E] p-5 shadow-sm hover:border-cyan-500/40 min-h-[160px] flex flex-col justify-between"
           >
             <div>
@@ -443,7 +446,7 @@ export function HomePage() {
               <div>{t("home.bbox_vn")}</div>
             </div>
             <Link
-              to="/calendar?aoi=vietnam"
+              to="/calendar"
               className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-950/40 py-2.5 text-xs font-semibold text-cyan-200 hover:bg-cyan-900/50 transition min-h-[40px]"
             >
               <span>{t("home.open_vn_cal")}</span>

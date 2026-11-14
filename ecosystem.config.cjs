@@ -62,7 +62,7 @@ module.exports = {
       name: "alphacentauriab",
       cwd: backend,
       script: path.join(root, ".venv", "bin", "python"),
-      args: "-m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2",
+      args: "-m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 4",
       interpreter: "none",
       exec_mode: "fork",
       instances: 1,
@@ -72,7 +72,7 @@ module.exports = {
       // for torch when CrossSensorCalibrator trains on overlap months.
       // Raw stat calendar now peaks ~1.1 GB; raw ML/TS still materialise the
       // full fused cell list for monthly rescaling, so keep headroom above 4 GB.
-      max_memory_restart: process.env.MAX_MEMORY_RESTART || "8G",
+      max_memory_restart: process.env.MAX_MEMORY_RESTART || "16G",
       restart_delay: 2000,
       kill_timeout: 5000,
       time: true,
@@ -84,6 +84,7 @@ module.exports = {
         ...env,
         PYTHONUNBUFFERED: "1",
         NODE_ENV: "production",
+        FIRMS_DUCKDB: "1",
       },
     },
   ],

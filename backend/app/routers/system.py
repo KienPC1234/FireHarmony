@@ -1,37 +1,25 @@
 """FIRMS health/schema/ingest/investigate/ask routes (split from app.main — CLAIM-016, contract unchanged)."""
 from __future__ import annotations
 
-import csv
-import hashlib
-import hmac
-import io
 import json
-import logging
-import math
-import os
-import re
-import threading
 import time
-import uuid
-from datetime import datetime, timezone
-from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
-from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
-from app.firms import calendar as cal
-from app.firms import (coverage as cov, dl, evaluation, evidence as evd,
-                       explain as ex, harmonize, hts, llm, ml_cal, registry,
-                       stan, spatial, store)
-from app.firms.service import (_activity_summary, _empty_month_slot,
-                               _forecast, _latest_summary, _round4,
-                               _slot_add)
-from app.firms.spatial import (_geometry_bbox, _geometry_hash, _in_bbox,
-                               _in_dates, _norm_confidence_filter,
-                               _norm_satellite_filter, _parse_bbox,
-                               _parse_date_range, _parse_geometry,
-                               _point_in_geometry, _point_in_ring,
-                               _row_in_scope)
+from app.firms import (
+    agent_tools,
+    coverage as cov,
+    dl,
+    evidence as evd,
+    explain as ex,
+    firms_live,
+    harmonize,
+    llm,
+    registry,
+    store,
+)
+from app.firms.spatial import _in_bbox, _parse_bbox
 from app.firms.schema import FirmsRecord
 # CLAIM-019: pipeline owns these helpers; import forward, not from app.main.
 from app.firms.pipeline import (_artifact_availability, _block_raw_ml_ts, _data_source_label, _evaluation_facts, _harmonize_from_records, _harmonize_stream, _require_aoi, _resolve_records, _sample_records)
@@ -98,6 +86,53 @@ def firms_aois_create(request: Request, payload: dict):
         msg = str(e)
         raise HTTPException(409 if "already exists" in msg else 400, msg)
     return JSONResponse(created)
+
+
+@router.delete("/api/firms/aois/{aoi_id}")
+def firms_aois_delete(request: Request, aoi_id: str):
+    """Delete a custom AOI from aois.json 'custom' (presets cannot be deleted)."""
+    from app.main import _require_admin
+    _require_admin(request)
+    try:
+        deleted = store.delete_custom_aoi(aoi_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if not deleted:
+        raise HTTPException(404, f"Custom AOI {aoi_id!r} not found")
+    return JSONResponse({"ok": True, "deleted": aoi_id})
+
+
+@router.post("/api/firms/fetch-live")
+def firms_fetch_live(payload: dict):
+    """Fetch live NASA FIRMS detections for a bbox and cache as live:<hex>."""
+    if not isinstance(payload, dict) or "bbox" not in payload:
+        raise HTTPException(
+            400,
+            "Provide {bbox: [w,s,e,n], days?: 1..60, end_date?: YYYY-MM-DD, from_date?: YYYY-MM-DD, to_date?: YYYY-MM-DD, sources?: [...]}",
+        )
+    days = payload.get("days", 5)
+    end_date = payload.get("end_date")
+    from_date = payload.get("from_date")
+    to_date = payload.get("to_date")
+    sources = payload.get("sources")
+    aoi = payload.get("aoi")
+    use_sample = bool(payload.get("use_sample", False))
+    try:
+        result = firms_live.fetch_live_firms_area(
+            bbox=payload["bbox"],
+            days=days,
+            end_date=end_date,
+            from_date=from_date,
+            to_date=to_date,
+            sources=sources,
+            aoi=aoi,
+            use_sample=use_sample,
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except firms_live.FirmsLiveError as e:
+        raise HTTPException(503, str(e))
+    return JSONResponse(result)
 
 
 @router.get("/api/firms/schema")
@@ -175,11 +210,21 @@ def firms_harmonize(payload: dict):
 @router.get("/api/firms/progress")
 def firms_progress(aoi: str = Query("vietnam"),
                    data: str = Query("raw", pattern="^(sample|raw)$")):
-    from app.main import _PROGRESS_LOCK, _PROGRESS_STATE
-    """Real-time backend progress for raw/sample harmonization."""
-    with _PROGRESS_LOCK:
-        st = _PROGRESS_STATE.get(f"{aoi}:{data}")
+    import json
+    import time
+    from app.main import _PROGRESS_LOCK, _PROGRESS_STATE, _progress_file
+    """Real-time backend progress for raw/sample harmonization across workers."""
+    st = None
+    try:
+        pf = _progress_file(aoi, data)
+        if pf.exists():
+            st = json.loads(pf.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        st = None
     if st is None:
+        with _PROGRESS_LOCK:
+            st = _PROGRESS_STATE.get(f"{aoi}:{data}")
+    if st is None or (time.time() - float(st.get("updated_at", 0)) > 300):
         return {"aoi": aoi, "data": data, "stage": "idle", "percent": 0, "detail": ""}
     return st
 
@@ -385,6 +430,45 @@ def firms_investigate(payload: dict):
     })
 
 
+_SATELLITE_SPECS = {
+    "MODIS_resolution_km": 1,
+    "MODIS_launch_year": 2000,
+    "VIIRS_resolution_m": 375,
+    "VIIRS_launch_year": 2012,
+}
+
+_PROJECT_CONTEXT = (
+    "NASA FIRMS Fire Activity Calendar harmonizes pre-2012 MODIS (1 km) and post-2012 VIIRS (375 m) "
+    "hotspot detections onto a comparable sensor-adjusted activity index (hotspot detections, NOT confirmed fires). "
+    "On the map, cyan/grey dots are satellite hotspot detections and orange rings/hulls are observed hotspot clusters "
+    "(not burned-area boundaries). Methods: stat (seasonal ratio k), hts (ML residual model), stan (spatio-temporal "
+    "attention model). Filters: qa_min (all/nominal/high) and platform_set (all/snpp)."
+)
+
+
+def _compact_evaluation_for_llm(ev: dict | None) -> dict | None:
+    if not isinstance(ev, dict):
+        return ev
+    out = {k: v for k, v in ev.items() if k != "per_aoi"}
+    per_aoi = ev.get("per_aoi")
+    if isinstance(per_aoi, dict):
+        compact_aois = {}
+        for aoi_key, aoi_val in per_aoi.items():
+            if not isinstance(aoi_val, dict):
+                compact_aois[aoi_key] = aoi_val
+                continue
+            item = {k: v for k, v in aoi_val.items() if k not in ("coverage", "unified_eval")}
+            cov = aoi_val.get("coverage")
+            if isinstance(cov, dict):
+                item["coverage"] = {k: v for k, v in cov.items() if k != "months_detail"}
+            ue = aoi_val.get("unified_eval")
+            if isinstance(ue, dict):
+                item["unified_eval"] = {k: v for k, v in ue.items() if k != "coverage"}
+            compact_aois[aoi_key] = item
+        out["per_aoi"] = compact_aois
+    return out
+
+
 @router.post("/api/firms/investigate-stream")
 def firms_investigate_stream(payload: dict):
     from app.main import _SENSOR_KW, _analysis_for_evidence, _sensor_context_facts
@@ -395,74 +479,73 @@ def firms_investigate_stream(payload: dict):
     aoi = str(payload.get("aoi", "vietnam"))
     data = str(payload.get("data", "sample"))
     method = str(payload.get("method", "stat"))
-    _require_aoi(aoi, data)
+    dataset = payload.get("dataset")
+    dataset_str = str(dataset).strip() if dataset else None
+    if not (dataset_str and (dataset_str.startswith("live:") or dataset_str.startswith("upload:"))):
+        _require_aoi(aoi, data)
     if data not in ("sample", "raw") or method not in ("stat", "hts", "stan"):
         raise HTTPException(400, "data must be sample|raw and method stat|hts|stan")
     year = payload.get("year")
     month = payload.get("month")
     focus = (f"{int(year)}-{int(month):02d}"
              if year and month and 1 <= int(month) <= 12 else None)
-    out = _analysis_for_evidence(aoi, data, method, payload.get("bbox"),
-                                 str(payload.get("qa_min", "all")),
-                                 str(payload.get("platform_set", "all")),
-                                 focus_ym=focus)
-    facts = ex.gather_facts(out["calendar"], out["daily_cells"], out["ratios"],
-                            out.get("qa", {}).get("clean", 0),
-                            payload.get("bbox"), method=out.get("method_id"),
-                            evaluation=_evaluation_facts(aoi, data),
-                            coverage=out.get("coverage"),
-                            filters=out.get("filters"))
-    facts["data_source"] = _data_source_label(data)
-    facts["latest"] = out["latest"]
-    evidence = None
-    if focus:
-        evidence = evd.build_evidence(out, out.get("daily") or [], aoi, data,
-                                      method, int(year), int(month))
-    tools_used = ["calendar", "evaluation", "coverage"]
-    if evidence:
-        tools_used.append("evidence")
-    sensor_ctx = _sensor_context_facts(aoi, facts) if any(w in q.lower() for w in _SENSOR_KW) else None
-    if sensor_ctx:
-        tools_used.append("sensor_context")
-    rule = ex.answer(q, facts, out["critical_periods"], out["latest"], dl.describe())
-    llm_facts = {**facts, "evidence": evidence,
-                 "top_months": out["critical_periods"][:5],
-                 "tools_used": tools_used,
-                 **({"sensor_context": sensor_ctx} if sensor_ctx else {}),
-                 "limitations": [
-                     "AOI-month MAE against a VIIRS reference, not fire ground truth.",
-                     "A missing detection is not proof of no fire (cloud/smoke/sub-pixel).",
-                     "Australia remains a sparse 5-day-window series.",
-                     "Cell-day estimates are not spatially validated.",
-                 ]}
+
+    is_custom_dataset = bool(
+        dataset_str and (dataset_str.startswith("live:") or dataset_str.startswith("upload:"))
+    )
+    analysis_method = (
+        "stat"
+        if method in ("hts", "stan") and (data == "raw" or is_custom_dataset)
+        else method
+    )
 
     def event_stream():
-        meta = {
-            "tools_used": tools_used,
-            "evidence": evidence,
-            "facts": facts,
-            "suggestions": rule["suggestions"],
-            "limitations": llm_facts["limitations"],
-            "citations": (evidence or {}).get("citations", []),
-        }
-        yield f"event: meta\ndata: {json.dumps(meta, ensure_ascii=False)}\n\n"
-        use_llm = payload.get("use_llm", True)
-        full_text = []
-        if use_llm:
-            for item in llm.stream_llm(q, llm_facts, rule["answer"]):
-                full_text.append(item.get("delta", ""))
-                yield f"event: delta\ndata: {json.dumps(item, ensure_ascii=False)}\n\n"
-        else:
-            words = rule["answer"].split(" ")
-            for i, word in enumerate(words):
-                token = word if i == 0 else " " + word
-                full_text.append(token)
-                yield f"event: delta\ndata: {json.dumps({'delta': token, 'llm_used': False}, ensure_ascii=False)}\n\n"
-                time.sleep(0.012)
-        done_payload = {"full_answer": "".join(full_text), "status": "completed"}
-        yield f"event: done\ndata: {json.dumps(done_payload, ensure_ascii=False)}\n\n"
+        yield f"event: status\ndata: {json.dumps({'stage': 'analyzing', 'detail': f'Routing tools for {aoi} ({data}/{analysis_method})...'}, ensure_ascii=False)}\n\n"
+        ctx = agent_tools.AgentContext(
+            aoi=aoi,
+            data=data,
+            analysis_method=analysis_method,
+            requested_method=method,
+            bbox=payload.get("bbox"),
+            qa_min=str(payload.get("qa_min", "all")),
+            platform_set=str(payload.get("platform_set", "all")),
+            focus_ym=focus,
+            year=int(year) if year else None,
+            month=int(month) if month else None,
+            dataset_str=dataset_str,
+            audience_mode=str(payload.get("mode", "research")),
+            lang=str(payload.get("lang", "vi")),
+            analysis_fn=_analysis_for_evidence,
+            eval_fn=_evaluation_facts,
+            source_label_fn=_data_source_label,
+            sensor_ctx_fn=_sensor_context_facts,
+        )
+        use_llm = bool(payload.get("use_llm", True))
+        try:
+            for ev in agent_tools.run_tool_agent(q, ctx, use_llm=use_llm):
+                etype = ev.get("type")
+                if etype == "status":
+                    yield f"event: status\ndata: {json.dumps({'stage': ev.get('stage'), 'detail': ev.get('detail')}, ensure_ascii=False)}\n\n"
+                elif etype == "tool":
+                    yield f"event: tool\ndata: {json.dumps({'name': ev.get('name'), 'args': ev.get('args', {}), 'summary': ev.get('summary', '')}, ensure_ascii=False)}\n\n"
+                elif etype == "meta":
+                    yield f"event: meta\ndata: {json.dumps(ev.get('meta', {}), ensure_ascii=False)}\n\n"
+                elif etype == "delta":
+                    yield f"event: delta\ndata: {json.dumps({'delta': ev.get('delta', ''), 'llm_used': ev.get('llm_used', False)}, ensure_ascii=False)}\n\n"
+                elif etype == "done":
+                    done_payload = {"full_answer": ev.get("full_answer", ""), "status": "completed"}
+                    yield f"event: done\ndata: {json.dumps(done_payload, ensure_ascii=False)}\n\n"
+        except HTTPException as exc:
+            err_msg = exc.detail.get("message") if isinstance(exc.detail, dict) else str(exc.detail)
+            yield f"event: error\ndata: {json.dumps({'status': exc.status_code, 'message': err_msg}, ensure_ascii=False)}\n\n"
+        except Exception as exc:
+            yield f"event: error\ndata: {json.dumps({'status': 500, 'message': str(exc)}, ensure_ascii=False)}\n\n"
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/api/firms/llm-status")
@@ -518,7 +601,16 @@ def firms_ask_llm(payload: dict):
         f"Requested method `{method}` → effective `{out.get('effective_method')}`. "
         f"Coverage verified: {(out.get('coverage') or {}).get('verified')}.")
     rule = ex.answer(q, facts, out["critical_periods"], out["latest"], dl.describe())
-    res = llm.ask_llm(q, {**facts, "top_months": out["critical_periods"][:5]},
+    compact_facts = {k: v for k, v in facts.items() if k != "evaluation"}
+    llm_payload = {
+        "audience_mode": str(payload.get("mode", "research")),
+        "project_context": _PROJECT_CONTEXT,
+        "satellite_specs": _SATELLITE_SPECS,
+        **compact_facts,
+        "top_months": out["critical_periods"][:5],
+        "evaluation": _compact_evaluation_for_llm(facts.get("evaluation")),
+    }
+    res = llm.ask_llm(q, llm_payload,
                       rule["answer"])
     return JSONResponse({**res, "facts": facts, "suggestions": rule["suggestions"]})
 

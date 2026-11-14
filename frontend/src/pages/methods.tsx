@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   BookOpen,
   BrainCircuit,
@@ -10,7 +11,8 @@ import {
   Terminal,
   Upload,
 } from "lucide-react";
-import { api, describeError, ApiError, type BacktestResponse } from "@/lib/api";
+import { api, describeError, type BacktestResponse } from "@/lib/api";
+import { notifyToast } from "@/lib/notify";
 import { parseCsv } from "@/lib/csv";
 import { useLang } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -85,8 +87,8 @@ const METHOD_SPECS = [
       en: "Sample has no 1° tiles → abstains (409). Missing raw months keep the statistical value.",
     },
     failures: {
-      vi: "MAE 4.154,4 vs B2 4.411,8 (−5,8%), cả 3 vùng giảm, nhưng CI [−777,1, +266,2] còn chứa 0.",
-      en: "MAE 4,154.4 vs B2 4,411.8 (−5.8%), all 3 AOIs improve, but CI [−777.1, +266.2] still includes 0.",
+      vi: "eval-v4: MAE 4.172,7 vs B2 4.462,6 (−6,5%), nhưng CI 95% vẫn chứa 0.",
+      en: "eval-v4: MAE 4,172.7 vs B2 4,462.6 (−6.5%), but 95% CI still includes 0.",
     },
   },
   {
@@ -104,8 +106,8 @@ const METHOD_SPECS = [
       en: "Does not use same-month neighbour VIIRS. Months without a 12-month window fall back to HTS.",
     },
     failures: {
-      vi: "Official 72: MAE 3.765,8 vs B2 4.411,8 (−14,6%, win 95,8%), thắng HTS ở cả 3 vùng; tuy nhiên CI [−1.452,9, +81,8] vẫn chứa 0 (chưa đạt ngưỡng thống kê tuyệt đối).",
-      en: "Official 72: MAE 3,765.8 vs B2 4,411.8 (−14.6%, 95.8% win), beats HTS in all 3 regions; however 95% CI [−1,452.9, +81.8] includes 0 (not statistically established alone).",
+      vi: "Official 72 (eval-v4): MAE 3.899,5 vs B2 4.462,6 (−12,6%); tuy nhiên 95% CI [−1.184,4, +50,8] vẫn chứa 0 (statistically_established: false).",
+      en: "Official 72 (eval-v4): MAE 3,899.5 vs B2 4,462.6 (−12.6%); however 95% CI [−1,184.4, +50.8] includes 0 (statistically_established: false).",
     },
   },
 ];
@@ -138,16 +140,28 @@ const BENCH_ROWS = [
   {
     id: "stan_safe_v1",
     label: { vi: "STAN: Mạng không-thời gian STAN (Chủ lực vận hành)", en: "STAN: Spatio-temporal network (Operational)" },
-    tag: { vi: "Chủ lực vận hành · MAE -14,6%", en: "Primary Operational · MAE -14.6%" },
+    tag: { vi: "Chủ lực vận hành · MAE -12,6%", en: "Primary Operational · MAE -12.6%" },
     tagClass: "bg-emerald-500/15 border-emerald-500/30 text-emerald-300 font-bold",
   },
 ];
 
+const VALID_SECTIONS = new Set(["sources", "steps", "benchmark", "limits", "reproduce"]);
+
 export function MethodsPage() {
   const { lang, t } = useLang();
   const vi = lang === "vi";
+  const [sp, setSp] = useSearchParams();
 
-  const [activeSection, setActiveSection] = useState<string>("steps");
+  const rawSec = sp.get("sec") || "steps";
+  const activeSection = VALID_SECTIONS.has(rawSec) ? rawSec : "steps";
+  const setActiveSection = (sec: string) => {
+    setSp((prev) => {
+      const next = new URLSearchParams(prev);
+      if (sec === "steps") next.delete("sec");
+      else next.set("sec", sec);
+      return next;
+    }, { replace: true });
+  };
   const [file, setFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<string>("");
   const [uploadLoading, setUploadLoading] = useState(false);
@@ -189,20 +203,18 @@ export function MethodsPage() {
       const records = parseCsv(text, 5000);
       const v = await api.validate(records);
       const h = await api.harmonize(records);
-      setUploadResult(
-        t("methods.upload_result", {
-          n: records.length,
-          clean: v.clean,
-          rejected: v.rejected,
-          cells: h.daily_cells,
-        })
-      );
+      const msg = t("methods.upload_result", {
+        n: records.length,
+        clean: v.clean,
+        rejected: v.rejected,
+        cells: h.daily_cells,
+      });
+      setUploadResult(msg);
+      notifyToast({ icon: "success", title: msg });
     } catch (e) {
-      if (e instanceof ApiError) {
-        setUploadResult(`API Error: ${e.message}`);
-      } else {
-        setUploadResult(describeError(e));
-      }
+      const errMsg = describeError(e);
+      setUploadResult(errMsg);
+      notifyToast({ icon: "error", title: errMsg });
     } finally {
       setUploadLoading(false);
     }
@@ -233,7 +245,7 @@ export function MethodsPage() {
       </div>
 
       {/* 2. Executive Summary (90-second Briefing) */}
-      <section className="rounded-2xl border border-cyan-500/30 bg-cyan-950/20 p-5 shadow-sm space-y-3">
+      <section data-tour="methods-header" className="rounded-2xl border border-cyan-500/30 bg-cyan-950/20 p-5 shadow-sm space-y-3">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-cyan-300">
           <Sparkles className="h-4 w-4" />
           <span>{t("methods.exec_title")}</span>
@@ -267,7 +279,7 @@ export function MethodsPage() {
       </section>
 
       {/* 3. Section Switcher: one accessible, horizontally scrollable row on small screens. */}
-      <nav aria-label={t("methods.nav_label")}
+      <nav data-tour="methods-nav" aria-label={t("methods.nav_label")}
         className="sticky top-0 z-20 rounded-xl border border-slate-800 bg-[#0B1220]/95 px-2 py-2 shadow-lg backdrop-blur-md">
       <div className="flex snap-x items-center gap-2 overflow-x-auto pb-0.5" role="group">
         {sections.map((s) => (
@@ -290,6 +302,7 @@ export function MethodsPage() {
 
       </nav>
       {/* 4. Content Panels */}
+      <div data-tour="methods-body" className="space-y-6">
 
       {/* SECTION 1: DATA SOURCES */}
       {activeSection === "sources" && (
@@ -350,6 +363,82 @@ export function MethodsPage() {
         <section className="space-y-6">
           {/* Interactive Neural Network & Pipeline Architecture Diagram */}
           <ModelArchitectureDiagram />
+
+          {/* Clear Summary Matrix: Models & Execution Scopes */}
+          <div className="rounded-2xl border border-slate-800 bg-[#0B1220] p-5 shadow-sm space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+              <h2 className="text-sm font-bold text-white">
+                {vi
+                  ? "Tổng hợp 3 tầng mô hình & phạm vi áp dụng"
+                  : "Three-Tier Harmonization Matrix & Execution Scope"}
+              </h2>
+              <span className="font-mono text-[11px] text-cyan-300">
+                {vi ? "Unknown-Day Safe · Không nội suy 0 giả" : "Unknown-Day Safe · No Zero Imputation"}
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-400">
+                    <th className="py-2 pr-3">{vi ? "Phương pháp" : "Method"}</th>
+                    <th className="py-2 pr-3">{vi ? "Cơ chế chính" : "Core Mechanism"}</th>
+                    <th className="py-2 pr-3">{vi ? "Phạm vi dữ liệu" : "Data Scope"}</th>
+                    <th className="py-2">{vi ? "Đầu ra & Vai trò" : "Output & Role"}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/70 text-slate-300">
+                  <tr>
+                    <td className="py-2.5 pr-3 font-mono font-bold text-cyan-300">B2 Seasonal Anchor (stat)</td>
+                    <td className="py-2.5 pr-3">
+                      {vi
+                        ? "Tỷ lệ log theo tháng giữa VIIRS và MODIS trên giai đoạn đồng quan sát."
+                        : "Monthly log-ratio calibration between VIIRS and MODIS during co-observation."}
+                    </td>
+                    <td className="py-2.5 pr-3 font-mono text-[11px]">
+                      {vi ? "Vùng chuẩn + Live FIRMS + CSV" : "Benchmark AOIs + Live FIRMS + CSV"}
+                    </td>
+                    <td className="py-2.5">
+                      {vi
+                        ? "Nhanh, minh bạch; chạy trực tiếp cho cả chuỗi ngày (daily X-Ray) lẫn tháng."
+                        : "Fast, deterministic baseline; powers both daily X-Ray and monthly views."}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 pr-3 font-mono font-bold text-amber-300">HTS (1° Tile Anchor)</td>
+                    <td className="py-2.5 pr-3">
+                      {vi
+                        ? "Hệ số mùa riêng cho từng ô lưới 1° co về B2 (shrinkage) rồi cộng dồn theo vùng."
+                        : "Per-1° spatial tile seasonal ratio shrunk toward B2, then aggregated."}
+                    </td>
+                    <td className="py-2.5 pr-3 font-mono text-[11px]">
+                      {vi ? "Vùng chuẩn (data=raw)" : "Benchmark AOIs (data=raw)"}
+                    </td>
+                    <td className="py-2.5">
+                      {vi
+                        ? "Giảm sai số không gian cục bộ; giữ làm phương pháp đối chiếu (candidate)."
+                        : "Captures sub-regional spatial variance; retained as candidate baseline."}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 pr-3 font-mono font-bold text-emerald-300">STAN Safe v1</td>
+                    <td className="py-2.5 pr-3">
+                      {vi
+                        ? "Dilated TCN + FiLM theo mùa + Cross-Attention dự đoán phần dư NB2 trên nền HTS."
+                        : "Dilated TCN + seasonal FiLM + Cross-Attention predicting NB2 residual over HTS."}
+                    </td>
+                    <td className="py-2.5 pr-3 font-mono text-[11px]">
+                      {vi ? "Vùng chuẩn (data=raw)" : "Benchmark AOIs (data=raw)"}
+                    </td>
+                    <td className="py-2.5">
+                      {vi
+                        ? "Mô hình chủ lực kèm khoảng bất định [P10, P50, P90] và cổng kiểm định forecast-safe."
+                        : "Primary model with [P10, P50, P90] uncertainty bands and forecast-safe gate."}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
 
           {/* Deep-Dive Architectural & Mathematical Formulation Cards */}
           <div className="grid gap-4 lg:grid-cols-3">
@@ -433,15 +522,15 @@ export function MethodsPage() {
                 <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-3 space-y-2 text-xs font-mono">
                   <div className="flex justify-between items-center text-slate-300 border-b border-slate-800 pb-1">
                     <span>B2 Baseline MAE:</span>
-                    <span className="font-bold text-slate-200">4,411.8</span>
+                    <span className="font-bold text-slate-200">4,462.6</span>
                   </div>
                   <div className="flex justify-between items-center text-slate-300 border-b border-slate-800 pb-1">
                     <span>HTS Candidate MAE:</span>
-                    <span className="font-bold text-amber-400">4,154.4 (-5.8%)</span>
+                    <span className="font-bold text-amber-400">4,172.7 (-6.5%)</span>
                   </div>
                   <div className="flex justify-between items-center text-slate-300">
                     <span>STAN Operational MAE:</span>
-                    <span className="font-bold text-emerald-400">3,765.8 (-14.6%)</span>
+                    <span className="font-bold text-emerald-400">3,899.5 (-12.6%)</span>
                   </div>
                 </div>
               </div>
@@ -761,6 +850,7 @@ export function MethodsPage() {
           </div>
         </section>
       )}
+      </div>
     </div>
   );
 }

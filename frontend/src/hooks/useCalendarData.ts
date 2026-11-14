@@ -11,6 +11,8 @@ export type AppliedFilters = {
   qa_min: string;
   platform_set: string;
   source_type: "all" | "land" | "vegetation";
+  daynight?: "all" | "D" | "N";
+  min_frp?: number;
   geometry: string | null;
   from_date: string | null;
   to_date: string | null;
@@ -22,6 +24,23 @@ export const AOI_BBOX: Record<string, string> = {
   australia: "113,-39,153,-12",
 };
 
+/** Focused high-density forest hotspot bounding boxes for live NASA FIRMS queries
+ * (keeps all 3 preset regions well within the 20x20 deg / 150 deg^2 live fetch guard). */
+export const LIVE_FOCUS_BBOX: Record<string, string> = {
+  vietnam: "106.8,11.2,109.2,14.8",
+  amazon: "-63,-11,-55,-4",
+  australia: "145,-38,152,-31",
+};
+
+export const AOI_CENTER: Record<string, { c: [number, number]; z: number }> = {
+  vietnam: { c: [13, 106.5], z: 6 },
+  amazon: { c: [-4, -60], z: 4 },
+  australia: { c: [-26, 133], z: 4 },
+};
+
+export const DEFAULT_AOI_CENTER: [number, number] = [13, 106.5];
+export const WORLD_CENTER: [number, number] = [15, 20];
+
 /** P2-07: one validated method/bbox rule for calendar, map-cells, export and
  * evidence. Custom bbox/geometry/date/dataset/source filters use the
  * point-level statistical forward rule (stat); HTS/STAN need raw tiles.
@@ -30,7 +49,9 @@ export const AOI_BBOX: Record<string, string> = {
 export function requestMethodFor(a: AppliedFilters): { method: string; customBbox: string | undefined } {
   const customBbox = a.bbox && a.bbox !== (AOI_BBOX[a.aoi] ?? "") ? a.bbox : undefined;
   const forced = Boolean(customBbox || a.geometry || a.from_date || a.to_date || a.dataset)
-    || a.source_type !== "all";
+    || a.source_type !== "all"
+    || (a.daynight != null && a.daynight !== "all")
+    || (a.min_frp != null && a.min_frp > 0);
   const method = forced
     ? "stat"
     : a.data !== "raw" && (a.method === "stan" || a.method === "hts")
@@ -112,9 +133,10 @@ export function useCalendarData(opts: {
   activeTab: string;
   mapPeriod: string;
   activeMonth: { year: number; month: number } | null;
+  enabled?: boolean;
   t: (key: string) => string;
 }) {
-  const { applied, activeTab, mapPeriod, activeMonth, t } = opts;
+  const { applied, activeTab, mapPeriod, activeMonth, enabled = true, t } = opts;
 
   const [data, setData] = useState<CalendarResponse | null>(null);
   const [loadingData, setLoadingData] = useState(false);
@@ -151,6 +173,15 @@ export function useCalendarData(opts: {
   const [monthEvidence, setMonthEvidence] = useState<MonthEvidence | null>(null);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoadingData(false);
+      setData(null);
+      setError(null);
+      setRawUnavailable(null);
+      setEmptyFilter(null);
+      setModelConflict(null);
+      return;
+    }
     const controller = new AbortController();
     let alive = true;
     setLoadingData(true);
@@ -175,11 +206,19 @@ export function useCalendarData(opts: {
         applied.to_date || undefined,
         applied.source_type,
         controller.signal,
+        applied.daynight ?? "all",
+        applied.min_frp ?? 0,
       )
       .then((res) => {
         if (!alive) return;
         setData(res);
-        setEmptyFilter(null);
+        if ((res as { empty_filter?: boolean }).empty_filter) {
+          setEmptyFilter({
+            message: t("calendar.empty_filter_body"),
+          });
+        } else {
+          setEmptyFilter(null);
+        }
         setModelConflict(null);
       })
       .catch((e) => {
@@ -210,7 +249,6 @@ export function useCalendarData(opts: {
         if (
           typeof (e as { status?: number })?.status === "number" &&
           (e as { status: number }).status === 404 &&
-          readErrorCode(e) === "no_raw_data" &&
           hasRestrictiveFilter(applied)
         ) {
           setEmptyFilter({
@@ -243,11 +281,11 @@ export function useCalendarData(opts: {
       alive = false;
       controller.abort();
     };
-  }, [applied, t]);
+  }, [applied, enabled, t]);
 
   // P0-06: fetch map cells for exactly the selected month.
   useEffect(() => {
-    if (activeTab !== "map" || !/^\d{4}-\d{2}$/.test(mapPeriod)) {
+    if (!enabled || activeTab !== "map" || !/^\d{4}-\d{2}$/.test(mapPeriod)) {
       setLoadingMapCells(false);
       return;
     }
@@ -273,6 +311,9 @@ export function useCalendarData(opts: {
         applied.to_date || undefined,
         applied.source_type,
         controller.signal,
+        undefined,
+        applied.daynight ?? "all",
+        applied.min_frp ?? 0,
       )
       .then((r) => {
         if (!alive) return;
@@ -301,7 +342,7 @@ export function useCalendarData(opts: {
       alive = false;
       controller.abort();
     };
-  }, [mapPeriod, activeTab, applied]);
+  }, [mapPeriod, activeTab, applied, enabled]);
 
   // P1-12: the month inspector names the method that actually served that
   // month (STAN falls back to HTS before 2024) instead of hardcoding a model.
@@ -325,7 +366,7 @@ export function useCalendarData(opts: {
         activeMonth.month,
         applied.qa_min,
         applied.platform_set,
-        { bbox: customBbox },
+        { bbox: customBbox, dataset: applied.dataset },
       )
       .then((d) => {
         if (alive) setMonthEvidence(d as MonthEvidence);

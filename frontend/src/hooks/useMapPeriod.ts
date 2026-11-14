@@ -19,8 +19,10 @@ export function useMapPeriod(opts: {
   mapMeta: MapMeta | null;
   mapPeriod: string;
   setMapPeriod: Dispatch<SetStateAction<string>>;
+  fromDate?: string | null;
+  toDate?: string | null;
 }) {
-  const { data, monthCells, mapMeta, mapPeriod, setMapPeriod } = opts;
+  const { data, monthCells, mapMeta, mapPeriod, setMapPeriod, fromDate, toDate } = opts;
 
   const periods = useMemo(() => {
     if (!data) return [];
@@ -46,9 +48,49 @@ export function useMapPeriod(opts: {
     return Array.from(available).sort();
   }, [data, mapPeriod]);
 
+  const activeDays = useMemo(() => {
+    if (!data?.daily?.length) return [];
+    const days = new Set<string>();
+    for (const d of data.daily) {
+      const ds = String(d.date ?? "").slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(ds) && Number(d.harmonized_count) > 0) {
+        days.add(ds);
+      }
+    }
+    return Array.from(days).sort();
+  }, [data]);
+
+  const availableDays = useMemo(() => {
+    const days = new Set<string>();
+    if (fromDate && toDate && /^\d{4}-\d{2}-\d{2}$/.test(fromDate) && /^\d{4}-\d{2}-\d{2}$/.test(toDate) && fromDate <= toDate) {
+      const startMs = Date.parse(`${fromDate}T00:00:00Z`);
+      const endMs = Date.parse(`${toDate}T00:00:00Z`);
+      const span = Math.floor((endMs - startMs) / 86400000) + 1;
+      if (span >= 1 && span <= 62) {
+        for (let i = 0; i < span; i++) {
+          days.add(new Date(startMs + i * 86400000).toISOString().slice(0, 10));
+        }
+      }
+    }
+    if (data?.daily?.length) {
+      for (const d of data.daily) {
+        const ds = String(d.date ?? "").slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(ds)) days.add(ds);
+      }
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(mapPeriod)) days.add(mapPeriod);
+    return Array.from(days).sort();
+  }, [data, mapPeriod, fromDate, toDate]);
+
+  const isDayPeriod = /^\d{4}-\d{2}-\d{2}$/.test(mapPeriod);
+
   const dailyMapCells = useMemo(() => {
     if (!data) return [];
-    const rows = mapPeriod === "all" ? data.daily : data.daily.filter((d) => String(d.date).slice(0, 7) === mapPeriod);
+    const rows = mapPeriod === "all"
+      ? data.daily
+      : isDayPeriod
+        ? data.daily.filter((d) => String(d.date).slice(0, 10) === mapPeriod)
+        : data.daily.filter((d) => String(d.date).slice(0, 7) === mapPeriod);
     const byCell = new Map<string, { lat: number; lon: number; harmonized_count: number; date: string; estimate_type: string }>();
     for (const d of rows) {
       const lat = Number(d.lat);
@@ -68,14 +110,14 @@ export function useMapPeriod(opts: {
       }
     }
     return Array.from(byCell.values());
-  }, [data, mapPeriod]);
+  }, [data, mapPeriod, isDayPeriod]);
 
-  const mapCells = mapPeriod === "all" ? dailyMapCells : monthCells;
-  const mapPreview = mapPeriod === "all"
+  const mapCells = mapPeriod === "all" || isDayPeriod ? dailyMapCells : monthCells;
+  const mapPreview = mapPeriod === "all" || isDayPeriod
     ? {
-        returned: data?.daily?.length ?? 0,
+        returned: isDayPeriod ? dailyMapCells.length : (data?.daily?.length ?? 0),
         total: data?.summary?.n_daily_cells_total ?? data?.daily_cells ?? 0,
-        preview: (data?.daily?.length ?? 0) < (data?.summary?.n_daily_cells_total ?? data?.daily_cells ?? 0),
+        preview: !isDayPeriod && (data?.daily?.length ?? 0) < (data?.summary?.n_daily_cells_total ?? data?.daily_cells ?? 0),
         level: "cell-day",
       }
     : mapMeta;
@@ -93,5 +135,5 @@ export function useMapPeriod(opts: {
     return active.length > 0 ? active : data.calendar.years;
   }, [data]);
 
-  return { mapPeriod, setMapPeriod, periods, mapCells, mapPreview, yearly, scrubberYears };
+  return { mapPeriod, setMapPeriod, periods, availableDays, activeDays, mapCells, mapPreview, yearly, scrubberYears };
 }

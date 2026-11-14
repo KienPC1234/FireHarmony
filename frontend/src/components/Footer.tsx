@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   CalendarDays,
   ExternalLink,
@@ -7,11 +7,13 @@ import {
   MessagesSquare,
   Satellite,
   ShieldCheck,
+  BookOpen,
 } from "lucide-react";
 import { useLang } from "@/lib/i18n";
 
 export function Footer() {
   const { t } = useLang();
+  const { search } = useLocation();
 
   return (
     <footer className="border-t border-slate-800 bg-[#080E18] text-slate-400 text-xs shrink-0 z-30">
@@ -38,19 +40,19 @@ export function Footer() {
               </span>
               <ul className="space-y-2 font-sans leading-relaxed break-words">
                 <li>
-                  <Link to="/calendar" className="hover:text-cyan-300 transition flex items-center gap-1.5">
+                  <Link to={`/calendar${search}`} className="hover:text-cyan-300 transition flex items-center gap-1.5">
                     <CalendarDays className="h-3 w-3" />
                     <span>{t("footer.nav_calendar")}</span>
                   </Link>
                 </li>
                 <li>
-                  <Link to="/lab" className="hover:text-cyan-300 transition flex items-center gap-1.5">
+                  <Link to={`/lab${search}`} className="hover:text-cyan-300 transition flex items-center gap-1.5">
                     <Satellite className="h-3 w-3" />
                     <span>{t("footer.nav_lab")}</span>
                   </Link>
                 </li>
                 <li>
-                  <Link to="/evidence" className="hover:text-cyan-300 transition flex items-center gap-1.5">
+                  <Link to={`/evidence${search}`} className="hover:text-cyan-300 transition flex items-center gap-1.5">
                     <FileCheck2 className="h-3 w-3" />
                     <span>{t("footer.nav_evidence")}</span>
                   </Link>
@@ -64,19 +66,25 @@ export function Footer() {
               </span>
               <ul className="space-y-2 font-sans leading-relaxed break-words">
                 <li>
-                  <Link to="/investigator" className="hover:text-cyan-300 transition flex items-center gap-1.5">
+                  <Link to={`/investigator${search}`} className="hover:text-cyan-300 transition flex items-center gap-1.5">
                     <MessagesSquare className="h-3 w-3" />
                     <span>{t("footer.nav_investigator")}</span>
                   </Link>
                 </li>
                 <li>
-                  <Link to="/methods" className="hover:text-cyan-300 transition flex items-center gap-1.5">
+                  <Link to={`/methods${search}`} className="hover:text-cyan-300 transition flex items-center gap-1.5">
                     <FlaskConical className="h-3 w-3" />
                     <span>{t("footer.nav_methods")}</span>
                   </Link>
                 </li>
                 <li>
-                  <Link to="/methods#benchmark" className="hover:text-cyan-300 transition flex items-center gap-1.5">
+                  <Link to={`/guide${search}`} className="hover:text-cyan-300 transition flex items-center gap-1.5">
+                    <BookOpen className="h-3 w-3" />
+                    <span>{t("footer.nav_guide")}</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link to={`/methods${search}#benchmark`} className="hover:text-cyan-300 transition flex items-center gap-1.5">
                     <ShieldCheck className="h-3 w-3" />
                     <span>{t("footer.nav_benchmark")}</span>
                   </Link>

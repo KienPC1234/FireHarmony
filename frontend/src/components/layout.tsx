@@ -18,12 +18,16 @@ import {
   ArrowUpRight,
   PanelLeftClose,
   PanelLeftOpen,
+  BookOpen,
+  HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLang, type Lang } from "@/lib/i18n";
 import { useResearchContext } from "@/lib/researchContext";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Footer } from "@/components/Footer";
+import { TourController } from "@/components/TourController";
+import { triggerCurrentPageTour } from "@/lib/tour";
 import "@/styles/fireharmony-visual.css";
 
 function NasaInsignia() {
@@ -106,6 +110,7 @@ function ModeToggle() {
 
   return (
     <div
+      data-tour="header-mode-toggle"
       className="hidden xl:flex items-center gap-0.5 rounded-lg border border-slate-800 bg-slate-900/90 p-0.5 shrink-0 text-xs"
       role="group"
       aria-label="Experience Mode / Chế độ trải nghiệm"
@@ -158,66 +163,83 @@ export function Layout() {
 
   const isRawMode = dataFeed === "raw";
 
-  // Compact navigation items preventing collision
-  const primaryNav = [
-    { to: "/", label: t("nav.overview"), icon: House, end: true },
-    { to: "/calendar", label: t("nav.calendar"), icon: CalendarDays },
-    { to: "/xray", label: t("nav.xray"), icon: ScanEye },
-    { to: "/lab", label: t("nav.lab"), icon: Satellite },
-    { to: "/evidence", label: t("nav.evidence"), icon: FileCheck2 },
-    { to: "/investigator", label: t("nav.investigator"), icon: MessagesSquare },
-    { to: "/methods", label: t("nav.methods"), icon: FlaskConical },
+  // Compact navigation items preventing collision; researchOnly routes appear in Research mode
+  const allPrimaryNav = [
+    { to: "/", label: t("nav.overview"), icon: House, end: true, researchOnly: false },
+    { to: "/calendar", label: t("nav.calendar"), icon: CalendarDays, researchOnly: false },
+    { to: "/xray", label: t("nav.xray"), icon: ScanEye, researchOnly: true },
+    { to: "/lab", label: t("nav.lab"), icon: Satellite, researchOnly: true },
+    { to: "/evidence", label: t("nav.evidence"), icon: FileCheck2, researchOnly: true },
+    { to: "/investigator", label: t("nav.investigator"), icon: MessagesSquare, researchOnly: false },
+    { to: "/methods", label: t("nav.methods"), icon: FlaskConical, researchOnly: true },
+    { to: "/guide", label: t("nav.guide"), icon: BookOpen, researchOnly: false },
   ];
+  const primaryNav = mode === "research" ? allPrimaryNav : allPrimaryNav.filter((item) => !item.researchOnly);
 
   // Left-side mission workspace follows the approved dashboard design.
   // Reuse the existing labels/routes and preserve the current research query.
   const workspaceNav = primaryNav;
 
-  const mobileNav = [
+  const allMobileNav = [
     {
       to: "/",
       label: t("nav.overview"),
       hint: t("nav.home_hint"),
       icon: House,
       end: true,
+      researchOnly: false,
     },
     {
       to: "/calendar",
       label: t("nav.calendar"),
       hint: t("nav.calendar_hint"),
       icon: CalendarDays,
+      researchOnly: false,
     },
     {
       to: "/xray",
       label: t("nav.xray"),
       hint: t("nav.lab_hint"),
       icon: ScanEye,
+      researchOnly: true,
     },
     {
       to: "/lab",
       label: t("nav.lab"),
       hint: t("nav.lab_hint"),
       icon: Satellite,
+      researchOnly: true,
     },
     {
       to: "/evidence",
       label: t("nav.evidence"),
       hint: t("nav.evidence_hint"),
       icon: FileCheck2,
+      researchOnly: true,
     },
     {
       to: "/investigator",
       label: t("nav.investigator"),
       hint: t("nav.investigator_hint"),
       icon: MessagesSquare,
+      researchOnly: false,
     },
     {
       to: "/methods",
       label: t("nav.methods"),
       hint: t("nav.methods_hint"),
       icon: FlaskConical,
+      researchOnly: true,
+    },
+    {
+      to: "/guide",
+      label: t("nav.guide"),
+      hint: t("nav.guide_hint"),
+      icon: BookOpen,
+      researchOnly: false,
     },
   ];
+  const mobileNav = mode === "research" ? allMobileNav : allMobileNav.filter((item) => !item.researchOnly);
 
   const handleShare = async () => {
     try {
@@ -303,6 +325,18 @@ export function Layout() {
           </div>
 
           <LangToggle />
+
+          {/* Replay Guided Tour Button */}
+          <button
+            type="button"
+            data-tour="header-tour-btn"
+            onClick={triggerCurrentPageTour}
+            title={t("tour.replay_title")}
+            className="flex items-center gap-1 rounded-lg border border-cyan-500/35 bg-cyan-950/40 hover:bg-cyan-900/50 px-2 py-1 text-xs font-semibold text-cyan-200 transition min-h-[26px]"
+          >
+            <HelpCircle className="h-3.5 w-3.5 text-cyan-300" aria-hidden="true" />
+            <span className="hidden sm:inline">{t("tour.replay_btn")}</span>
+          </button>
 
           {/* Share / Copy URL Action */}
           <button
@@ -505,6 +539,7 @@ export function Layout() {
         {!location.pathname.startsWith("/calendar") && <Footer />}
       </main>
       </div>
+      <TourController />
     </div>
   );
 }
