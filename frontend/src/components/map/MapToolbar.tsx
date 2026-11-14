@@ -87,10 +87,10 @@ export function MapToolbar({
   };
 
   return (
-    <div className="relative border-b border-slate-800 bg-[#0B1220]/95 px-2.5 py-1 text-[11px]">
-      <div className="flex items-center justify-between gap-1.5 overflow-x-auto">
+    <div data-testid="calendar-map-toolbar" className="relative border-b border-slate-800 bg-[#0B1220]/95 px-2.5 py-1 text-[11px]">
+      <div className="flex min-w-0 flex-wrap items-center justify-start gap-1.5 sm:flex-nowrap sm:justify-between sm:overflow-x-auto">
         {/* Cụm trái: Chế độ nền (Basemap) & Lớp dữ liệu */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:flex-nowrap sm:shrink-0">
           {/* Basemap Switcher */}
           <div className="flex items-center rounded-lg border border-slate-800 bg-slate-900/90 p-0.5 shrink-0">
             {(Object.keys(basemaps) as BasemapKey[]).map((key) => {
