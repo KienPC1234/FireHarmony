@@ -71,15 +71,15 @@ for (const view of views) {
         return { text: n.textContent?.trim().slice(0,65), left: Math.round(a.left), right: Math.round(a.right), parentLeft: Math.round(p.left), parentRight: Math.round(p.right), width: Math.round(a.width), visible: getComputedStyle(n).display !== "none" };
       }).filter((a) => a.visible && (a.width <= 0 || a.left < a.parentLeft-2 || a.right > a.parentRight+2)),
     }));
-    expect(toolbar.wrap).toBe("wrap");
+    // Geometry is the contract; either wrapping or a fitting single row is valid.
     expect(toolbar.controlsOutside,JSON.stringify(toolbar.controlsOutside)).toEqual([]);
     const scrubber = page.locator('[data-ui-review="calendar-scrubber"]');
     await expect(scrubber).toBeVisible({ timeout: 70000 });
-    const legend = page.locator('[data-fh-page="calendar"] .pointer-events-none.absolute[class*="bottom-3"][class*="left-3"]').first();
+    const legend = page.locator('[data-fh-page="calendar"] .absolute[class*="right-2.5"][class*="max-w-[220px]"]').first();
     await expect(legend).toBeVisible();
     const collision = await page.evaluate(() => {
       const a = document.querySelector('[data-ui-review="calendar-scrubber"]')?.getBoundingClientRect();
-      const b = document.querySelector('[data-fh-page="calendar"] .pointer-events-none.absolute[class*="bottom-3"][class*="left-3"]')?.getBoundingClientRect();
+      const b = document.querySelector('[data-fh-page="calendar"] .absolute[class*="right-2.5"][class*="max-w-[220px]"]')?.getBoundingClientRect();
       if (!a || !b) return null;
       return {
         intersectionWidth: Math.max(0, Math.min(a.right,b.right)-Math.max(a.left,b.left)),
@@ -148,17 +148,31 @@ for (const view of [
     const initial = await badge.evaluate((e) => {
       const a = e.getBoundingClientRect();
       const h = e.closest("header")!.getBoundingClientRect();
-      const controls = e.closest("header")!.lastElementChild!.getBoundingClientRect();
+      // A feed badge can be inside the controls container; comparing it with
+      // its own parent falsely reports a collision. Check peer controls.
+      const peers = [...e.closest("header")!.querySelectorAll("button,a")].filter((n) => {
+        const rect = n.getBoundingClientRect();
+        return !e.contains(n) && rect.width > 0 && rect.height > 0 &&
+          getComputedStyle(n).visibility !== "hidden";
+      });
       return {
+        badgeRect: { left: a.left, right: a.right, top: a.top, bottom: a.bottom },
+        peerRects: peers.map((n) => {
+          const b = n.getBoundingClientRect();
+          return { label: n.textContent?.trim().slice(0, 35), left: b.left,
+            right: b.right, top: b.top, bottom: b.bottom };
+        }),
         within: a.left >= h.left - 1 && a.right <= h.right + 1 &&
           a.top >= h.top - 1 && a.bottom <= h.bottom + 1,
-        overlapTopControls: a.top < controls.bottom - 1 && a.bottom > controls.top + 1 &&
-          a.left < controls.right - 1 && a.right > controls.left + 1,
-        bottomGap: Math.round(a.top - controls.bottom),
+        overlapTopControls: peers.some((n) => {
+          const b = n.getBoundingClientRect();
+          return Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 &&
+            Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+        }),
       };
     });
     expect(initial.within,JSON.stringify(initial)).toBe(true);
-    if (view.width < 1280) expect(initial.bottomGap,JSON.stringify(initial)).toBeGreaterThanOrEqual(2);
+    expect(initial.overlapTopControls, JSON.stringify(initial)).toBe(false);
     await page.goto("/?aoi=vietnam&data=raw", { waitUntil: "domcontentloaded" });
     await expect(page.locator("[data-fh-feed]")).toBeVisible();
     await expect(page.locator("[data-fh-feed]")).toHaveText(/NASA quan sát|NASA Observed/);

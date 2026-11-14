@@ -270,7 +270,7 @@ export function Layout() {
         </NavLink>
 
         {/* Cụm 2 (Giữa): Navigation Links (Responsive, centered, zero overlapping) */}
-        <div className="hidden md:flex xl:hidden flex-1 items-center justify-center min-w-0 px-2 overflow-x-auto">
+        <div className="hidden lg:flex xl:hidden flex-1 items-center justify-center min-w-0 px-2 overflow-x-auto">
           <nav
             className="flex items-center gap-0.5 lg:gap-1 rounded-xl border border-slate-800 bg-slate-900/80 p-0.5 shrink-0"
             aria-label="Primary Navigation"
@@ -362,7 +362,7 @@ export function Layout() {
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden flex items-center justify-center rounded-lg border border-slate-800 bg-slate-900 p-1.5 text-slate-300 hover:text-white min-h-[32px] min-w-[32px]"
+            className="lg:hidden flex items-center justify-center rounded-lg border border-slate-800 bg-slate-900 p-1.5 text-slate-300 hover:text-white min-h-[32px] min-w-[32px]"
             aria-label="Toggle navigation menu"
             aria-expanded={mobileMenuOpen}
           >
@@ -373,7 +373,7 @@ export function Layout() {
 
       {/* Mobile Drawer Navigation (Sheet) */}
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex">
+        <div className="lg:hidden fixed inset-0 z-50 flex">
           <div
             className="fixed inset-0 bg-black/75 backdrop-blur-sm"
             onClick={() => setMobileMenuOpen(false)}
