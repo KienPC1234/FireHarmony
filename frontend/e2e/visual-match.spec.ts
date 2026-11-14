@@ -55,7 +55,8 @@ test("mobile keeps its navigation and full-width content without visual overflow
     await expect(page.locator("h1").first()).toBeVisible();
     await expect(page.locator("[data-fh-rail]")).toBeHidden();
     const head = await page.locator("[data-fh-header]").boundingBox();
-    expect(Math.round(head?.height ?? 0)).toBe(58);
+    // Mobile provenance occupies a second header row (CLAIM-011).
+    expect(Math.round(head?.height ?? 0)).toBe(74);
     const dimensions = await page.evaluate(() => ({
       width: document.documentElement.clientWidth,
       scroll: document.documentElement.scrollWidth,
@@ -80,7 +81,8 @@ test("Calendar GIS remains interactive after new shell styling", async ({ page }
 
 test("desktop navigation can collapse and restore chart canvas width", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/lab?tab=xray&aoi=vietnam&data=sample");
+  // Sensor Lab is a research-only navigation item.
+  await page.goto("/lab?tab=xray&aoi=vietnam&data=sample&mode=research");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   const rail = page.locator("[data-fh-rail]");
   const toggle = rail.locator(".fh-rail-toggle");
