@@ -240,7 +240,7 @@ export function EvidencePage() {
           onLoaded={(payload) => setSp((prev) => applyCustomRegionParams(prev, payload), { replace: true })}
         />
       )}
-      {!loading && !(aoi === "custom" && !dataset) && (
+      {!loading && spots && (
       <SectionQuickNav
         title={t("evidence.quick_nav_title")}
         items={[
@@ -264,7 +264,8 @@ export function EvidencePage() {
         </div>
       )}
 
-      {/* 3. Primary Verdict Banner */}
+      {/* Only evaluate coverage once a real observation matrix exists. */}
+      {spots && (
       <div id="evidence-verdict" className="scroll-mt-16 rounded-2xl border border-slate-800 bg-[#0B1220]/95 p-5 shadow-sm space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
           <div className="flex items-center gap-2.5">
@@ -338,6 +339,7 @@ export function EvidencePage() {
               })}
         </p>
       </div>
+      )}
 
       <div id="evidence-scope" className="scroll-mt-16" />
       {/* 4. Controls: Select Area & Month */}
@@ -382,7 +384,7 @@ export function EvidencePage() {
         </div>
       </div>
 
-      {loading && !spots ? (
+      {aoi === "custom" && !dataset ? null : loading && !spots ? (
         <Loading label={t("evidence.auditing")} aoi={aoi} data={data} />
       ) : error && !spots ? (
         <ErrorState error={error} onRetry={() => setReloadNonce((n) => n + 1)} />

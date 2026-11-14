@@ -38,10 +38,12 @@ test("Evidence never displays cached sample metrics after observed feed fails", 
     // The previous source is hidden immediately, even while the new API is
     // waiting. Nothing from the sample response may appear under a RAW badge.
     await expect(page.locator("#evidence-matrix")).toHaveCount(0);
+    await expect(page.locator("#evidence-verdict")).toHaveCount(0);
   } finally {
     releaseRaw();
   }
   await rawFailure;
+  await expect(page.locator("#evidence-verdict")).toHaveCount(0);
 
   // A failed raw request cannot keep showing the old sample matrix, numeric
   // statistics, or the day inspector under the new "RAW" provenance badge.
@@ -51,4 +53,16 @@ test("Evidence never displays cached sample metrics after observed feed fails", 
   await page.getByRole("button", { name: /NASA Observed|NASA quan sát/ }).first().click();
   await expect(page).toHaveURL(/data=sample/);
   await expect(matrix).toBeVisible({ timeout: 15_000 });
+});
+
+
+test("Custom AOI without an uploaded dataset does not invent daily observations", async ({ page }) => {
+  await page.goto("/evidence?aoi=custom&data=raw&ym=2025-02&mode=research", {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+  // There are no valid sensor observations until the user supplies a dataset.
+  // A 0/31 fabricated matrix would also be wrong for February (28 days).
+  await expect(page.locator("#evidence-matrix")).toHaveCount(0);
+  await expect(page.locator("#evidence-verdict")).toHaveCount(0);
 });
