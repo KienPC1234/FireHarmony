@@ -590,7 +590,7 @@ def _harmonize_daily_ml(agg: dict, model, meta: dict | None,
     now recognises v4 `b2_residual`. Failures are counted and surfaced; the
     request is no longer allowed to claim ML while silently serving stat.
     """
-    mid = (meta or {}).get("method_id", "ml_b2res_v4")
+    mid = (meta or {}).get("method_id", "hgb_b2res_v4")
     residual_on = bool((meta or {}).get("residual_enabled", True))
     fallback = (meta or {}).get("fallback_baseline")
     served = mid if residual_on else f"stat:{fallback or 'baseline'}"
@@ -1126,7 +1126,7 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
            "critical_periods": crit[:24], "latest": latest,
            "forecast": _forecast(calen, latest["date"] if latest else None),
            "data_source": _data_source_label(data),
-           "method_id": {"stat": "seasonal_ratio_v1", "ml": "ml_b2res_v4",
+           "method_id": {"stat": "seasonal_ratio_v1", "ml": "hgb_b2res_v4",
                          "ts": "ts_logratio_pool_v2",
                          "hts": "hts_anchor_v1",
                          "stan": "stan_safe_v1"}.get(method, "seasonal_ratio_v1"),
@@ -1248,7 +1248,7 @@ def _harmonize_from_records(records: list[dict], daily_cap: int = 2000,
             "latest": latest,
             "forecast": _forecast(calen, latest["date"] if latest else None),
             "data_source": _data_source_label(data),
-            "method_id": ({"ml": "ml_b2res_v4", "ts": "ts_logratio_pool_v2",
+            "method_id": ({"ml": "hgb_b2res_v4", "ts": "ts_logratio_pool_v2",
                            "hts": "hts_anchor_v1",
                            "stan": "stan_safe_v1"}.get(method, "seasonal_ratio_v1")),
             "effective_method": (ml_meta or {}).get("effective_method",
@@ -1306,7 +1306,7 @@ def firms_harmonize(payload: dict):
     out["ms"] = round((time.perf_counter() - t0) * 1000, 1)
     out["method"] = ({"stat": "daily 0.05deg grid + monthly activity ratio + sensor-adjusted index "
                               "(hotspot detections, not fires; MODIS-only cells are estimates)",
-                      "ml": "daily 0.05deg grid + B2-anchored residual HGB (ml_b2res_v4; abstains to the seasonal ratio when blocked CV shows no robust gain)",
+                      "ml": "daily 0.05deg grid + B2-anchored residual HGB (hgb_b2res_v4; abstains to the seasonal ratio when blocked CV shows no robust gain)",
                       "ts": "daily 0.05deg grid + pooled log-ratio Transformer (ts_logratio_pool_v2) monthly post-adjustment; months without 12-month context keep the statistical value",
                       "hts": "daily 0.05deg grid + hierarchical 1-degree tile seasonal anchor (hts_anchor_v1, candidate); MODIS-only cells are rescaled to the tile target, VIIRS-observed cells are untouched",
                       "stan": "daily 0.05deg grid + STAN spatial-temporal negative-binomial model (stan_safe_v1, main); STAN targets for 2024+ with HTS fallback before 2024; VIIRS-observed cells are untouched"}[method])
@@ -2166,7 +2166,7 @@ def _backtest_from_manifest(manifest: dict, aoi: str, data: str,
         "ts_months_missing_context": per.get("ts_months_missing_context"),
         "train_years": per.get("train_years", []),
         "test_years": per.get("test_years", sorted({s["year"] for s in samples})),
-        "method_id": {"hgb": "ml_b2res_v4", "ts": "ts_logratio_pool_v2"},
+        "method_id": {"hgb": "hgb_b2res_v4", "ts": "ts_logratio_pool_v2"},
         "models": {"hgb": ml_v4.ALGORITHM_VERSION,
                    "ts": tst.ALGORITHM_VERSION,
                    "evaluation": manifest.get("evaluation_version")},
@@ -2321,7 +2321,7 @@ def firms_xray(aoi: str = Query("vietnam"),
                          "hgb_residual_enabled": per.get("hgb_residual_enabled"),
                          "hgb_fallback_baseline": per.get("hgb_fallback_baseline"),
                          "effective_ml_method": (
-                             "ml_b2res_v4" if per.get("hgb_residual_enabled")
+                             "hgb_b2res_v4" if per.get("hgb_residual_enabled")
                              else f"stat:{per.get('hgb_fallback_baseline') or 'baseline'}"),
                          "ml_compatible": ml_ok, "ml_compat_reason": ml_why,
                          "ml_trained": ml_meta is not None,

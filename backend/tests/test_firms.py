@@ -133,7 +133,7 @@ def test_dl_describe_names_one_primary_model():
     served = [m for m in info["models"] if m["used_in_pipeline"]]
     assert len(served) == 1 and served[0]["method_id"] == "stan_safe_v1"
     assert {m["method_id"] for m in info["archived"]} >= {
-        "ml_b2res_v4", "ts_logratio_pool_v2", "tileformer_v1"}
+        "hgb_b2res_v4", "ts_logratio_pool_v2", "tileformer_v1"}
     # The deleted torch prototypes must not silently come back.
     assert not hasattr(dl, "CrossSensorCalibrator")
     assert not hasattr(dl, "FireSeasonAE")
@@ -485,7 +485,7 @@ def test_ml_monthly_conservation():
     rows = _modis_rows([f"2019-03-{d:02d}" for d in range(1, 21)])
     h = client.post("/api/firms/harmonize",
                     json={"records": rows, "method": "ml", "aoi": "vietnam"}).json()
-    assert h["method_id"].startswith(("ml_hgb", "ml_b2res"))
+    assert h["method_id"].startswith(("hgb_b2res", "hgb-"))
     assert any(d.get("estimate_type") == "ml_predicted" for d in h["daily"])
     yi = h["calendar"]["years"].index(2019)
     month_total = h["calendar"]["matrix"][yi][2]
@@ -800,7 +800,7 @@ def test_T07c_registry_declares_exactly_one_primary():
     assert registry.BASELINE in registry.served_methods()
     assert registry.FALLBACK in registry.served_methods()
     archived = {m["method_id"] for m in registry.archived()}
-    assert {"ml_b2res_v4", "ts_logratio_pool_v2", "tileformer_v1"} <= archived
+    assert {"hgb_b2res_v4", "ts_logratio_pool_v2", "tileformer_v1"} <= archived
     # No archived model may claim to serve the calendar.
     assert not any(m["served"] for m in registry.archived())
 

@@ -18,7 +18,7 @@ protocol, the negative result, and the limits.
 
 Older experiments are archived as negative results, not served:
 
-- `ml_b2res_v4` (HGB residual) — gate off;
+- `hgb_b2res_v4` (HGB residual) — gate off;
 - `ts_logratio_pool_v2` (pooled Transformer) — loses to the anchor;
 - `srf_v1` (Seasonal-Residual Former) — ties the anchor, uncalibrated band;
 - `sf_lite_v1` (this model) — gate off, anchor fallback.

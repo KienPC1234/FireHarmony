@@ -1,5 +1,8 @@
 # Demo script — 3 minutes, real data first
 
+> Numbers in the model table predate the 2026-11-13 Australia full-month
+> backfill; the current table is in `docs/FIRMS_MODEL_CARD.md` (`eval-v3`).
+
 Server: `make demo` → http://127.0.0.1:8000 (API + SPA). No external network is
 needed for the data; map tiles need OSM.
 
@@ -42,7 +45,7 @@ Read the 2024–2025 holdout (n=72, train ≤2023):
 | B0 raw MODIS | 21623.4 | 11112.1 | 32134.6 | 11415.2 |
 | B1 global ratio | 5294.6 | 3493.2 | 7095.9 | 1697.3 |
 | B2 seasonal ratio | **2746.0** | **844.2** | 4647.7 | **1668.8** |
-| HGB `ml_b2res_v4` | 2746.0 | 844.2 | 4647.7 | 1697.3 |
+| HGB `hgb_b2res_v4` | 2746.0 | 844.2 | 4647.7 | 1697.3 |
 | Transformer `ts_logratio_pool_v2` | 2934.4 | 1329.6 | **4539.1** | 1852.8 |
 
 Read it honestly: HGB abstains on all three AOIs (gate off), so it serves B2/B1.

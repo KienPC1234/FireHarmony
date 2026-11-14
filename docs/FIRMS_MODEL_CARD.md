@@ -99,7 +99,7 @@ the product:
 | fallback | `hts_anchor_v1` | `method=hts`, STAN pre-2024 | stable anchor before the 12-month tile window exists; 4154.4, CI vs B2 includes 0 |
 | comparator | `spatial_hgb_v1` | not served | lowest MAE (3076.4), but needs same-month neighbour VIIRS: reconstruction, not a forecast |
 | comparator | `sf_lite_v1` | not served | loses to B2 on its own 72-row sample (2458 vs 2387) |
-| archived | `ml_b2res_v4`, `ts_logratio_pool_v2`, `tileformer_v1` | not served | HGB 4687.5 and TS 5322.9 lose to B2 on the rebuilt data; kept for reproducibility |
+| archived | `hgb_b2res_v4`, `ts_logratio_pool_v2`, `tileformer_v1` | not served | HGB 4687.5 and TS 5322.9 lose to B2 on the rebuilt data; kept for reproducibility |
 
 The table below joins all of them on the same 72 AOI-months via
 `evaluation.merge_artifact_methods` (run `python -m scripts.firms.unify_eval`),
@@ -214,7 +214,7 @@ How to read it:
 
 ## Architectures
 
-### `ml_b2res_v4` (HGB, sklearn)
+### `hgb_b2res_v4` (HGB, sklearn)
 
 - prediction = `(MODIS + 1) · exp(b2_log_ratio[month] + residual) − 1`;
   the same inverse is used by batch and single-row inference (audit P0-02).

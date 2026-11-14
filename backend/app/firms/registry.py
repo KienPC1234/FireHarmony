@@ -95,8 +95,9 @@ MODELS: tuple[dict, ...] = (
         "gate": "loses to B2 (MAE 2458 vs 2387), gate closed",
     },
     {
-        "method_id": "ml_b2res_v4",
+        "method_id": "hgb_b2res_v4",
         "name": "HGB residual calibrator (archived)",
+        "artifact_method_id": "hgb-b2residual-v4",
         "role": "archived",
         "served": False,
         "served_as": None,
