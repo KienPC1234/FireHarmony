@@ -29,7 +29,7 @@ import { XrayBacktestLeaderboard } from "@/components/xray/XrayBacktestLeaderboa
 import { GlobalContextBar } from "@/components/GlobalContextBar";
 
 export function LabPage() {
-  const { lang } = useLang();
+  const { lang, t } = useLang();
   const vi = lang === "vi";
 
   const [sp, setSp] = useSearchParams();
@@ -272,70 +272,34 @@ export function LabPage() {
     { question: string; howItWorks: string; limits: string }
   > = {
     xray: {
-      question: vi
-        ? "MODIS và VIIRS lệch nhau thế nào qua các năm và bước nhảy 2012 có phải do môi trường?"
-        : "How do MODIS and VIIRS diverge over time, and is the 2012 step change environmental?",
-      howItWorks: vi
-        ? "Phân tích chuỗi tháng song song giữa hai cảm biến, đo lường tỷ lệ k và hiệu ứng bước nhảy cảm biến năm 2012."
-        : "Audits co-observed monthly series, measures empirical k-ratios, and inspects the 2012 instrument transition jump.",
-      limits: vi
-        ? "Cải thiện tương quan ở cấp tháng-khu vực không đảm bảo tính chính xác vi mô tại từng ô lưới ngày."
-        : "Improvement at monthly AOI aggregates does not guarantee fine-scale daily pixel precision.",
+      question: t("lab.tab_xray_q"),
+      howItWorks: t("lab.tab_xray_how"),
+      limits: t("lab.tab_xray_lim"),
     },
     replay: {
-      question: vi
-        ? "Mô hình ước lượng chính xác đến đâu khi dự đoán tín hiệu VIIRS từ dữ liệu chỉ có MODIS?"
-        : "How accurately can models estimate the VIIRS signal when only MODIS input is available?",
-      howItWorks: vi
-        ? "Giấu kín dữ liệu VIIRS trong giai đoạn kiểm thử đóng băng, dùng MODIS để dự đoán và đối chiếu với dữ liệu VIIRS tham chiếu."
-        : "Masks VIIRS during frozen holdout periods, estimates from MODIS, then evaluates against VIIRS reference observations.",
-      limits: vi
-        ? "VIIRS là dữ liệu tham chiếu quan trắc vệ tinh, không phải số đo thực địa vật lý hay kiểm chứng mặt đất tuyệt đối."
-        : "VIIRS serves as satellite reference observations, not absolute in-situ ground truth.",
+      question: t("lab.tab_replay_q"),
+      howItWorks: t("lab.tab_replay_how"),
+      limits: t("lab.tab_replay_lim"),
     },
     simulator: {
-      question: vi
-        ? "Lựa chọn cấu hình cảm biến thay đổi kết quả quan sát hoạt động cháy như thế nào?"
-        : "How do satellite constellation choices alter observed fire activity patterns?",
-      howItWorks: vi
-        ? "Bật/tắt các cảm biến trong chùm vệ tinh (MODIS, Suomi NPP, NOAA-20, NOAA-21) và tính toán lại lịch hoạt động cháy."
-        : "Toggles sensor constellation members to recalculate detection totals and quantify sensor omission rates.",
-      limits: vi
-        ? "Mô phỏng dựa trên lọc tập dữ liệu quan sát lịch sử, không mô phỏng động học quỹ đạo hay khí động học khói lửa."
-        : "Simulation filters historical observational records; it does not model orbital physics or smoke dispersion.",
+      question: t("lab.tab_simulator_q"),
+      howItWorks: t("lab.tab_simulator_how"),
+      limits: t("lab.tab_simulator_lim"),
     },
     blindspots: {
-      question: vi
-        ? "Những ô ngày nào bị thiếu dữ liệu quan trắc do mây mù hoặc khoảng trống quỹ đạo?"
-        : "Which daily cells lack observation coverage due to cloud cover or orbital swaths?",
-      howItWorks: vi
-        ? "Kiểm toán ma trận ngày yêu cầu so với ngày có dữ liệu trả về để phát hiện các lỗ hổng quan sát thực tế."
-        : "Cross-checks request manifests against returned detections to map data availability gaps.",
-      limits: vi
-        ? "Không có bản ghi trong kho lưu trữ không đồng nghĩa với bầu trời quang đãng không có cháy."
-        : "Absence of records does not prove cloud-free absence of burning.",
+      question: t("lab.tab_blindspots_q"),
+      howItWorks: t("lab.tab_blindspots_how"),
+      limits: t("lab.tab_blindspots_lim"),
     },
     spatial: {
-      question: vi
-        ? "Hai thế hệ cảm biến trùng khớp không gian ra sao tại các đám cháy lớn?"
-        : "How well do MODIS and VIIRS spatially align over active fire complexes?",
-      howItWorks: vi
-        ? "Vẽ bao lồi convex hull và tính toán độ phủ không gian co-observation giữa các điểm nóng ghi nhận cùng ngày."
-        : "Constructs convex hulls to measure spatial intersection between sensor detections on co-observed days.",
-      limits: vi
-        ? "Độ phân giải 375 m của VIIRS cho đường bao chi tiết hơn nhiều so với ô pixel 1 km của MODIS."
-        : "VIIRS 375 m resolution produces a finer spatial envelope than MODIS 1 km footprint.",
+      question: t("lab.tab_spatial_q"),
+      howItWorks: t("lab.tab_spatial_how"),
+      limits: t("lab.tab_spatial_lim"),
     },
     cross: {
-      question: vi
-        ? "Chỉ số hoạt động cháy có tương quan thế nào với chuỗi diện tích cháy độc lập (Burned Area)?"
-        : "How well does the activity index correlate with external burned area series?",
-      howItWorks: vi
-        ? "Nhập chuỗi diện tích cháy (ví dụ MCD64A1) để tính hệ số tương quan Pearson và Spearman với chỉ số hiệu chuẩn."
-        : "Ingests external burned area series to compute Pearson and Spearman correlation with the calibrated index.",
-      limits: vi
-        ? "Diện tích cháy tích lũy vết tích mặt đất, trong khi điểm nóng chỉ ghi nhận tại thời điểm vệ tinh bay qua."
-        : "Burned area tracks scarred ground post-fire, whereas thermal hotspots capture instantaneous active flames.",
+      question: t("lab.tab_cross_q"),
+      howItWorks: t("lab.tab_cross_how"),
+      limits: t("lab.tab_cross_lim"),
     },
   };
 
@@ -360,16 +324,14 @@ export function LabPage() {
                 </span>
               </div>
               <p className="text-xs text-slate-300">
-                {vi
-                  ? "Phòng thí nghiệm kiểm chứng cảm biến vệ tinh: So sánh độ lệch, mô phỏng quan trắc và đối soát độc lập."
-                  : "Satellite Sensor Intelligence Lab: Dissect discrepancies, test observation choices, and validate evidence."}
+                {t("lab.header_sub")}
               </p>
             </div>
           </div>
         </div>
 
         {/* 2. Three Structured Mission Task Groups */}
-        <div aria-label={vi ? "Nhóm nhiệm vụ kiểm chứng" : "Research task groups"}
+        <div aria-label={t("lab.task_groups_label")}
           className="flex snap-x gap-2 overflow-x-auto border-t border-slate-800 pt-3 sm:grid sm:grid-cols-3">
           {TASK_GROUPS.map((g) => {
             const isGroupActive = activeGroup === g.id;
@@ -400,7 +362,7 @@ export function LabPage() {
         {/* 3. Sub-Tab Switcher for Active Task Group */}
         <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-800">
           <span className="text-xs font-semibold text-slate-400 px-1">
-            {vi ? "Thử nghiệm:" : "Experiment:"}
+            {t("lab.experiment_label")}
           </span>
           {TABS.filter((t) => {
             const g = TASK_GROUPS.find((grp) => grp.id === activeGroup);
@@ -443,7 +405,7 @@ export function LabPage() {
           <div className="flex items-center gap-2 min-w-0">
             <HelpCircle className="h-4 w-4 text-cyan-400 shrink-0" />
             <span className="font-bold text-white shrink-0 uppercase tracking-wide text-[11px]">
-              {vi ? "Mục tiêu khoa học:" : "Research Objective:"}
+              {t("lab.objective_label")}
             </span>
             <span className="text-slate-300 font-sans truncate">{currentDetails.question}</span>
           </div>
@@ -454,7 +416,7 @@ export function LabPage() {
             aria-controls="lab-protocol-details"
             className="flex items-center gap-1 font-semibold text-cyan-400 hover:text-cyan-300 transition shrink-0"
           >
-            <span>{protocolExpanded ? (vi ? "Thu gọn" : "Collapse") : (vi ? "Xem quy thức & giới hạn" : "View Protocol & Limits")}</span>
+            <span>{protocolExpanded ? t("lab.collapse") : t("lab.view_protocol")}</span>
             <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", protocolExpanded && "rotate-180")} />
           </button>
         </div>
@@ -463,19 +425,19 @@ export function LabPage() {
           <div id="lab-protocol-details" className="grid gap-3 sm:grid-cols-3 p-4 border-t border-slate-800/80 bg-slate-950/40 text-slate-300">
             <div>
               <span className="font-semibold text-white block mb-0.5">
-                {vi ? "1. Câu hỏi khoa học:" : "1. Research Question:"}
+                {t("lab.q1")}
               </span>
               <p className="text-slate-400 leading-relaxed font-sans">{currentDetails.question}</p>
             </div>
             <div>
               <span className="font-semibold text-white block mb-0.5">
-                {vi ? "2. Nguyên lý thực hiện:" : "2. How It Works:"}
+                {t("lab.q2")}
               </span>
               <p className="text-slate-400 leading-relaxed font-sans">{currentDetails.howItWorks}</p>
             </div>
             <div>
               <span className="font-semibold text-white block mb-0.5">
-                {vi ? "3. Giới hạn cần lưu ý:" : "3. Scientific Limitations:"}
+                {t("lab.q3")}
               </span>
               <p className="text-slate-400 leading-relaxed font-sans">{currentDetails.limits}</p>
             </div>
@@ -491,7 +453,7 @@ export function LabPage() {
           aria-expanded={tab !== "xray" || showMobileFilters}
           aria-controls="lab-filters"
           className="flex w-full min-h-[44px] items-center justify-between rounded-xl border border-slate-700 bg-[#111C2E] px-4 py-2.5 text-sm font-semibold text-slate-200">
-          <span>{vi ? "Bộ lọc & điều khiển thử nghiệm" : "Experiment filters & controls"}</span>
+          <span>{t("lab.filters_toggle")}</span>
           <ChevronDown className={cn("h-4 w-4 transition-transform", (tab !== "xray" || showMobileFilters) && "rotate-180")} aria-hidden="true" />
         </button>
       </div>
@@ -531,7 +493,7 @@ export function LabPage() {
               {/* X-Ray Internal View Switcher */}
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-[#111C2E] p-2.5 text-xs">
                 <span className="font-bold text-slate-300 px-1">
-                  {vi ? "Góc nhìn đối soát X-Ray:" : "Audit Perspective:"}
+                  {t("lab.audit_label")}
                 </span>
                 <div className="flex items-center gap-1.5">
                   <button
@@ -544,7 +506,7 @@ export function LabPage() {
                         : "text-slate-400 hover:text-white",
                     )}
                   >
-                    {vi ? "Chuỗi thời gian & Phần dư" : "Trajectory & Residuals"}
+                    {t("lab.view_trajectory")}
                   </button>
                   <button
                     type="button"
@@ -556,7 +518,7 @@ export function LabPage() {
                         : "text-slate-400 hover:text-white",
                     )}
                   >
-                    {vi ? "Bước nhảy ảo ảnh 2012" : "2012 Sensor Illusion"}
+                    {t("lab.view_transition")}
                   </button>
                   <button
                     type="button"
@@ -568,7 +530,7 @@ export function LabPage() {
                         : "text-slate-400 hover:text-white",
                     )}
                   >
-                    {vi ? "Bảng so sánh mô hình" : "Model Leaderboard"}
+                    {t("lab.view_leaderboard")}
                   </button>
                 </div>
               </div>
@@ -577,7 +539,7 @@ export function LabPage() {
                 <div className="flex flex-col items-center justify-center p-16 rounded-xl border border-slate-800 bg-[#111C2E]/60 text-slate-400 space-y-3">
                   <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
                   <span className="text-xs font-mono">
-                    {vi ? "Đang truy xuất chuỗi thời gian đối soát X-Ray..." : "Retrieving X-Ray audit time series..."}
+                    {t("lab.xray_loading")}
                   </span>
                 </div>
               )}
@@ -599,10 +561,8 @@ export function LabPage() {
 
               {/* Scientific Caveat */}
               <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4 text-xs text-slate-400 leading-relaxed font-mono">
-                <strong>{vi ? "Thông cáo kiểm chứng khoa học:" : "Scientific Notice:"}</strong>{" "}
-                {vi
-                  ? "Cải thiện độ khớp giữa hai cảm biến ở mức tháng không bảo đảm độ chính xác không gian tại từng ô lưới ngày. Tín hiệu tham chiếu là dữ liệu phát hiện VIIRS, không phải kiểm chứng thực địa vật lý."
-                  : "Improvement at monthly AOI aggregates does not guarantee fine-scale daily pixel precision. Reference signal is VIIRS active-fire detections, not physical ground truth of fire incidents."}
+                <strong>{t("lab.notice_title")}</strong>{" "}
+                {t("lab.notice_body")}
               </div>
             </div>
           )}

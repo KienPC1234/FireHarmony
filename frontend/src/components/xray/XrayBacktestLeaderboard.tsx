@@ -80,7 +80,7 @@ const MODEL_SPECS = [
 ] as const;
 
 export function XrayBacktestLeaderboard({ metrics, backtest }: XrayBacktestLeaderboardProps) {
-  const { lang } = useLang();
+  const { lang, t } = useLang();
   const vi = lang === "vi";
 
   return (
@@ -90,31 +90,30 @@ export function XrayBacktestLeaderboard({ metrics, backtest }: XrayBacktestLeade
         <div className="flex items-center justify-between border-b border-border/50 pb-2">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-cyan-300">
             <Trophy className="h-4 w-4 text-cyan-400" />
-            <span>{vi ? "Nghị định thư kiểm chứng Time-Travel Holdout" : "Time-Travel Holdout Protocol"}</span>
+            <span>{t("xray.backtest_protocol")}</span>
           </div>
           <span className="font-mono text-xs text-cyan-400">
-            {vi ? "Kiểm thử giấu kín nghiêm ngặt" : "Strict Blindfolded Test"}
+            {t("xray.backtest_blind")}
           </span>
         </div>
 
         <p className="text-xs text-slate-300 leading-relaxed">
           {backtest
-            ? vi
-              ? `Huấn luyện trên ${fmtYears(backtest.train_years)} (đồng thời cả MODIS & VIIRS). Kiểm thử trên ${fmtYears(backtest.test_years)} với VIIRS hoàn toàn bị giấu kín (blindfolded). Không tháng tương lai nào lọt vào tập huấn luyện.`
-              : `Trained on ${fmtYears(backtest.train_years)} (both MODIS & VIIRS visible). Evaluated on ${fmtYears(backtest.test_years)} with VIIRS strictly blindfolded. No future month leaks into training.`
-            : vi
-              ? "Đang tải nghị định thư từ artifact đánh giá đã lưu…"
-              : "Loading protocol from the persisted evaluation artifact…"}
+            ? t("xray.backtest_desc", {
+                train: fmtYears(backtest.train_years),
+                test: fmtYears(backtest.test_years),
+              })
+            : t("xray.backtest_loading")}
         </p>
 
         {backtest && (
           <div className="flex flex-wrap items-center gap-3 pt-1 font-mono text-xs">
             <div className="rounded-lg border border-border/60 bg-slate-900/80 px-2.5 py-1 text-slate-300">
-              <span className="text-muted-foreground mr-1.5">{vi ? "Huấn luyện:" : "Train:"}</span>
+              <span className="text-muted-foreground mr-1.5">{t("xray.backtest_train_label")}</span>
               <span className="text-cyan-300 font-semibold">{backtest.train_years.join(", ")}</span>
             </div>
             <div className="rounded-lg border border-border/60 bg-slate-900/80 px-2.5 py-1 text-slate-300">
-              <span className="text-muted-foreground mr-1.5">{vi ? "Kiểm thử mù:" : "Holdout Test:"}</span>
+              <span className="text-muted-foreground mr-1.5">{t("xray.backtest_test_label")}</span>
               <span className="text-emerald-300 font-semibold">{backtest.test_years.join(", ")}</span>
             </div>
           </div>
@@ -126,22 +125,16 @@ export function XrayBacktestLeaderboard({ metrics, backtest }: XrayBacktestLeade
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-sm font-bold text-white tracking-tight">
-              {vi ? "Bảng so sánh hiệu năng các mô hình Harmonization" : "Harmonization Model Accuracy Matrix"}
+              {t("xray.backtest_table_title")}
             </h3>
             <p className="text-xs text-slate-400">
-              {vi
-                ? "Đánh giá theo MAE (Sai số tuyệt đối trung bình), WAPE (%) và Độ lệch dư (Bias)"
-                : "Ranked across Mean Absolute Error (MAE), Weighted Absolute Percentage Error (WAPE), and Residual Bias"}
+              {t("xray.backtest_table_sub")}
             </p>
           </div>
           <span className="font-mono text-xs text-muted-foreground">
             {metrics
-              ? vi
-                ? `${Object.keys(metrics).length} mô hình đã đánh giá`
-                : `${Object.keys(metrics).length} Models Evaluated`
-              : vi
-              ? "Đang đánh giá..."
-              : "Evaluating..."}
+              ? t("xray.backtest_count", { count: Object.keys(metrics).length })
+              : t("xray.backtest_evaluating")}
           </span>
         </div>
 
@@ -149,11 +142,11 @@ export function XrayBacktestLeaderboard({ metrics, backtest }: XrayBacktestLeade
           <table className="w-full text-left font-mono text-xs">
             <thead>
               <tr className="border-b border-border/60 text-xs uppercase tracking-wider text-slate-400">
-                <th className="py-2.5 font-semibold">{vi ? "Mô hình" : "Model Pipeline"}</th>
+                <th className="py-2.5 font-semibold">{t("xray.backtest_th_model")}</th>
                 <th className="py-2.5 text-right font-semibold">MAE</th>
                 <th className="py-2.5 text-right font-semibold">WAPE</th>
-                <th className="py-2.5 text-right font-semibold">{vi ? "Độ lệch" : "Mean Bias"}</th>
-                <th className="py-2.5 text-center font-semibold">{vi ? "Kiến trúc" : "Architecture"}</th>
+                <th className="py-2.5 text-right font-semibold">{t("xray.backtest_th_bias")}</th>
+                <th className="py-2.5 text-center font-semibold">{t("xray.backtest_th_arch")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/30">
@@ -212,16 +205,14 @@ export function XrayBacktestLeaderboard({ metrics, backtest }: XrayBacktestLeade
           <div className="flex items-center justify-between border-b border-border/50 pb-2.5">
             <div>
               <h3 className="text-sm font-bold text-white tracking-tight">
-                {vi ? "Chi tiết từng tháng kiểm nghiệm (Holdout Months)" : "Unseen Holdout Months Audit Ledger"}
+                {t("xray.backtest_ledger_title")}
               </h3>
               <p className="text-xs text-slate-400">
-                {vi
-                  ? "Dự đoán vs VIIRS thực tế trên các tháng giấu kín hoàn toàn trong quá trình huấn luyện"
-                  : "Predicted vs Actual VIIRS where VIIRS was strictly blindfolded during test"}
+                {t("xray.backtest_ledger_sub")}
               </p>
             </div>
             <span className="font-mono text-xs text-cyan-400 font-semibold">
-              {backtest.months.length} {vi ? "tháng giấu kín" : "Holdout Months"}
+              {t("xray.backtest_holdout_count", { count: backtest.months.length })}
             </span>
           </div>
 
@@ -229,12 +220,12 @@ export function XrayBacktestLeaderboard({ metrics, backtest }: XrayBacktestLeade
             <table className="w-full text-left font-mono text-xs">
               <thead className="sticky top-0 bg-slate-950 border-b border-border/60 text-xs uppercase text-slate-400">
                 <tr>
-                  <th className="p-2">{vi ? "Thời gian" : "Period"}</th>
-                  <th className="p-2 text-right">{vi ? "MODIS gốc" : "Raw MODIS"}</th>
-                  <th className="p-2 text-right">{vi ? "VIIRS thực tế" : "Actual VIIRS"}</th>
-                  <th className="p-2 text-right">{vi ? "Dự đoán STAN" : "STAN Prediction"}</th>
-                  <th className="p-2 text-right">{vi ? "Sai số dư" : "Residual Error"}</th>
-                  <th className="p-2 text-center">{vi ? "Mức phù hợp" : "Agreement"}</th>
+                  <th className="p-2">{t("xray.backtest_th_period")}</th>
+                  <th className="p-2 text-right">{t("xray.backtest_th_modis")}</th>
+                  <th className="p-2 text-right">{t("xray.backtest_th_viirs")}</th>
+                  <th className="p-2 text-right">{t("xray.backtest_th_stan")}</th>
+                  <th className="p-2 text-right">{t("xray.backtest_th_residual")}</th>
+                  <th className="p-2 text-center">{t("xray.backtest_th_agreement")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/30">
@@ -268,10 +259,10 @@ export function XrayBacktestLeaderboard({ metrics, backtest }: XrayBacktestLeade
                           )}
                         >
                           {pctDiff < 0.15
-                            ? vi ? "Cao (Đạt)" : "High (Pass)"
+                            ? t("xray.backtest_high")
                             : pctDiff < 0.35
-                            ? vi ? "Trung bình" : "Moderate"
-                            : vi ? "Phân kỳ" : "Divergence"}
+                            ? t("xray.backtest_moderate")
+                            : t("xray.backtest_divergence")}
                         </span>
                       </td>
                     </tr>

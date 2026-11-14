@@ -13,8 +13,7 @@ interface SimulatorTabProps {
 }
 
 export function SimulatorTab({ sim, sensors, onSelectPreset }: SimulatorTabProps) {
-  const { lang } = useLang();
-  const vi = lang === "vi";
+  const { t } = useLang();
 
   const custom =
     sim?.simulations.find((s) => s.sensor_config === "custom") ??
@@ -49,7 +48,7 @@ export function SimulatorTab({ sim, sensors, onSelectPreset }: SimulatorTabProps
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 font-mono">
               <Zap className="h-3.5 w-3.5 text-amber-400" />
-              {vi ? "Kịch bản thử nghiệm nhanh (1-Click Judge Presets)" : "1-Click Benchmark Scenarios"}
+              {t("lab.sim_presets_title")}
             </span>
             <span className="text-xs text-slate-400 font-mono hidden sm:inline">
               NASA Earth Science Lab
@@ -68,7 +67,7 @@ export function SimulatorTab({ sim, sensors, onSelectPreset }: SimulatorTabProps
               )}
             >
               <span className="h-2 w-2 rounded-full bg-cyan-400" />
-              <span>{vi ? "Chùm 4 Vệ tinh Đầy đủ (All 4 Sensors)" : "Full Constellation (4 Satellites)"}</span>
+              <span>{t("lab.sim_preset_full")}</span>
             </button>
 
             <button
@@ -82,7 +81,7 @@ export function SimulatorTab({ sim, sensors, onSelectPreset }: SimulatorTabProps
               )}
             >
               <span className="h-2 w-2 rounded-full bg-amber-400" />
-              <span>{vi ? "Chỉ dùng MODIS 1km (Bỏ sót VIIRS)" : "MODIS 1km Only (Omit VIIRS)"}</span>
+              <span>{t("lab.sim_preset_modis")}</span>
             </button>
 
             <button
@@ -96,7 +95,7 @@ export function SimulatorTab({ sim, sensors, onSelectPreset }: SimulatorTabProps
               )}
             >
               <span className="h-2 w-2 rounded-full bg-orange-400" />
-              <span>{vi ? "Chỉ dùng Suomi NPP 375m (Single VIIRS)" : "Single Suomi NPP 375m"}</span>
+              <span>{t("lab.sim_preset_snpp")}</span>
             </button>
           </div>
         </div>
@@ -108,28 +107,25 @@ export function SimulatorTab({ sim, sensors, onSelectPreset }: SimulatorTabProps
           <div className="flex items-center justify-between border-b border-cyan-500/20 pb-2">
             <span className="font-mono text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-cyan-400" />
-              {vi ? "KẾT LUẬN KHOA HỌC SỨ MỆNH (EXECUTIVE MISSION VERDICT)" : "EXECUTIVE SCIENTIFIC MISSION VERDICT"}
+              {t("lab.sim_verdict_title")}
             </span>
             <span className="font-mono text-xs rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2.5 py-0.5 text-cyan-200">
               NASA Space Apps 2026
             </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-100 font-medium leading-relaxed">
-            {vi
-              ? `Cấu hình [${custom.sensor_config}]: Độ lệch quan trắc ước tính ${
-                  custom.delta_vs_all != null && custom.delta_vs_all < 0
-                    ? `${compact(Math.abs(custom.delta_vs_all))} điểm nhiệt (-${Math.round(
+            {t("lab.sim_verdict_body", {
+              config: custom.sensor_config,
+              departure:
+                custom.delta_vs_all != null && custom.delta_vs_all < 0
+                  ? t("lab.sim_departure_loss", {
+                      amount: compact(Math.abs(custom.delta_vs_all)),
+                      pct: Math.round(
                         (Math.abs(custom.delta_vs_all) / (custom.year_total + Math.abs(custom.delta_vs_all || 1))) * 100,
-                      )}%)`
-                    : "0 (Trạng thái chuẩn chùm vệ tinh)"
-                }. Cảm biến MODIS (1km) độc lập thường bỏ sót các đám cháy nhỏ dưới độ phân giải pixel. Việc kết hợp chùm vệ tinh VIIRS (Suomi NPP + NOAA-20/21) cung cấp khả năng phát hiện tăng gấp 3 đến 4 lần tại cùng khu vực quan sát.`
-              : `Configuration [${custom.sensor_config}]: Observation departure is ${
-                  custom.delta_vs_all != null && custom.delta_vs_all < 0
-                    ? `${compact(Math.abs(custom.delta_vs_all))} detections (-${Math.round(
-                        (Math.abs(custom.delta_vs_all) / (custom.year_total + Math.abs(custom.delta_vs_all || 1))) * 100,
-                      )}%)`
-                    : "0 (Baseline full constellation)"
-                }. MODIS (1km) alone misses small-scale sub-pixel fires. Combining the VIIRS tandem constellation (Suomi NPP + NOAA-20/21) increases thermal detection fidelity by 3x to 4x over the same geographical footprint.`}
+                      ),
+                    })
+                  : t("lab.sim_departure_baseline"),
+            })}
           </p>
         </div>
       )}
@@ -143,14 +139,14 @@ export function SimulatorTab({ sim, sensors, onSelectPreset }: SimulatorTabProps
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Kpi
               icon={Activity}
-              label={vi ? "Tổng hoạt động năm" : "Year Total Activity"}
+              label={t("lab.sim_kpi_total")}
               value={compact(custom.year_total)}
               hint={`${num(custom.n_cells)} cells · Year ${custom.year}`}
               tone="accent"
             />
             <Kpi
               icon={BarChart3}
-              label={vi ? "Δ so với tất cả" : "Δ vs All Sensors"}
+              label={t("lab.sim_kpi_delta")}
               value={
                 custom.delta_vs_all == null
                   ? "0 (Baseline)"
@@ -165,14 +161,14 @@ export function SimulatorTab({ sim, sensors, onSelectPreset }: SimulatorTabProps
             />
             <Kpi
               icon={Cpu}
-              label={vi ? "Tháng đo được k" : "Months with k-ratio"}
+              label={t("lab.sim_kpi_kmonths")}
               value={`${custom.k_measured_months}/${custom.months_total}`}
               hint={`Fallback ratio k=${custom.k_fallback}`}
               tone={custom.k_measured_months ? "good" : "warn"}
             />
             <Kpi
               icon={Layers}
-              label={vi ? "Ô quan sát / Ước lượng" : "Observed / Estimated"}
+              label={t("lab.sim_kpi_cells")}
               value={`${compact(custom.observed_cells)} / ${compact(custom.estimated_cells)}`}
               hint={custom.viirs_available ? "VIIRS feed active" : "MODIS-only estimates"}
               tone={custom.viirs_available ? "good" : "warn"}
@@ -181,17 +177,15 @@ export function SimulatorTab({ sim, sensors, onSelectPreset }: SimulatorTabProps
 
           {sim?.platforms_present && !sim.platforms_present.some((p) => p.startsWith("NOAA")) && (
             <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200 leading-relaxed">
-              {vi
-                ? `Bản raw này chỉ có ${sim.platforms_present.join(", ")}. Các cấu hình NOAA-20/21 vì vậy trùng tổng với all_sensors: đây là "không có dữ liệu nền tảng", không phải bằng chứng NOAA không đóng góp.`
-                : `This raw pull contains only ${sim.platforms_present.join(", ")}. NOAA-20/21 configs therefore equal all_sensors: that means "platform absent from the pull", not evidence that NOAA contributes nothing.`}
+              {t("lab.sim_platform_warn", { platforms: sim.platforms_present.join(", ") })}
             </p>
           )}
 
           {/* Dual Visual Charts */}
           <div className="grid gap-4 lg:grid-cols-2">
             <Section
-              title={vi ? "So sánh kịch bản cảm biến" : "Sensor Cohort Comparison"}
-              subtitle={vi ? "Tổng chỉ số hoạt động theo từng tập vệ tinh" : "Annual activity index across configurations"}
+              title={t("lab.sim_compare_title")}
+              subtitle={t("lab.sim_compare_sub")}
             >
               <div style={{ height: 260 }}>
                 <ResponsiveContainer width="100%" height="100%">
@@ -242,8 +236,8 @@ export function SimulatorTab({ sim, sensors, onSelectPreset }: SimulatorTabProps
             </Section>
 
             <Section
-              title={vi ? "Diễn biến 12 tháng (Kịch bản chọn)" : "Monthly Fire Profile (Selected Configuration)"}
-              subtitle={vi ? "Phân bố hoạt động trong năm theo từng tháng" : "Month-by-month activity index"}
+              title={t("lab.sim_monthly_title")}
+              subtitle={t("lab.sim_monthly_sub")}
             >
               <div style={{ height: 260 }}>
                 <ResponsiveContainer width="100%" height="100%">
@@ -285,19 +279,19 @@ export function SimulatorTab({ sim, sensors, onSelectPreset }: SimulatorTabProps
 
           {/* Configuration Matrix Table */}
           <Section
-            title={vi ? "Bảng so sánh chi tiết các kịch bản" : "Detailed Configuration Matrix"}
-            subtitle={vi ? "Đo lường độ lệch và tỷ lệ ô quan sát" : "Quantified deviation, observed fraction, and monthly breakdown"}
+            title={t("lab.sim_matrix_title")}
+            subtitle={t("lab.sim_matrix_sub")}
           >
             <div className="overflow-x-auto">
               <table className="w-full font-mono text-xs text-left">
                 <thead>
                   <tr className="border-b border-border/60 text-xs text-slate-400">
-                    <th className="pb-2 font-semibold">{vi ? "Cấu hình cảm biến" : "Configuration"}</th>
-                    <th className="pb-2 font-semibold text-right">{vi ? "Tổng năm" : "Year Total"}</th>
-                    <th className="pb-2 font-semibold text-right">{vi ? "Δ vs Tất cả" : "Δ vs All"}</th>
-                    <th className="pb-2 font-semibold text-right">{vi ? "Ô thực trắc" : "Observed Cells"}</th>
-                    <th className="pb-2 font-semibold text-right">{vi ? "Ô ước tính" : "Estimated Cells"}</th>
-                    <th className="pb-2 font-semibold text-center">{vi ? "Tháng đỉnh" : "Peak Month"}</th>
+                    <th className="pb-2 font-semibold">{t("lab.sim_th_config")}</th>
+                    <th className="pb-2 font-semibold text-right">{t("lab.sim_th_total")}</th>
+                    <th className="pb-2 font-semibold text-right">{t("lab.sim_th_delta")}</th>
+                    <th className="pb-2 font-semibold text-right">{t("lab.sim_th_observed")}</th>
+                    <th className="pb-2 font-semibold text-right">{t("lab.sim_th_estimated")}</th>
+                    <th className="pb-2 font-semibold text-center">{t("lab.sim_th_peak")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/30">
@@ -330,7 +324,7 @@ export function SimulatorTab({ sim, sensors, onSelectPreset }: SimulatorTabProps
                         <td className="py-2.5 text-right text-slate-400">{num(s.observed_cells)}</td>
                         <td className="py-2.5 text-right text-slate-400">{num(s.estimated_cells)}</td>
                         <td className="py-2.5 text-center text-slate-400">
-                          {vi ? "T" : "M"}{String(peak?.[0] || 1).padStart(2, "0")} ({compact(peak?.[1] || 0)})
+                          {t("calendar.month_abbr", { m: String(peak?.[0] || 1).padStart(2, "0") })} ({compact(peak?.[1] || 0)})
                         </td>
                       </tr>
                     );
@@ -343,9 +337,7 @@ export function SimulatorTab({ sim, sensors, onSelectPreset }: SimulatorTabProps
       ) : (
         <div className="rounded-2xl border border-dashed border-border/80 p-8 text-center text-slate-400">
           <p className="text-sm font-medium">
-            {vi
-              ? "Chọn các tham số ở bảng điều khiển bên trái rồi bấm 'Chạy mô phỏng sứ mệnh'."
-              : 'Select target parameters on the left and click "Run Mission Simulation".'}
+            {t("lab.sim_empty_hint")}
           </p>
         </div>
       )}

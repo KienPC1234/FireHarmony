@@ -26,7 +26,8 @@ interface NodePayload {
   titleEn: string;
   categoryVi: string;
   categoryEn: string;
-  badge?: string;
+  badgeVi?: string;
+  badgeEn?: string;
   badgeTone?: "emerald" | "amber" | "sky" | "blue" | "purple";
   shape?: string;
   formula?: string;
@@ -42,7 +43,8 @@ const ARCH_NODES_DATA: Record<string, NodePayload> = {
     titleEn: "Raw MODIS C6.1 Stream",
     categoryVi: "Dữ liệu vệ tinh",
     categoryEn: "Satellite Observation",
-    badge: "1 km · Terra & Aqua",
+    badgeVi: "1 km · Terra & Aqua",
+    badgeEn: "1 km · Terra & Aqua",
     badgeTone: "blue",
     shape: "[B, T=12, C=1]",
     formula: "x_{modis} = \\sum_{d \\in m} \\text{detections}(d)",
@@ -57,7 +59,8 @@ const ARCH_NODES_DATA: Record<string, NodePayload> = {
     titleEn: "Cyclic & Astronomical Encodings",
     categoryVi: "Đặc trưng phụ trợ",
     categoryEn: "Covariate Encodings",
-    badge: "Fourier Phase",
+    badgeVi: "Fourier Phase",
+    badgeEn: "Fourier Phase",
     badgeTone: "sky",
     shape: "[B, T=12, C=4]",
     formula: "[\\sin(2\\pi m/12), \\cos(2\\pi m/12), \\text{day\\_frac}, \\text{terra\\_frac}]",
@@ -72,7 +75,8 @@ const ARCH_NODES_DATA: Record<string, NodePayload> = {
     titleEn: "Regional Biome Embedding",
     categoryVi: "Đặc trưng không gian",
     categoryEn: "Spatial Biome Prior",
-    badge: "Spatial Prior",
+    badgeVi: "Spatial Prior",
+    badgeEn: "Spatial Prior",
     badgeTone: "purple",
     shape: "[B, d=8]",
     formula: "e_{aoi} = \\text{Embedding}(\\text{region\\_id})",
@@ -87,7 +91,8 @@ const ARCH_NODES_DATA: Record<string, NodePayload> = {
     titleEn: "Feature Tokenizer & Linear Projection",
     categoryVi: "Tiền xử lý học sâu",
     categoryEn: "Projection Layer",
-    badge: "Linear Projection",
+    badgeVi: "Linear Projection",
+    badgeEn: "Linear Projection",
     badgeTone: "sky",
     shape: "[B, T=12, d=64]",
     formula: "z = \\text{LayerNorm}(W_p [x_{modis} \\Vert c_{time} \\Vert e_{aoi}] + b_p)",
@@ -102,9 +107,10 @@ const ARCH_NODES_DATA: Record<string, NodePayload> = {
     titleEn: "Branch A: Operational B2 Seasonal Baseline",
     categoryVi: "Mỏ neo đối chứng nền tảng",
     categoryEn: "Baseline Reference Backbone",
-    badge: "BASELINE ĐỐI CHỨNG · MAE 2.387",
+    badgeVi: "ĐỐI CHỨNG · MAE 4.411,8",
+    badgeEn: "BASELINE · MAE 4,411.8",
     badgeTone: "sky",
-    shape: "[12] Hệ số thực nghiệm",
+    shape: "[12] Monthly Ratios",
     formula: "k_m = \\text{median}_{y \\in \\text{train}} \\left( \\frac{y_{viirs, y, m}}{x_{modis, y, m}} \\right)",
     descVi:
       "Mô hình thống kê đối chứng: Sử dụng 12 hệ số trung vị tỷ lệ theo tháng lịch sử. Ổn định toán học cao, hoàn toàn không rò rỉ dữ liệu.",
@@ -118,12 +124,13 @@ const ARCH_NODES_DATA: Record<string, NodePayload> = {
     titleEn: "Branch C: HTS 1° Tile-Seasonal Spatial Anchor",
     categoryVi: "Mô hình không gian dự phòng",
     categoryEn: "Spatial Fallback Anchor",
-    badge: "MỎ NEO KHÔNG GIAN · MAE 2.231",
+    badgeVi: "NEO KHÔNG GIAN · MAE 4.154,4",
+    badgeEn: "SPATIAL ANCHOR · MAE 4,154.4",
     badgeTone: "amber",
     shape: "[AOI-month]",
     formula: "\\hat{y}_{tile,m} = w\\,\\mathrm{median}_{tile,m} + (1-w)\\,B2_{aoi,m}",
     descVi:
-      "Chia AOI thành ô 1°, mỗi ô có tỷ lệ mùa riêng co về B2 (w=n/(n+3)); cộng ô-tháng lên AOI. Giảm MAE 6,5% và là mỏ neo không gian cho STAN.",
+      "Chia AOI thành ô 1°, mỗi ô có tỷ lệ mùa riêng co về B2 (w=n/(n+3)); cộng ô-tháng lên AOI. Giảm MAE 5,8% và là mỏ neo không gian cho STAN.",
     descEn:
       "Split the AOI into 1° tiles, each with a seasonal ratio shrunk toward B2 (w=n/(n+3)); spatial anchor for STAN.",
   },
@@ -133,14 +140,15 @@ const ARCH_NODES_DATA: Record<string, NodePayload> = {
     titleEn: "Branch B: STAN Spatio-Temporal Core (Operational)",
     categoryVi: "Mô hình Deep Learning chủ lực",
     categoryEn: "Primary Operational Deep Model",
-    badge: "VẬN HÀNH CHÍNH · MAE 2.129 (-10,8%)",
+    badgeVi: "CHỦ LỰC · MAE 3.765,8 (-14,6%)",
+    badgeEn: "OPERATIONAL · MAE 3,765.8 (-14.6%)",
     badgeTone: "emerald",
     shape: "Causal TCN + FiLM + Attention · NB2",
     formula: "\\hat{y}_{t} = \\text{HTS}_{t} \\cdot \\exp(f_{\\theta}(X_{t-11:t}, m_t, \\text{AOI}))",
     descVi:
-      "Kiến trúc học sâu chủ lực vận hành: Dilated Causal TCN kết hợp điều biến mùa FiLM, cơ chế chú ý tháng đích và hàm mất mát Negative Binomial NB2. Đạt mức giảm sai số -10,8% MAE (tỷ lệ thắng 98,3%).",
+      "Kiến trúc học sâu chủ lực vận hành: Dilated Causal TCN kết hợp điều biến mùa FiLM, cơ chế chú ý tháng đích và hàm mất mát Negative Binomial NB2. Giảm -14,6% MAE (tỷ lệ thắng 95,8%; 3.765,8 vs B2 4.411,8).",
     descEn:
-      "Primary operational architecture: Dilated causal TCN with seasonal FiLM modulation, target-month attention, and NB2 loss. Achieves -10.8% MAE reduction (98.3% win rate).",
+      "Primary operational architecture: Dilated causal TCN with seasonal FiLM modulation, target-month attention, and NB2 loss. Achieves -14.6% MAE reduction (95.8% win rate; 3,765.8 vs B2 4,411.8).",
     active: true,
   },
   gate_controller: {
@@ -149,14 +157,15 @@ const ARCH_NODES_DATA: Record<string, NodePayload> = {
     titleEn: "Statistical Gate Verification",
     categoryVi: "Khóa an toàn khoa học",
     categoryEn: "Statistical Safety Gate",
-    badge: "GATE ĐÃ MỞ · STAN VẬN HÀNH",
+    badgeVi: "CHỦ LỰC · STAN VẬN HÀNH",
+    badgeEn: "PRIMARY · STAN SERVED",
     badgeTone: "emerald",
     shape: "Boolean Control {0, 1}",
-    formula: "\\Delta \\text{MAE} = -10.8\\% < -2\\% \\land \\text{Upper CI} = -19.1 < 0 \\implies \\text{GATE PASSED}",
+    formula: "\\Delta \\text{MAE} = -14.6\\% \\land \\text{Win} = 95.8\\% \\land \\text{All 3 AOIs} > \\text{B2}",
     descVi:
-      "Cơ chế kiểm định an toàn: STAN đã vượt qua cổng kiểm định thống kê khắt khe (-10,8% MAE so với B2, 95% bootstrap CI [-534,8, -19,1] < 0) và được cấp quyền vận hành chính thức.",
+      "Kiểm định lựa chọn vận hành: STAN đạt MAE gộp thấp nhất (-14,6% vs B2, tỷ lệ thắng 95,8%) và cải thiện cả 3 vùng; 95% bootstrap CI [-1.452,9, +81,8] vẫn chứa 0.",
     descEn:
-      "Rigorous safety gate verification: STAN cleared statistical criteria (-10.8% MAE vs B2, 95% bootstrap CI [-534.8, -19.1] strictly below 0) and is promoted to primary operational service.",
+      "Operational selection check: STAN achieves the lowest pooled MAE (-14.6% vs B2, 95.8% win rate) and improves every AOI over B2, though 95% bootstrap CI [-1,452.9, +81.8] includes 0.",
     active: true,
   },
   output_telemetry: {
@@ -165,7 +174,8 @@ const ARCH_NODES_DATA: Record<string, NodePayload> = {
     titleEn: "Standardized Fire Activity Index",
     categoryVi: "Dòng dữ liệu đầu ra",
     categoryEn: "Calibrated Output Stream",
-    badge: "25 YEARS UNIFIED · 95% CI",
+    badgeVi: "25 NĂM THỐNG NHẤT · 95% CI",
+    badgeEn: "25 YEARS UNIFIED · 95% CI",
     badgeTone: "emerald",
     shape: "[B, 1] + [Lower, Upper]",
     formula: "\\hat{y}_t = \\text{HTS}_t \\cdot \\exp(\\delta_t) \\quad [\\text{STAN Operational}]",
@@ -178,9 +188,10 @@ const ARCH_NODES_DATA: Record<string, NodePayload> = {
 };
 
 function CustomArchNode({ data }: NodeProps) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const node = ARCH_NODES_DATA[data.id as string];
   if (!node) return null;
+  const badgeText = lang === "vi" ? node.badgeVi : node.badgeEn;
 
   const toneBorder =
     node.badgeTone === "emerald"
@@ -196,21 +207,21 @@ function CustomArchNode({ data }: NodeProps) {
   return (
     <div
       className={cn(
-        "rounded-xl border p-3.5 shadow-xl backdrop-blur-md transition-[border-color,background-color,box-shadow,transform] duration-150 text-xs w-[260px] min-h-[160px] flex flex-col justify-between",
+        "rounded-xl border p-3.5 shadow-xl backdrop-blur-md transition-[border-color,background-color,box-shadow,transform] duration-150 text-xs w-[290px] min-h-[168px] flex flex-col justify-between overflow-hidden",
         toneBorder,
         node.active && "ring-1 ring-cyan-400 shadow-cyan-500/20",
       )}
     >
       <Handle type="target" position={Position.Left} className="!bg-cyan-400 !w-2.5 !h-2.5" />
-      <div>
-        <div className="flex items-center justify-between gap-1 mb-1.5">
-          <span className="font-mono text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center justify-between gap-1 mb-1.5">
+          <span className="font-mono text-[10px] uppercase font-bold text-slate-400 tracking-wider truncate max-w-full">
             {t(`diagram.node_${node.id}_cat`)}
           </span>
-          {node.badge && (
+          {badgeText && (
             <span
               className={cn(
-                "px-1.5 py-0.5 rounded text-[9px] font-mono font-extrabold border shrink-0",
+                "px-1.5 py-0.5 rounded text-[9px] font-mono font-extrabold border max-w-full truncate",
                 node.badgeTone === "emerald"
                   ? "border-emerald-400 bg-emerald-950/60 text-emerald-300"
                   : node.badgeTone === "amber"
@@ -218,7 +229,7 @@ function CustomArchNode({ data }: NodeProps) {
                   : "border-cyan-400 bg-cyan-950/60 text-cyan-300",
               )}
             >
-              {node.badge}
+              {badgeText}
             </span>
           )}
         </div>
@@ -379,7 +390,7 @@ const INITIAL_EDGES: Edge[] = [
 ];
 
 export function ModelArchitectureDiagram() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
 
   const [selectedNodeId, setSelectedNodeId] = useState<string>("stan_core");
   const selectedNode = ARCH_NODES_DATA[selectedNodeId] ?? ARCH_NODES_DATA.stan_core;
@@ -463,7 +474,7 @@ export function ModelArchitectureDiagram() {
             </div>
           </div>
 
-          {selectedNode.badge && (
+          {(lang === "vi" ? selectedNode.badgeVi : selectedNode.badgeEn) && (
             <span
               className={cn(
                 "px-3 py-1 rounded-full text-xs font-mono font-extrabold border",
@@ -474,7 +485,7 @@ export function ModelArchitectureDiagram() {
                   : "bg-cyan-950/60 border-cyan-500/40 text-cyan-300",
               )}
             >
-              {selectedNode.badge}
+              {lang === "vi" ? selectedNode.badgeVi : selectedNode.badgeEn}
             </span>
           )}
         </div>

@@ -31,8 +31,7 @@ interface XrayTimelineViewProps {
 }
 
 export function XrayTimelineView({ months, units }: XrayTimelineViewProps) {
-  const { lang } = useLang();
-  const vi = lang === "vi";
+  const { t } = useLang();
 
   const chartData = useMemo(() => {
     return months.map((m) => {
@@ -80,38 +79,38 @@ export function XrayTimelineView({ months, units }: XrayTimelineViewProps) {
         <div data-ui-review="xray-metrics" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="min-w-0 rounded-xl border border-border/70 bg-slate-950/80 p-4 backdrop-blur space-y-2">
             <div className="flex items-start justify-between gap-1.5 text-[11px] font-semibold uppercase tracking-normal leading-5 text-slate-400">
-              <span className="min-w-0 flex-1 break-words">{vi ? "Hệ số k trung bình" : "Mean Scaling (k)"}</span>
+              <span className="min-w-0 flex-1 break-words">{t("xray.traj_k_label")}</span>
               <TrendingUp className="h-3.5 w-3.5 text-cyan-400" />
             </div>
             <p className="font-mono text-xl sm:text-2xl font-black leading-snug break-words text-cyan-300">{summary.avgK}x</p>
-            <p className="text-xs text-slate-400">{vi ? "MODIS phóng đại theo 1/k" : "MODIS upscaled by 1/k"}</p>
+            <p className="text-xs text-slate-400">{t("xray.traj_k_hint")}</p>
           </div>
 
           <div className="min-w-0 rounded-xl border border-border/70 bg-slate-950/80 p-4 backdrop-blur space-y-2">
             <div className="flex items-start justify-between gap-1.5 text-[11px] font-semibold uppercase tracking-normal leading-5 text-slate-400">
-              <span className="min-w-0 flex-1 break-words">{vi ? "Sai số tuyệt đối MAE" : "Holdout MAE"}</span>
+              <span className="min-w-0 flex-1 break-words">{t("xray.traj_mae_label")}</span>
               <Activity className="h-3.5 w-3.5 text-orange-400" />
             </div>
             <p className="font-mono text-xl sm:text-2xl font-black leading-snug break-words text-orange-300">±{summary.meanAbsError}</p>
-            <p className="text-xs text-slate-400">{vi ? "Độ lệch dư phát hiện tháng" : "Monthly detection residual"}</p>
+            <p className="text-xs text-slate-400">{t("xray.traj_mae_hint")}</p>
           </div>
 
           <div className="min-w-0 rounded-xl border border-border/70 bg-slate-950/80 p-4 backdrop-blur space-y-2">
             <div className="flex items-start justify-between gap-1.5 text-[11px] font-semibold uppercase tracking-normal leading-5 text-slate-400">
-              <span className="min-w-0 flex-1 break-words">{vi ? "Độ lệch thiên vị Mean Bias" : "Mean Bias Error"}</span>
+              <span className="min-w-0 flex-1 break-words">{t("xray.traj_bias_label")}</span>
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
             </div>
             <p className="font-mono text-xl sm:text-2xl font-black leading-snug break-words text-emerald-300">{summary.meanBias}</p>
-            <p className="text-xs text-slate-400">{vi ? "Hiệu chuẩn căn tâm 0" : "Zero-centered calibration"}</p>
+            <p className="text-xs text-slate-400">{t("xray.traj_bias_hint")}</p>
           </div>
 
           <div className="min-w-0 rounded-xl border border-border/70 bg-slate-950/80 p-4 backdrop-blur space-y-2">
             <div className="flex items-start justify-between gap-1.5 text-[11px] font-semibold uppercase tracking-normal leading-5 text-slate-400">
-              <span className="min-w-0 flex-1 break-words">{vi ? "Tương đồng tổng thể" : "Volume Parity"}</span>
+              <span className="min-w-0 flex-1 break-words">{t("xray.traj_parity_label")}</span>
               <Activity className="h-3.5 w-3.5 text-cyan-400" />
             </div>
             <p className="font-mono text-xl sm:text-2xl font-black leading-snug break-words text-white">{summary.harmonizedParity}</p>
-            <p className="text-xs text-slate-400">{vi ? "Chuỗi hiệu chuẩn vs VIIRS chuẩn" : "Harmonized vs VIIRS Reference"}</p>
+            <p className="text-xs text-slate-400">{t("xray.traj_parity_hint")}</p>
           </div>
         </div>
       )}
@@ -121,12 +120,10 @@ export function XrayTimelineView({ months, units }: XrayTimelineViewProps) {
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-3">
           <div>
             <h2 className="text-sm font-bold text-white tracking-tight">
-              {vi ? "Quỹ đạo quan trắc đa cảm biến theo thời gian" : "Multi-Sensor Observation Trajectory & Calibration Parity"}
+              {t("xray.traj_title")}
             </h2>
             <p className="text-xs text-slate-400">
-              {vi
-                ? "So sánh MODIS thô (1km, xám), VIIRS thực tế (375m, xanh lục) và Chuỗi đã chuẩn hóa (cam)"
-                : "Tracking raw MODIS (1km, grey), reference VIIRS (375m, emerald), and sensor-harmonized output (orange)"}
+              {t("xray.traj_sub")}
             </p>
           </div>
           <span className="font-mono text-xs px-2.5 py-0.5 rounded-full border border-cyan-500/30 bg-cyan-950/40 text-cyan-300 font-semibold">
@@ -152,23 +149,23 @@ export function XrayTimelineView({ months, units }: XrayTimelineViewProps) {
                         <span className="text-cyan-400 font-normal">k = {d.kRatio}</span>
                       </div>
                       <div className="flex justify-between text-slate-400">
-                        <span>{vi ? "MODIS thô (1 km):" : "Raw MODIS (1 km):"}</span>
+                        <span>{t("xray.traj_tip_modis")}</span>
                         <span className="text-slate-200 font-semibold">{num(d.MODIS)}</span>
                       </div>
                       <div className="flex justify-between text-emerald-400">
-                        <span>{vi ? "VIIRS tham chiếu (375 m):" : "VIIRS Reference (375 m):"}</span>
+                        <span>{t("xray.traj_tip_viirs")}</span>
                         <span className="font-semibold">{num(d.VIIRS)}</span>
                       </div>
                       <div className="flex justify-between text-orange-400 font-bold">
-                        <span>{vi ? "Chỉ số hiệu chuẩn:" : "Harmonized Index:"}</span>
+                        <span>{t("xray.traj_tip_harm")}</span>
                         <span>{num(d.Harmonized)}</span>
                       </div>
                       <div className="flex justify-between text-cyan-300">
-                        <span>{vi ? "Tổng ma trận Calendar:" : "Calendar Matrix Total:"}</span>
+                        <span>{t("xray.traj_tip_cal")}</span>
                         <span>{d.Calendar != null ? num(d.Calendar) : "N/A"}</span>
                       </div>
                       <div className="border-t border-border/30 pt-1 flex justify-between text-xs text-slate-400">
-                        <span>{vi ? "Sai số hiệu chuẩn:" : "Calibration Residual:"}</span>
+                        <span>{t("xray.traj_tip_resid")}</span>
                         <span className={d.Residual > 0 ? "text-amber-400" : "text-sky-400"}>
                           {d.Residual > 0 ? "+" : ""}{d.Residual}
                         </span>
@@ -183,21 +180,21 @@ export function XrayTimelineView({ months, units }: XrayTimelineViewProps) {
                 stroke="#64748b"
                 strokeWidth={1.5}
                 dot={false}
-                name={vi ? "MODIS thô (1 km)" : "Raw MODIS (1 km)"}
+                name={t("xray.traj_legend_modis")}
               />
               <Line
                 dataKey="VIIRS"
                 stroke="#10b981"
                 strokeWidth={2}
                 dot={false}
-                name={vi ? "VIIRS tham chiếu (375 m)" : "Reference VIIRS (375 m)"}
+                name={t("xray.traj_legend_viirs")}
               />
               <Line
                 dataKey="Harmonized"
                 stroke="#f97316"
                 strokeWidth={2}
                 dot={false}
-                name={vi ? "Mô hình hiệu chuẩn thống kê" : "Harmonized Stat Model"}
+                name={t("xray.traj_legend_harm")}
               />
               <Line
                 dataKey="Calendar"
@@ -206,7 +203,7 @@ export function XrayTimelineView({ months, units }: XrayTimelineViewProps) {
                 strokeDasharray="4 4"
                 dot={false}
                 connectNulls={false}
-                name={vi ? "Chỉ số Calendar công bố" : "Published Calendar Index"}
+                name={t("xray.traj_legend_cal")}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -216,10 +213,10 @@ export function XrayTimelineView({ months, units }: XrayTimelineViewProps) {
         <div className="border-t border-border/40 pt-4 space-y-2">
           <div className="flex items-center justify-between text-xs">
             <span className="font-bold text-slate-300">
-              {vi ? "Biểu đồ sai số dư (Residuals: Harmonized - VIIRS Reference)" : "Model Residual Divergence (Δ = Harmonized - VIIRS Reference)"}
+              {t("xray.traj_resid_title")}
             </span>
             <span className="text-xs text-slate-400 font-mono">
-              {vi ? "Đường 0 thể hiện sự trùng khớp hoàn toàn với VIIRS" : "Zero-line indicates exact agreement with VIIRS"}
+              {t("xray.traj_resid_hint")}
             </span>
           </div>
           <div style={{ height: 130 }}>
@@ -237,7 +234,7 @@ export function XrayTimelineView({ months, units }: XrayTimelineViewProps) {
                       <div className="rounded-lg border border-border/70 bg-slate-900 p-2 font-mono text-xs">
                         <span className="text-white font-bold">{d.t}: </span>
                         <span className={d.Residual > 0 ? "text-orange-400" : "text-sky-400"}>
-                          {d.Residual > 0 ? "+" : ""}{d.Residual} {vi ? "điểm phát hiện" : "detections"}
+                          {d.Residual > 0 ? "+" : ""}{d.Residual} {t("xray.traj_detections")}
                         </span>
                       </div>
                     );

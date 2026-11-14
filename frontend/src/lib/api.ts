@@ -79,6 +79,38 @@ async function request<T>(path: string, init?: RequestInitWithTimeout): Promise<
 
 const get = <T,>(path: string, timeoutMs?: number, signal?: AbortSignal) =>
   request<T>(path, { method: "GET", timeoutMs, signal });
+
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const responseCache = new Map<string, { ts: number; value: unknown }>();
+const inflightRequests = new Map<string, Promise<unknown>>();
+
+function cachedGet<T>(path: string, timeoutMs?: number, signal?: AbortSignal): Promise<T> {
+  const now = Date.now();
+  const hit = responseCache.get(path);
+  if (hit && now - hit.ts < CACHE_TTL_MS) {
+    return Promise.resolve(hit.value as T);
+  }
+  const existing = inflightRequests.get(path);
+  if (existing && !signal) {
+    return existing as Promise<T>;
+  }
+  const p = get<T>(path, timeoutMs, signal).then((val) => {
+    responseCache.set(path, { ts: Date.now(), value: val });
+    return val;
+  }).finally(() => {
+    if (inflightRequests.get(path) === p) {
+      inflightRequests.delete(path);
+    }
+  });
+  if (!signal) inflightRequests.set(path, p);
+  return p;
+}
+
+export function clearApiCache(): void {
+  responseCache.clear();
+  inflightRequests.clear();
+}
+
 const post = <T,>(path: string, body?: unknown, timeoutMs?: number, signal?: AbortSignal) =>
   request<T>(path, { method: "POST", body: JSON.stringify(body ?? {}), timeoutMs, signal });
 
@@ -95,6 +127,11 @@ export interface CalendarResponse {
     coverage?: number[][];
     eligible_mask?: boolean[][];
     z_unit?: string;
+    platform_mix?: Record<string, Record<string, number>>;
+    anomaly_n_years?: unknown;
+    anomaly_reason?: unknown;
+    anomaly_eligibility?: unknown;
+    anomaly_baseline?: unknown;
     completeness?: Record<string, {
       days: number;
       detection_days?: number;
@@ -119,6 +156,15 @@ export interface CalendarResponse {
   ml_meta?: Record<string, unknown> | null;
   coverage?: Record<string, unknown>;
   platform_mix?: Record<string, Record<string, number>>;
+  monthly?: Record<string, unknown>;
+  filters?: Record<string, unknown>;
+  validation_unit?: string;
+  spatial_validation?: unknown;
+  anomaly_n_years?: unknown;
+  anomaly_reason?: unknown;
+  anomaly_eligibility?: unknown;
+  anomaly_baseline?: unknown;
+  empty_filter?: boolean;
   calibration?: {
     _calibration_status?: string;
     _n_months?: number;
@@ -181,6 +227,8 @@ export interface MapCellsResponse {
   capped_at: number;
   filter_hash?: string;
   source_scope?: string;
+  from_date?: string | null;
+  to_date?: string | null;
 }
 
 export interface SimRow {
@@ -199,11 +247,16 @@ export interface SimRow {
   estimated_cells: number;
   n_cells: number;
   dropped_cells: number;
+  months_with_both_sensors?: number;
+  k_by_month?: Record<string, number | null>;
+  ratio_mode?: string;
+  calendar?: unknown;
 }
 export interface SimResponse {
   aoi: string; data: string; year: number;
   validation_unit: string; note: string;
   platforms_present?: string[];
+  coverage?: unknown;
   simulations: SimRow[];
 }
 export interface BlindSpotDay {
@@ -213,10 +266,24 @@ export interface BlindSpotDay {
   modis_detections: number;
   viirs_detections: number;
   status: string;
+  clear_sky_verified?: boolean | null;
+}
+export interface BlindSpotCoverage {
+  partial?: boolean | null;
+  nrt?: boolean | null;
+  coverage_class?: string;
+  coverage_status?: string;
+  coverage_ratio?: number | null;
+  paired_days?: number | null;
+  days_in_month?: number | null;
+  missing_days?: number[];
+  sparse_detections?: boolean;
 }
 export interface BlindSpotResponse {
   aoi: string; data: string; ym: string;
   coverage_class: string;
+  /** Month-level ledger entry (partial/NRT flags); null when unknown. */
+  coverage?: BlindSpotCoverage | null;
   paired_coverage_ratio: number | null;
   coverage_metric?: string;
   observation_footprint?: string;
@@ -233,6 +300,9 @@ export interface SpatialResponse {
   modis_only_coarse_cells: number;
   modis_detections: number; viirs_detections: number;
   mae_coarse_cell: number | null;
+  aoi_month?: string;
+  res_deg?: number;
+  k_used?: unknown;
 }
 export interface CrossResponse {
   available: boolean; reason?: string;
@@ -241,7 +311,14 @@ export interface CrossResponse {
   joined?: Array<{ ym: string; activity_index: number; burned_area: number }>;
 }
 
-export interface Aoi { id: string; label: string }
+export interface Aoi {
+  id: string;
+  label: string;
+  bbox?: string | null;
+  months?: number;
+  coverage_class?: string;
+  dataset_ready?: boolean;
+}
 
 export interface AskResponse {
   answer: string;
@@ -282,6 +359,14 @@ export interface BacktestResponse {
   comparisons?: Record<string, ComparisonRow>;
   hgb_residual_enabled?: boolean;
   hgb_gate?: Record<string, unknown> | null;
+  primary_method_id?: string;
+  primary_gate?: Record<string, unknown> | null;
+  pooled_full_month?: unknown;
+  excluded_months?: unknown;
+  coverage_class?: string;
+  coverage?: unknown;
+  n_test_full?: number;
+  note?: string;
   hts?: {
     method_id: string;
     n_test: number;
@@ -365,27 +450,39 @@ export interface UploadDatasetResponse {
 }
 
 export const api = {
-  health: () => get<{ status: string; torch: boolean }>("/api/health"),
+  health: () => get<{ status: string; torch: boolean; service?: string; uptime_s?: number; primary_method_id?: string; baseline_method_id?: string; methods_available?: string[] }>("/api/health"),
+  progress: (aoi = "vietnam", data = "raw") =>
+    get<{ aoi: string; data: string; stage: string; percent: number; detail: string }>(`/api/firms/progress?aoi=${aoi}&data=${data}`),
   schema: () => get<{ fields: string[] }>("/api/firms/schema"),
   sample: (limit = 200, aoi = "vietnam") => get<{ count: number; records: Record<string, unknown>[] }>(`/api/firms/sample?limit=${limit}&aoi=${aoi}`),
-  aois: () => get<{ aois: Aoi[] }>("/api/firms/aois"),
-  dataStatus: () => get<{ datasets: Array<{ aoi: string; sample_rows: number; sample_bytes: number; raw_ready?: boolean; dataset_ready?: boolean; raw_files?: number }>; raw_count: number; raw_files: Array<{ file: string; bytes: number }> }>("/api/firms/data-status"),
-  htsStatus: () => get<{ trained: boolean; candidate?: boolean; served?: boolean; n_test?: number; hts_mae?: number; b2_mae?: number; mean_gain_vs_b2?: number; per_aoi?: Record<string, MetricRow>; comparisons?: Record<string, ComparisonRow>; gate?: { rule: string; passed: boolean }; series?: Record<string, unknown> }>("/api/firms/hts-status"),
-  stanStatus: () => get<{ trained: boolean; candidate?: boolean; served?: boolean; safe?: Record<string, unknown>; retrospective?: Record<string, unknown> }>("/api/firms/stan-status"),
+  aois: () => cachedGet<{ aois: Aoi[] }>("/api/firms/aois"),
+  /** CLAIM-024: register a custom AOI in the server registry.
+   * POST /api/firms/aois {id?, label, bbox:[minLon,minLat,maxLon,maxLat]}
+   * -> {id, label, bbox:"x0,y0,x1,y1"} (400 invalid, 409 duplicate).
+   * Clears the shared GET cache so a fresh GET /aois sees the entry. */
+  createAoi: async (label: string, bbox: [number, number, number, number], id?: string) => {
+    const created = await post<{ id: string; label: string; bbox: string }>(
+      "/api/firms/aois", id ? { id, label, bbox } : { label, bbox });
+    clearApiCache();
+    return created;
+  },
+  dataStatus: () => cachedGet<{ datasets: Array<{ aoi: string; sample_rows: number; sample_bytes: number; raw_ready?: boolean; dataset_ready?: boolean; raw_files?: number; date_range?: [string, string] | null; full_months?: number }> ; raw_count: number; raw_files: Array<{ file: string; bytes: number }> }>("/api/firms/data-status"),
+  htsStatus: () => cachedGet<{ trained: boolean; candidate?: boolean; served?: boolean; n_test?: number; hts_mae?: number; b2_mae?: number; mean_gain_vs_b2?: number; per_aoi?: Record<string, MetricRow>; comparisons?: Record<string, ComparisonRow>; gate?: { rule: string; passed: boolean }; series?: Record<string, unknown> }>("/api/firms/hts-status"),
+  stanStatus: () => cachedGet<{ trained: boolean; candidate?: boolean; served?: boolean; safe?: Record<string, unknown>; retrospective?: Record<string, unknown> }>("/api/firms/stan-status"),
   calendar: (
     limit = 25000, bbox?: string, aoi = "vietnam", data = "raw",
     method = "stat", dataset?: string, qa_min = "all", platform_set = "all",
     geometry?: string, from_date?: string, to_date?: string,
     source_type = "all", signal?: AbortSignal,
   ) =>
-    get<CalendarResponse>(`/api/firms/calendar?limit=${limit}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}&source_type=${source_type}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}`, dataTimeout(data), signal),
+    cachedGet<CalendarResponse>(`/api/firms/calendar?limit=${limit}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}&source_type=${source_type}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}`, dataTimeout(data), signal),
   mapCells: (
     ym: string, bbox?: string, aoi = "vietnam", data = "raw",
     method = "stat", dataset?: string, qa_min = "all", platform_set = "all",
     geometry?: string, zoom = 6, from_date?: string, to_date?: string,
-    source_type = "all", signal?: AbortSignal,
+    source_type = "all", signal?: AbortSignal, max_cells?: number,
   ) =>
-    get<MapCellsResponse>(`/api/firms/map-cells?ym=${ym}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}&source_type=${source_type}&zoom=${zoom}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}`, dataTimeout(data), signal),
+    cachedGet<MapCellsResponse>(`/api/firms/map-cells?ym=${ym}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}&source_type=${source_type}&zoom=${zoom}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}${max_cells != null ? `&max_cells=${max_cells}` : ""}`, dataTimeout(data), signal),
   harmonize: (records: Record<string, unknown>[]) =>
     post<CalendarResponse>("/api/firms/harmonize", { records }),
   validate: (records: Record<string, unknown>[]) =>
@@ -397,23 +494,33 @@ export const api = {
   askLlm: (question: string, opts?: { aoi?: string; data?: string; bbox?: string; method?: string; qa_min?: string; platform_set?: string }) =>
     post<AskResponse & { llm_used: boolean; model?: string; provider?: string; reason?: string }>(
       "/api/firms/ask-llm", { question, ...opts }, dataTimeout(opts?.data)),
-  evidence: (aoi: string, data: string, method: string, year: number, month: number, qa_min = "all", platform_set = "all") =>
-    get<Record<string, unknown>>(
-      `/api/firms/evidence?aoi=${aoi}&data=${data}&method=${method}&year=${year}&month=${month}&qa_min=${qa_min}&platform_set=${platform_set}`, dataTimeout(data)),
-  explainMonth: (body: { aoi: string; data: string; method: string; year: number; month: number; question?: string; qa_min?: string; platform_set?: string; use_llm?: boolean }) =>
+  /**
+   * P2-07 filter-threading contract. `/evidence` is AOI-month scoped: besides
+   * aoi/data/method/year/month/qa_min/platform_set the server only honors a
+   * custom `bbox`. `geometry`, `dataset`, `from_date`/`to_date` and
+   * `source_type` are accepted here for call-site uniformity but are NOT
+   * forwarded, because the card would otherwise imply per-filter evidence
+   * the backend never computed. The same applies to `simulate`,
+   * `blindSpots` and `spatialCheck` below, which have no bbox parameter
+   * server-side at all — their cards always quote the whole AOI.
+   */
+  evidence: (aoi: string, data: string, method: string, year: number, month: number, qa_min = "all", platform_set = "all", filters?: { bbox?: string; geometry?: string; dataset?: string; from_date?: string; to_date?: string; source_type?: string }) =>
+    cachedGet<Record<string, unknown>>(
+      `/api/firms/evidence?aoi=${aoi}&data=${data}&method=${method}&year=${year}&month=${month}&qa_min=${qa_min}&platform_set=${platform_set}${filters?.bbox ? `&bbox=${encodeURIComponent(filters.bbox)}` : ""}`, dataTimeout(data)),
+  explainMonth: (body: { aoi: string; data: string; method: string; year: number; month: number; question?: string; qa_min?: string; platform_set?: string; use_llm?: boolean; bbox?: string }) =>
     post<{ answer: string; llm_used: boolean; model?: string; evidence: Record<string, unknown>; suggestions: string[] }>(
       "/api/firms/explain-month", body, dataTimeout(body.data)),
   simulate: (aoi: string, data: string, year: number, sensors?: string[], qa_min = "all", platform_set = "all") =>
-    get<SimResponse>(
+    cachedGet<SimResponse>(
       `/api/firms/simulate?aoi=${aoi}&data=${data}&year=${year}&qa_min=${qa_min}&platform_set=${platform_set}${sensors?.length ? `&sensors=${encodeURIComponent(sensors.join(","))}` : ""}`, dataTimeout(data)),
   blindSpots: (aoi: string, data: string, year: number, month: number, qa_min = "all", platform_set = "all") =>
-    get<BlindSpotResponse>(
+    cachedGet<BlindSpotResponse>(
       `/api/firms/blind-spots?aoi=${aoi}&data=${data}&year=${year}&month=${month}&qa_min=${qa_min}&platform_set=${platform_set}`, dataTimeout(data)),
-  investigate: (body: { question: string; aoi: string; data: string; method?: string; year?: number; month?: number; use_llm?: boolean }) =>
+  investigate: (body: { question: string; aoi: string; data: string; method?: string; year?: number; month?: number; use_llm?: boolean; bbox?: string }) =>
     post<{ answer: string; llm_used: boolean; tools_used: string[]; evidence: Record<string, unknown> | null; limitations: string[]; suggestions: string[]; citations: string[] }>(
       "/api/firms/investigate", body, dataTimeout(body.data)),
   investigateStream: async (
-    body: { question: string; aoi: string; data: string; method?: string; year?: number; month?: number; use_llm?: boolean; qa_min?: string; platform_set?: string },
+    body: { question: string; aoi: string; data: string; method?: string; year?: number; month?: number; use_llm?: boolean; qa_min?: string; platform_set?: string; bbox?: string },
     callbacks: {
       onMeta?: (meta: {
         tools_used: string[];
@@ -481,26 +588,26 @@ export const api = {
       else throw err;
     }
   },
-  spatialCheck: (aoi: string, data: string, year: number, month: number) =>
-    get<SpatialResponse>(
-      `/api/firms/spatial-check?aoi=${aoi}&data=${data}&year=${year}&month=${month}`, dataTimeout(data)),
+  spatialCheck: (aoi: string, data: string, year: number, month: number, res_deg?: number, signal?: AbortSignal) =>
+    cachedGet<SpatialResponse>(
+      `/api/firms/spatial-check?aoi=${aoi}&data=${data}&year=${year}&month=${month}${res_deg != null ? `&res_deg=${res_deg}` : ""}`, dataTimeout(data), signal),
   crossValidate: (body: { aoi: string; data: string; series: Array<{ year: number; month: number; burned_area: number }> }) =>
     post<CrossResponse>("/api/firms/cross-validate", body, dataTimeout(body.data)),
   coverage: (aoi = "vietnam", data = "raw") =>
-    get<Record<string, unknown>>(`/api/firms/coverage?aoi=${aoi}&data=${data}`, dataTimeout(data)),
+    cachedGet<Record<string, unknown>>(`/api/firms/coverage?aoi=${aoi}&data=${data}`, dataTimeout(data)),
   qaSummary: (aoi: string, data: string) =>
-    get<{ sampled_rows: number; by_confidence: Record<string, number>; by_satellite: Record<string, number>; warnings: string[] }>(
+    cachedGet<{ sampled_rows: number; by_confidence: Record<string, number>; by_satellite: Record<string, number>; warnings: string[] }>(
       `/api/firms/qa-summary?aoi=${aoi}&data=${data}`, dataTimeout(data)),
-  llmStatus: () => get<{ llm_available: boolean; provider: string; model: string; models: string[] }>(
+  llmStatus: () => cachedGet<{ llm_available: boolean; provider: string; model: string; models: string[] }>(
     "/api/firms/llm-status"),
   briefUrl: (bbox?: string, aoi = "vietnam", data = "raw", method = "stat", dataset?: string, qa_min = "all", platform_set = "all", source_type = "all") =>
     `${BASE}/api/firms/brief?aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}&source_type=${source_type}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}`,
-  dlInfo: () => get<{ has_torch: boolean; models: Array<Record<string, string>> }>("/api/firms/dl-info"),
+  dlInfo: () => cachedGet<{ has_torch: boolean; models: Array<Record<string, string>> }>("/api/firms/dl-info"),
   exportDetectionsUrl: (
     bbox?: string, aoi = "vietnam", data = "raw", dataset?: string,
     qa_min = "all", platform_set = "all", geometry?: string,
-    from_date?: string, to_date?: string, source_type = "all",
-  ) => `${BASE}/api/firms/export-detections?aoi=${aoi}&data=${data}&qa_min=${qa_min}&platform_set=${platform_set}&source_type=${source_type}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}`,
+    from_date?: string, to_date?: string, source_type = "all", limit?: number,
+  ) => `${BASE}/api/firms/export-detections?aoi=${aoi}&data=${data}&qa_min=${qa_min}&platform_set=${platform_set}&source_type=${source_type}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}${limit != null ? `&limit=${limit}` : ""}`,
   exportUrl: (
     limit = 25000, bbox?: string, aoi = "vietnam", data = "raw",
     method = "stat", dataset?: string, qa_min = "all", platform_set = "all",
@@ -517,14 +624,40 @@ export const api = {
     }
     const body = await readBody(res);
     if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`, body);
+    clearApiCache();
     return body as UploadDatasetResponse;
   },
+  /** P2-15: admin ingest of a real FIRMS CSV (`POST /api/firms/ingest`).
+   * New raw files change every cached card, so the shared GET cache is
+   * cleared on success — a stale calendar after ingest is a truth bug. */
+  ingest: async (file: File, aoi = "vietnam", source = "upload"): Promise<{
+    file: string; bytes: number; sha256: string; aoi: string; source: string;
+    rows: number; clean: number; rejected: number;
+    errors: Array<Record<string, unknown>>;
+  }> => {
+    const form = new FormData();
+    form.append("file", file);
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/api/firms/ingest?aoi=${encodeURIComponent(aoi)}&source=${encodeURIComponent(source)}`, { method: "POST", body: form });
+    } catch (e) {
+      throw new ApiError(0, "Cannot reach the API. Is the backend running on :8000?", e);
+    }
+    const body = await readBody(res);
+    if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`, body);
+    clearApiCache();
+    return body as {
+      file: string; bytes: number; sha256: string; aoi: string; source: string;
+      rows: number; clean: number; rejected: number;
+      errors: Array<Record<string, unknown>>;
+    };
+  },
   xray: (aoi = "vietnam", data = "raw") =>
-    get<{ aoi: string; data_source: string; units: string; backtest_metrics: Record<string, Record<string, number>> | null; stan_trained: boolean; hts_trained: boolean; primary_method_id?: string; primary_gate?: Record<string, unknown>; months: Array<{ year: number; month: number; modis_raw: number; viirs_ref: number; adjusted_stat: number; adjusted_calendar: number | null; k_used: number }> }>(
+    cachedGet<{ aoi: string; data_source: string; units: string; backtest_metrics: Record<string, Record<string, number>> | null; stan_trained: boolean; hts_trained: boolean; primary_method_id?: string; primary_gate?: Record<string, unknown>; months: Array<{ year: number; month: number; modis_raw: number; viirs_ref: number; adjusted_stat: number; adjusted_calendar: number | null; k_used: number }> }>(
       `/api/firms/xray?aoi=${aoi}&data=${data}`, dataTimeout(data)),
-  backtest: (aoi = "vietnam", data = "raw") =>
-    get<BacktestResponse>(
-      `/api/firms/backtest?aoi=${aoi}&data=${data}`, dataTimeout(data)),
+  backtest: (aoi = "vietnam", data = "raw", test_years?: number, signal?: AbortSignal) =>
+    cachedGet<BacktestResponse>(
+      `/api/firms/backtest?aoi=${aoi}&data=${data}${test_years != null ? `&test_years=${test_years}` : ""}`, dataTimeout(data), signal),
   /** Download a CSV export as a file instead of navigating to the URL, so a
    * backend 502/timeout surfaces as an inline error instead of a blank page. */
   downloadFile: async (url: string, filename: string, timeoutMs = RAW_TIMEOUT_MS): Promise<void> => {
@@ -534,6 +667,12 @@ export const api = {
     try {
       res = await fetch(url.startsWith("http") ? url : `${BASE}${url}`, { signal: controller.signal });
     } catch (e: unknown) {
+      // P2-15: an abort is a server-side timeout, not a dead backend. Report
+      // which one so the UI does not tell the user to restart :8000 when the
+      // export simply needed a narrower range.
+      if ((e as { name?: string })?.name === "AbortError") {
+        throw new ApiError(0, `Download timed out after ${Math.round(timeoutMs / 1000)}s. Try a narrower date range or the sample feed.`, e);
+      }
       throw new ApiError(0, "Cannot reach the API. Is the backend running on :8000?", e);
     } finally {
       clearTimeout(timeoutId);
@@ -541,6 +680,14 @@ export const api = {
     if (!res.ok) {
       const text = (await res.text()).slice(0, 2000);
       throw new ApiError(res.status, `${res.status} ${res.statusText}`, text);
+    }
+    try {
+      // Contract de-frag: surface export metadata when the server exposes it.
+      // CORS must explicitly expose X-* headers; missing headers are fine.
+      res.headers.get("X-Row-Count");
+      res.headers.get("X-Filter-Hash");
+    } catch {
+      // Ignore: headers simply aren't visible without CORS exposure.
     }
     const blob = await res.blob();
     const objUrl = URL.createObjectURL(blob);
@@ -560,4 +707,32 @@ export const api = {
 export function describeError(e: unknown): string {
   if (e instanceof ApiError) return typeof e.detail === "string" ? e.detail : e.message;
   return e instanceof Error ? e.message : String(e);
+}
+
+/**
+ * Extract a backend `error_code` from an ApiError. FastAPI wraps it as
+ * `{detail: {error_code}}`, while some fixtures/proxies use a top-level
+ * `error_code`; check both so callers can tell "server has no raw" apart
+ * from "this filter matched no rows" (both surface as 404 `no_raw_data`).
+ */
+export function readErrorCode(e: unknown): string | undefined {
+  const d = (e as ApiError)?.detail as unknown;
+  if (d && typeof d === "object") {
+    const rec = d as Record<string, unknown>;
+    if (typeof rec.error_code === "string") return rec.error_code;
+    const inner = rec.detail as Record<string, unknown> | undefined;
+    if (inner && typeof inner.error_code === "string") return inner.error_code;
+  }
+  return undefined;
+}
+
+/**
+ * Prefer the nested `calendar.platform_mix` (backend canonical location)
+ * with fallback to the legacy top-level `platform_mix`. Both stay optional
+ * so existing call-sites keep working.
+ */
+export function getPlatformMix(
+  cal: CalendarResponse,
+): Record<string, Record<string, number>> | undefined {
+  return cal.calendar?.platform_mix ?? cal.platform_mix;
 }

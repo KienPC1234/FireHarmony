@@ -42,8 +42,13 @@ export function EvidencePage() {
   const aoi = sp.get("aoi") || "vietnam";
   const data = sp.get("data") || "raw";
   const ymParam = sp.get("ym") || "2025-03";
+  // Same filter keys as /calendar so the evidence card quotes the same cells.
+  const qaMin = sp.get("qa_min") || "all";
+  const platformSet = sp.get("platform_set") || "all";
 
   const [yearStr, monthStr] = ymParam.split("-");
+  // No year clamp: raw carries NRT months past 2025 and the calendar renders
+  // them with partial/NRT coverage flags, so ?ym=2026-11 must stay 2026.
   const year = parseInt(yearStr, 10) || 2025;
   const month = parseInt(monthStr, 10) || 3;
 
@@ -51,6 +56,7 @@ export function EvidencePage() {
   const [coverage, setCoverage] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
   const [selectedDay, setSelectedDay] = useState<{
     day: number;
     modisReq: boolean;
@@ -60,12 +66,16 @@ export function EvidencePage() {
   } | null>(null);
 
   useEffect(() => {
+    setSelectedDay(null);
+  }, [aoi, year, month]);
+
+  useEffect(() => {
     let active = true;
     setLoading(true);
     setError(null);
 
     Promise.all([
-      api.blindSpots(aoi, data, year, month).catch((err) => {
+      api.blindSpots(aoi, data, year, month, qaMin, platformSet).catch((err) => {
         if (active) setError(err);
         return null;
       }),
@@ -80,7 +90,7 @@ export function EvidencePage() {
     return () => {
       active = false;
     };
-  }, [aoi, data, year, month]);
+  }, [aoi, data, year, month, qaMin, platformSet, reloadNonce]);
 
   const handleAoiChange = (newAoi: string) => {
     setSp((prev) => {
@@ -98,6 +108,8 @@ export function EvidencePage() {
       next.set("aoi", aoi);
       next.set("data", data);
       next.set("ym", newYm);
+      // qa_min/platform_set ride along untouched so the card stays
+      // comparable with the calendar view it was opened from.
       return next;
     });
   };
@@ -113,6 +125,9 @@ export function EvidencePage() {
   const requestDays = days.filter((d) => d.modis_requested || d.viirs_requested).length;
 
   const coverageRatio = spots?.paired_coverage_ratio ?? (daysInMonth > 0 ? pairedDays / daysInMonth : 0);
+  // Month-ledger flags from /blind-spots: NRT pull and/or verified-partial
+  // coverage for the requested period (e.g. 2026 NRT months in raw).
+  const ledger = spots?.coverage ?? null;
   const threshold = spots?.eligibility_threshold ?? 0.9;
   const eligibility =
     coverageRatio >= threshold
@@ -167,12 +182,12 @@ export function EvidencePage() {
       <GlobalContextBar />
       {!loading && (
       <SectionQuickNav
-        title={vi ? "Đi đến" : "On this page"}
+        title={t("evidence.quick_nav_title")}
         items={[
-          { id: "evidence-verdict", label: vi ? "Kết luận" : "Verdict" },
-          { id: "evidence-scope", label: vi ? "Khu vực & tháng" : "Area & month" },
-          { id: "evidence-matrix", label: vi ? "Ma trận quan trắc" : "Observation matrix" },
-          { id: "evidence-limits", label: vi ? "Giới hạn" : "Limitations" },
+          { id: "evidence-verdict", label: t("evidence.nav_verdict") },
+          { id: "evidence-scope", label: t("evidence.nav_scope") },
+          { id: "evidence-matrix", label: t("evidence.nav_matrix") },
+          { id: "evidence-limits", label: t("evidence.nav_limits") },
         ]}
       />
       )}
@@ -181,12 +196,10 @@ export function EvidencePage() {
       {coverage && coverage.request_coverage === true && coverage.dataset_ready === false && (
         <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-4 py-3 text-sm text-amber-100">
           <p className="font-semibold">
-            {vi ? "Sổ yêu cầu có, dữ liệu không có" : "Request ledger present, dataset absent"}
+            {t("evidence.ledger_title")}
           </p>
           <p className="text-xs text-amber-200/90">
-            {vi
-              ? "Các tháng bên dưới là lịch sử yêu cầu tải, không phải dữ liệu NASA đang có trên máy chủ. dataset_ready=false; observation coverage vẫn chưa xác minh."
-              : "The months below are a download-request ledger, not NASA data present on this server. dataset_ready=false; observation coverage remains unverified."}
+            {t("evidence.ledger_desc")}
           </p>
         </div>
       )}
@@ -240,17 +253,29 @@ export function EvidencePage() {
             <span className="text-slate-600 hidden sm:inline">|</span>
             <span className="text-slate-400 hidden sm:inline">{t("evidence.threshold")}</span>
             <span className="font-semibold text-cyan-300 hidden sm:inline">{(threshold * 100).toFixed(0)}%</span>
+            {ledger?.nrt === true && (
+              <span className="rounded-full border border-violet-500/40 bg-violet-950/40 px-2 py-0.5 font-mono text-[11px] font-bold uppercase text-violet-300">
+                {t("evidence.nrt_badge")}
+              </span>
+            )}
+            {ledger?.partial === true && (
+              <span className="rounded-full border border-amber-500/40 bg-amber-950/40 px-2 py-0.5 font-mono text-[11px] font-bold uppercase text-amber-300">
+                {t("common.partial_coverage")}
+              </span>
+            )}
           </div>
         </div>
 
         <p className="text-xs text-slate-300 leading-relaxed font-sans">
           {eligibility === "ELIGIBLE"
-            ? (vi
-              ? `Tỷ lệ ngày yêu cầu và xử lý thành công đạt ${(coverageRatio * 100).toFixed(0)}% (vượt ngưỡng yêu cầu ${(threshold * 100).toFixed(0)}%). Dữ liệu hai cảm biến đủ điều kiện để so sánh đối chiếu đa thập kỷ.`
-              : `Request coverage reached ${(coverageRatio * 100).toFixed(0)}% (exceeding the ${(threshold * 100).toFixed(0)}% requirement). Both sensors provide sufficient co-observations for multi-decadal harmonization.`)
-            : (vi
-              ? `Tỷ lệ đối chiếu đạt ${(coverageRatio * 100).toFixed(0)}% (dưới ngưỡng tiêu chuẩn ${(threshold * 100).toFixed(0)}%). Chuỗi hiệu chuẩn chỉ mang tính tham khảo và có nhãn cảnh báo độ bất định.`
-              : `Paired coverage reached ${(coverageRatio * 100).toFixed(0)}%, falling short of the ${(threshold * 100).toFixed(0)}% threshold. Harmonized values are tagged as uncalibrated approximations.`)}
+            ? t("evidence.verdict_eligible", {
+                pct: (coverageRatio * 100).toFixed(0),
+                threshold: (threshold * 100).toFixed(0),
+              })
+            : t("evidence.verdict_below", {
+                pct: (coverageRatio * 100).toFixed(0),
+                threshold: (threshold * 100).toFixed(0),
+              })}
         </p>
       </div>
 
@@ -297,12 +322,19 @@ export function EvidencePage() {
         </div>
       </div>
 
-      {loading ? (
-        <Loading label={t("evidence.auditing")} />
-      ) : error ? (
-        <ErrorState error={error} />
+      {loading && !spots ? (
+        <Loading label={t("evidence.auditing")} aoi={aoi} data={data} />
+      ) : error && !spots ? (
+        <ErrorState error={error} onRetry={() => setReloadNonce((n) => n + 1)} />
       ) : (
         <>
+          {Boolean(error) && <ErrorState error={error} onRetry={() => setReloadNonce((n) => n + 1)} />}
+          {loading && (
+            <div className="flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-950/30 px-3 py-1.5 text-xs text-cyan-200">
+              <div className="h-3 w-3 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
+              <span>{t("evidence.auditing")}</span>
+            </div>
+          )}
           {/* 5. 3 Core Metric Cards */}
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4 space-y-1">
@@ -313,7 +345,7 @@ export function EvidencePage() {
                 {requestDays} / {daysInMonth}
               </div>
               <p className="text-xs text-slate-400">
-                {vi ? "Các ngày có bản ghi tệp trong danh mục FIRMS" : "Days with confirmed files in FIRMS catalog"}
+                {t("evidence.request_days_hint")}
               </p>
             </div>
 
@@ -325,7 +357,7 @@ export function EvidencePage() {
                 {daysWithDetections} / {daysInMonth}
               </div>
               <p className="text-xs text-slate-400">
-                {vi ? "Các ngày có ít nhất một cảm biến phát hiện nhiệt" : "Days with at least one active thermal detection"}
+                {t("evidence.detection_days_hint")}
               </p>
             </div>
 
@@ -346,7 +378,7 @@ export function EvidencePage() {
                 {pairedDays} / {daysInMonth}
               </div>
               <p className="text-xs text-slate-400">
-                {vi ? "Cả MODIS và VIIRS cùng được yêu cầu xử lý" : "Both MODIS and VIIRS successfully requested"}
+                {t("evidence.paired_days_hint")}
               </p>
             </div>
           </div>
@@ -359,9 +391,11 @@ export function EvidencePage() {
                   {t("evidence.matrix_heading")}
                 </h3>
                 <p className="text-xs text-slate-400">
-                  {vi
-                    ? `Theo dõi trạng thái yêu cầu tệp và phát hiện điểm nóng tháng ${month}/${year}`
-                    : `Tracking daily requested granules and detection records for ${year}-${String(month).padStart(2, "0")}`}
+                  {t("evidence.matrix_sub", {
+                    month,
+                    year,
+                    ym: `${year}-${String(month).padStart(2, "0")}`,
+                  })}
                 </p>
               </div>
 
@@ -391,7 +425,7 @@ export function EvidencePage() {
               <table className="w-full font-mono text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-slate-800 text-slate-400">
-                    <th className="py-2.5 pr-3 text-left font-semibold">{vi ? "Kênh cảm biến" : "Sensor Channel"}</th>
+                    <th className="py-2.5 pr-3 text-left font-semibold">{t("evidence.sensor_channel")}</th>
                     {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
                       <th key={d} className="p-1 text-center min-w-[28px] font-medium">
                         {String(d).padStart(2, "0")}
@@ -430,7 +464,10 @@ export function EvidencePage() {
                                 ? "bg-slate-900 text-blue-400/80 border border-slate-800 hover:border-slate-700"
                                 : "bg-slate-950/40 text-slate-700",
                             )}
-                            title={`Ngày ${i + 1}: ${dayData ? dayData.modis_detections : 0} điểm nhiệt`}
+                            title={t("evidence.cell_title", {
+                              day: i + 1,
+                              count: dayData ? dayData.modis_detections : 0,
+                            })}
                           >
                             {hasDetect ? dayData?.modis_detections : active ? "R" : "-"}
                           </button>
@@ -469,7 +506,10 @@ export function EvidencePage() {
                                 ? "bg-slate-900 text-teal-400/80 border border-slate-800 hover:border-slate-700"
                                 : "bg-slate-950/40 text-slate-700",
                             )}
-                            title={`Ngày ${i + 1}: ${dayData ? dayData.viirs_detections : 0} điểm nhiệt`}
+                            title={t("evidence.cell_title", {
+                              day: i + 1,
+                              count: dayData ? dayData.viirs_detections : 0,
+                            })}
                           >
                             {hasDetect ? dayData?.viirs_detections : active ? "R" : "-"}
                           </button>
@@ -481,7 +521,7 @@ export function EvidencePage() {
                   {/* Paired Eligibility Row */}
                   <tr>
                     <td className="py-2.5 pr-3 font-semibold text-slate-300 whitespace-nowrap">
-                      {vi ? "Trạng thái đối chiếu" : "Paired Status"}
+                      {t("evidence.paired_status")}
                     </td>
                     {Array.from({ length: daysInMonth }, (_, i) => {
                       const dayData = days[i];
@@ -507,8 +547,8 @@ export function EvidencePage() {
             </div>
 
             <div className="pt-2 text-xs text-slate-400 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 font-mono">
-              <span><strong>R</strong> = {vi ? "Tệp đã được yêu cầu và tải về trong sổ lưu trữ" : "Requested & downloaded granule in catalog"}</span>
-              <span><strong>-</strong> = {vi ? "Không có yêu cầu tệp cho ngày này" : "No request or sensor unavailable"}</span>
+              <span><strong>R</strong> = {t("evidence.legend_requested")}</span>
+              <span><strong>-</strong> = {t("evidence.legend_unrequested")}</span>
             </div>
           </div>
 
@@ -517,7 +557,11 @@ export function EvidencePage() {
             <div className="rounded-xl border border-cyan-500/40 bg-[#111C2E] p-4 text-xs space-y-3">
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                 <span className="font-bold text-white text-sm">
-                  {vi ? `Chi tiết ngày ${selectedDay.day}/${month}/${year}` : `Day ${selectedDay.day}/${month}/${year} Audit`}
+                  {t("evidence.day_audit_title", {
+                    day: selectedDay.day,
+                    month,
+                    year,
+                  })}
                 </span>
                 <button
                   type="button"
@@ -531,7 +575,9 @@ export function EvidencePage() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono">
                 <div className="rounded-lg bg-slate-900 p-2.5 border border-slate-800">
                   <span className="text-slate-400 text-xs block font-sans">MODIS Requested:</span>
-                  <span className="text-blue-300 font-bold">{selectedDay.modisReq ? "YES (Tệp có sẵn)" : "NO"}</span>
+                  <span className="text-blue-300 font-bold">
+                    {selectedDay.modisReq ? t("evidence.granule_yes") : t("evidence.granule_no")}
+                  </span>
                 </div>
                 <div className="rounded-lg bg-slate-900 p-2.5 border border-slate-800">
                   <span className="text-slate-400 text-xs block font-sans">MODIS Detections:</span>
@@ -539,7 +585,9 @@ export function EvidencePage() {
                 </div>
                 <div className="rounded-lg bg-slate-900 p-2.5 border border-slate-800">
                   <span className="text-slate-400 text-xs block font-sans">VIIRS Requested:</span>
-                  <span className="text-teal-300 font-bold">{selectedDay.viirsReq ? "YES (Tệp có sẵn)" : "NO"}</span>
+                  <span className="text-teal-300 font-bold">
+                    {selectedDay.viirsReq ? t("evidence.granule_yes") : t("evidence.granule_no")}
+                  </span>
                 </div>
                 <div className="rounded-lg bg-slate-900 p-2.5 border border-slate-800">
                   <span className="text-slate-400 text-xs block font-sans">VIIRS Detections:</span>
@@ -553,12 +601,10 @@ export function EvidencePage() {
           <div id="evidence-limits" className="scroll-mt-16 rounded-2xl border border-amber-500/30 bg-amber-950/10 p-4 sm:p-5 space-y-3">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-300">
               <ShieldAlert className="h-4 w-4" />
-              <span>{vi ? "Ranh giới khoa học: Sổ tệp đã tải vs Độ phủ quan trắc thực địa" : "Download Ledger vs Physical Observation Footprint"}</span>
+              <span>{t("evidence.boundary_title")}</span>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
-              {vi
-                ? "Tệp NASA FIRMS ghi nhận các điểm nóng trong các hạt dữ liệu đã nạp. Một tệp được lưu chứng minh vệ tinh đã bay qua và dữ liệu đã được xử lý, nhưng không bảo đảm bầu trời quang đãng không mây. Mây mù dày, khói bụi mùa gió mùa hoặc thảm thực vật rậm có thể che khuất các đám cháy đang hoạt động."
-                : "NASA FIRMS files record detections within ingested granules. A recorded granule proves the satellite overpassed and data was processed, but does not guarantee cloud-free ground visibility. Heavy smoke, cloud cover, or canopy occlusion can prevent detection of active flames."}
+              {t("evidence.boundary_body")}
             </p>
           </div>
         </>

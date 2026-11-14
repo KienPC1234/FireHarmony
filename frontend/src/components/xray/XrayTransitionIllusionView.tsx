@@ -25,8 +25,7 @@ interface XrayTransitionIllusionViewProps {
 }
 
 export function XrayTransitionIllusionView({ months }: XrayTransitionIllusionViewProps) {
-  const { lang } = useLang();
-  const vi = lang === "vi";
+  const { t } = useLang();
   const [showHarmonized, setShowHarmonized] = useState(true);
 
   // Synthesize multi-year timeline showing pre-2012 and post-2012
@@ -68,12 +67,10 @@ export function XrayTransitionIllusionView({ months }: XrayTransitionIllusionVie
       <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 shadow-card backdrop-blur space-y-2">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-300">
           <AlertTriangle className="h-4 w-4 text-amber-400" />
-          <span>{vi ? "Ảo giác bước nhảy cảm biến năm 2012" : "The 2012 Sensor Transition Artifact"}</span>
+          <span>{t("xray.trans_banner_title")}</span>
         </div>
         <p className="text-xs text-amber-100/90 leading-relaxed">
-          {vi
-            ? "Trước năm 2012, chỉ có MODIS (1km) hoạt động. Từ năm 2012, VIIRS (375m) ra đời với độ phân giải cao hơn ~3 lần. Nếu một hệ thống cộng dồn hoặc chuyển đổi thô mà không hiệu chuẩn, dữ liệu sẽ tạo ra một 'bước nhảy giả' gấp 3-4 lần vào năm 2012, khiến người dùng hiểu lầm là cháy rừng bùng nổ do biến đổi khí hậu."
-            : "Before 2012, only MODIS (1 km) flew. In 2012, VIIRS (375 m) was launched with ~3x higher spatial sensitivity. If an analysis simply sums the records or abruptly switches to VIIRS, an artificial 3x-4x step-jump appears in 2012, masquerading as a catastrophic climate event."}
+          {t("xray.trans_banner_body")}
         </p>
       </div>
 
@@ -82,12 +79,10 @@ export function XrayTransitionIllusionView({ months }: XrayTransitionIllusionVie
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/50 pb-3">
           <div>
             <h2 className="text-sm font-bold text-white tracking-tight">
-              {vi ? "So sánh xu hướng: Dữ liệu thô vs Chuỗi đã chuẩn hóa" : "Trajectory Comparison: Naive Sensor Merge vs Harmonized Baseline"}
+              {t("xray.trans_chart_title")}
             </h2>
             <p className="text-xs text-slate-400">
-              {vi
-                ? "Bật/Tắt đường chuẩn hóa để thấy bước nhảy cảm biến bị triệt tiêu ra sao"
-                : "Toggle the harmonized baseline to see how the artificial transition jump is neutralized"}
+              {t("xray.trans_chart_sub")}
             </p>
           </div>
 
@@ -105,13 +100,7 @@ export function XrayTransitionIllusionView({ months }: XrayTransitionIllusionVie
             >
               <Scale className="h-3.5 w-3.5" />
               <span>
-                {showHarmonized
-                  ? vi
-                    ? "Ẩn chuỗi chuẩn hóa"
-                    : "Hide Harmonized Line"
-                  : vi
-                  ? "Hiện chuỗi chuẩn hóa"
-                  : "Show Harmonized Baseline"}
+                {showHarmonized ? t("xray.trans_hide") : t("xray.trans_show")}
               </span>
             </button>
           </div>
@@ -140,7 +129,7 @@ export function XrayTransitionIllusionView({ months }: XrayTransitionIllusionVie
                 strokeWidth={2}
                 strokeDasharray="4 4"
                 label={{
-                  value: vi ? "2012: Phóng VIIRS" : "2012: VIIRS Launch",
+                  value: t("xray.trans_ref_label"),
                   fill: "#f59e0b",
                   fontSize: 12,
                   position: "insideTopLeft",
@@ -153,20 +142,20 @@ export function XrayTransitionIllusionView({ months }: XrayTransitionIllusionVie
                   return (
                     <div className="rounded-xl border border-border/80 bg-slate-900/95 p-3 font-mono text-xs shadow-2xl backdrop-blur space-y-1.5 min-w-[220px]">
                       <div className="font-bold text-white border-b border-border/40 pb-1 flex justify-between">
-                        <span>{vi ? `Năm ${d.year}` : `Year ${d.year}`}</span>
-                        <span className="text-amber-400">{vi ? `Nhảy vọt ~${d.stepJumpRatio}x` : `Jump ~${d.stepJumpRatio}x`}</span>
+                        <span>{t("xray.trans_tip_year", { year: d.year })}</span>
+                        <span className="text-amber-400">{t("xray.trans_tip_jump", { ratio: d.stepJumpRatio })}</span>
                       </div>
                       <div className="flex justify-between text-slate-400">
-                        <span>{vi ? "Chỉ MODIS đơn lẻ:" : "Raw MODIS Alone:"}</span>
+                        <span>{t("xray.trans_tip_modis")}</span>
                         <span className="text-slate-200">{num(d.modisOnly)}</span>
                       </div>
                       <div className="flex justify-between text-rose-400 font-semibold">
-                        <span>{vi ? "Đếm ngây thơ (Ghép nối):" : "Naive Switched Count:"}</span>
+                        <span>{t("xray.trans_tip_naive")}</span>
                         <span>{num(d.naiveRawSwitched)}</span>
                       </div>
                       {showHarmonized && (
                         <div className="flex justify-between text-cyan-300 font-bold border-t border-border/30 pt-1">
-                          <span>{vi ? "Chuỗi đã chuẩn hóa:" : "Harmonized Continuous:"}</span>
+                          <span>{t("xray.trans_tip_harm")}</span>
                           <span>{num(d.harmonizedContinuous)}</span>
                         </div>
                       )}
@@ -181,11 +170,7 @@ export function XrayTransitionIllusionView({ months }: XrayTransitionIllusionVie
                 stroke="#ef4444"
                 strokeWidth={2}
                 fill="url(#naiveFill)"
-                name={
-                  vi
-                    ? "Phát hiện thô ngây thơ (Bước nhảy nhân tạo 3x)"
-                    : "Naive Raw Detections (3x Artificial Step Jump)"
-                }
+                name={t("xray.trans_legend_naive")}
               />
               {showHarmonized && (
                 <Area
@@ -194,11 +179,7 @@ export function XrayTransitionIllusionView({ months }: XrayTransitionIllusionVie
                   stroke="#06b6d4"
                   strokeWidth={2.5}
                   fill="url(#harmFill)"
-                  name={
-                    vi
-                      ? "Đường cơ sở Fire Calendar đã chuẩn hóa (Nhất quán 2001-Hiện tại)"
-                      : "Harmonized Fire Calendar Baseline (Consistent 2001-Present)"
-                  }
+                  name={t("xray.trans_legend_harm")}
                 />
               )}
             </AreaChart>
@@ -210,36 +191,30 @@ export function XrayTransitionIllusionView({ months }: XrayTransitionIllusionVie
           <div className="rounded-xl border border-border/70 bg-slate-900/70 p-3.5 space-y-1.5">
             <div className="flex items-center gap-1.5 font-bold text-slate-200">
               <Flame className="h-4 w-4 text-orange-400" />
-              <span>{vi ? "Pha loãng dấu vết không gian" : "Spatial Footprint Dilution"}</span>
+              <span>{t("xray.trans_card1_title")}</span>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              {vi
-                ? "Điểm ảnh MODIS (1 km x 1 km = 100 ha) lấy trung bình trên diện rộng, bỏ sót các đám cháy nông nghiệp nhỏ. VIIRS (375 m = 14 ha) nhỏ hơn gấp 7 lần về diện tích, phát hiện được các vụ cháy cường độ thấp."
-                : "MODIS pixel (1 km x 1 km = 100 ha) averages over broad areas, missing small agricultural fires. VIIRS (375 m = 14 ha) has 7x smaller area, detecting low-intensity burning."}
+              {t("xray.trans_card1_body")}
             </p>
           </div>
 
           <div className="rounded-xl border border-border/70 bg-slate-900/70 p-3.5 space-y-1.5">
             <div className="flex items-center gap-1.5 font-bold text-slate-200">
               <Scale className="h-4 w-4 text-cyan-400" />
-              <span>{vi ? "Chuẩn hóa tiến (1/k)" : "Forward Harmonization (1/k)"}</span>
+              <span>{t("xray.trans_card2_title")}</span>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              {vi
-                ? "Chúng tôi nâng quy mô các lượt MODIS giai đoạn đầu về tương đương chuẩn VIIRS bằng tỷ lệ hoạt động thực nghiệm hàng tháng k, giúp các đám cháy trước năm 2012 có thể so sánh định lượng với dữ liệu sau 2012."
-                : "We upscale early MODIS counts to VIIRS equivalent using empirical monthly activity ratios k, ensuring pre-2012 fires are quantitatively comparable to post-2012 records."}
+              {t("xray.trans_card2_body")}
             </p>
           </div>
 
           <div className="rounded-xl border border-border/70 bg-slate-900/70 p-3.5 space-y-1.5">
             <div className="flex items-center gap-1.5 font-bold text-slate-200">
               <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-              <span>{vi ? "Triệt tiêu xu thế khí hậu giả mạo" : "Zero Artificial Climate Trend"}</span>
+              <span>{t("xray.trans_card3_title")}</span>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              {vi
-                ? "Khi bước nhảy năm 2012 được loại bỏ, các xu hướng qua nhiều thập kỷ phản ánh đúng các sự kiện khí hậu thực tế (như mùa khô Amazon 2019 và Black Summer 2019-20 tại Australia)."
-                : "With the 2012 step jump removed, multi-decadal trends reflect actual climate events (such as the 2019 Amazon dry season and 2019-20 Australian Black Summer)."}
+              {t("xray.trans_card3_body")}
             </p>
           </div>
         </div>

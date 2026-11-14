@@ -34,7 +34,7 @@ export function LabSidebar({
   onRun,
   activeTab,
 }: LabSidebarProps) {
-  const { lang } = useLang();
+  const { lang, t } = useLang();
   const vi = lang === "vi";
 
   return (
@@ -44,7 +44,7 @@ export function LabSidebar({
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
             <Globe className="h-3.5 w-3.5 text-cyan-400" />
-            <span>{vi ? "Khu vực phân tích (AOI)" : "Target Area (AOI)"}</span>
+            <span>{t("lab.side_aoi")}</span>
           </label>
           <select
             value={aoi}
@@ -64,7 +64,7 @@ export function LabSidebar({
         <div className="space-y-1.5 border-t border-slate-800 pt-3">
           <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
             <Database className="h-3.5 w-3.5 text-cyan-400" />
-            <span>{vi ? "Nguồn dữ liệu thử nghiệm" : "Data Feed"}</span>
+            <span>{t("lab.side_feed")}</span>
           </label>
           <select
             value={dsrc}
@@ -72,13 +72,13 @@ export function LabSidebar({
             aria-label="Data feed"
             className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-xs text-white focus:outline-none min-h-[40px]"
           >
-            <option value="sample">{vi ? "Dữ liệu mẫu (Synthetic Sample)" : "Synthetic Sample (In-Memory)"}</option>
-            <option value="raw">{vi ? "NASA FIRMS quan trắc (Archive)" : "NASA FIRMS Observed (Archive)"}</option>
+            <option value="sample">{t("lab.side_sample")}</option>
+            <option value="raw">{t("lab.side_raw")}</option>
           </select>
           <p className="text-xs text-slate-400">
             {dsrc === "sample"
-              ? (vi ? "Dữ liệu mẫu kiểm thử ngoại tuyến (phản hồi tức thì)" : "Fast verified sample (instant response)")
-              : (vi ? "Dữ liệu quan trắc NASA FIRMS đầy đủ" : "Direct NASA FIRMS files (full coverage)")}
+              ? t("lab.side_sample_hint")
+              : t("lab.side_raw_hint")}
           </p>
         </div>
 
@@ -86,7 +86,7 @@ export function LabSidebar({
         <div className="grid grid-cols-2 gap-2 border-t border-slate-800 pt-3">
           <div className="space-y-1">
             <label htmlFor="lab-year-select" className="text-xs font-semibold text-slate-300">
-              {vi ? "Năm phân tích" : "Year"}
+              {t("lab.side_year")}
             </label>
             <select
               id="lab-year-select"
@@ -110,7 +110,7 @@ export function LabSidebar({
 
           <div className="space-y-1">
             <label htmlFor="lab-month-select" className="text-xs font-semibold text-slate-300">
-              {vi ? "Tháng" : "Month"}
+              {t("lab.side_month")}
             </label>
             <select
               id="lab-month-select"
@@ -120,7 +120,7 @@ export function LabSidebar({
             >
               {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                 <option key={m} value={m}>
-                  {vi ? "T" : "M"}{String(m).padStart(2, "0")}
+                  {t("calendar.month_abbr", { m: String(m).padStart(2, "0") })}
                 </option>
               ))}
             </select>
@@ -133,10 +133,10 @@ export function LabSidebar({
             <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
               <span className="flex items-center gap-1.5">
                 <Sliders className="h-3.5 w-3.5 text-cyan-400" />
-                <span>{vi ? "Cấu hình vệ tinh" : "Active Constellation"}</span>
+                <span>{t("lab.side_constellation")}</span>
               </span>
               <span className="font-mono text-xs text-cyan-400">
-                {sensors.length}/{SENSORS.length} {vi ? "bật" : "active"}
+                {sensors.length}/{SENSORS.length} {t("lab.side_active_unit")}
               </span>
             </div>
 
@@ -187,12 +187,12 @@ export function LabSidebar({
             {busy ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span>{vi ? "Đang chạy mô phỏng..." : "Running Simulation..."}</span>
+                <span>{t("lab.side_running")}</span>
               </>
             ) : (
               <>
                 <Play className="h-4 w-4 fill-white" />
-                <span>{vi ? "Chạy thử nghiệm" : "Run Experiment"}</span>
+                <span>{t("lab.side_run")}</span>
               </>
             )}
           </button>

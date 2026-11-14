@@ -144,7 +144,7 @@ const BENCH_ROWS = [
 ];
 
 export function MethodsPage() {
-  const { lang } = useLang();
+  const { lang, t } = useLang();
   const vi = lang === "vi";
 
   const [activeSection, setActiveSection] = useState<string>("steps");
@@ -190,9 +190,12 @@ export function MethodsPage() {
       const v = await api.validate(records);
       const h = await api.harmonize(records);
       setUploadResult(
-        vi
-          ? `Đã phân tích ${records.length} dòng. Hợp lệ: ${v.clean}, Loại bỏ: ${v.rejected}. Ô ngày đã chuẩn hóa: ${h.daily_cells}.`
-          : `Parsed ${records.length} rows. Clean: ${v.clean}, Rejected: ${v.rejected}. Harmonized daily cells: ${h.daily_cells}.`
+        t("methods.upload_result", {
+          n: records.length,
+          clean: v.clean,
+          rejected: v.rejected,
+          cells: h.daily_cells,
+        })
       );
     } catch (e) {
       if (e instanceof ApiError) {
@@ -206,11 +209,11 @@ export function MethodsPage() {
   }
 
   const sections = [
-    { id: "sources", title: vi ? "1. Nguồn dữ liệu vệ tinh" : "1. Primary Satellite Data Sources" },
-    { id: "steps", title: vi ? "2. Quy trình & Mô hình hiệu chỉnh" : "2. Harmonization Steps & Models" },
-    { id: "benchmark", title: vi ? "3. Bảng đối sánh Holdout độc lập" : "3. Holdout Benchmark Matrix" },
-    { id: "limits", title: vi ? "4. Ranh giới khoa học & Giới hạn" : "4. Scientific Boundaries & Limits" },
-    { id: "reproduce", title: vi ? "5. Tái lập & Nhập dữ liệu CSV" : "5. Reproduce & CSV Ingestion" },
+    { id: "sources", title: t("methods.sec_sources") },
+    { id: "steps", title: t("methods.sec_steps") },
+    { id: "benchmark", title: t("methods.sec_benchmark") },
+    { id: "limits", title: t("methods.sec_limits") },
+    { id: "reproduce", title: t("methods.sec_reproduce") },
   ];
 
   return (
@@ -222,12 +225,10 @@ export function MethodsPage() {
           <span>NASA Space Apps Challenge 2026 · Scientific Documentation</span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-          {vi ? "Phương pháp, Mô hình & Toàn vẹn Dữ liệu" : "Methods, Models & Data Integrity"}
+          {t("methods.hero_title")}
         </h1>
         <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-3xl">
-          {vi
-            ? "Tài liệu kỹ thuật toàn diện về chuỗi xử lý dữ liệu, công thức hiệu chuẩn thực nghiệm, ma trận kiểm chứng holdout độc lập và các ranh giới vận hành."
-            : "Complete documentation of data ingestion pipelines, empirical harmonization formulation, holdout validation benchmarks, and operational boundaries."}
+          {t("methods.hero_sub")}
         </p>
       </div>
 
@@ -235,38 +236,38 @@ export function MethodsPage() {
       <section className="rounded-2xl border border-cyan-500/30 bg-cyan-950/20 p-5 shadow-sm space-y-3">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-cyan-300">
           <Sparkles className="h-4 w-4" />
-          <span>{vi ? "Tóm tắt 90 giây cho chuyên gia & ban giám khảo" : "90-Second Executive Summary"}</span>
+          <span>{t("methods.exec_title")}</span>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-xs text-slate-300">
           <div className="space-y-1 rounded-xl bg-slate-900/60 p-3 border border-slate-800">
-            <span className="font-bold text-white block">{vi ? "Vấn đề:" : "The Problem:"}</span>
+            <span className="font-bold text-white block">{t("methods.exec_problem_l")}</span>
             <p className="text-slate-400 leading-relaxed">
-              {vi ? "MODIS 1 km và VIIRS 375m có độ nhạy khác nhau; ghép trực tiếp tạo bước nhảy giả 3x - 4x vào năm 2012." : "MODIS 1 km and VIIRS 375m differ in sensitivity; direct concatenation causes an artificial 3x-4x jump in 2012."}
+              {t("methods.exec_problem_t")}
             </p>
           </div>
           <div className="space-y-1 rounded-xl bg-slate-900/60 p-3 border border-slate-800">
-            <span className="font-bold text-white block">{vi ? "Giải pháp:" : "The Solution:"}</span>
+            <span className="font-bold text-white block">{t("methods.exec_solution_l")}</span>
             <p className="text-slate-400 leading-relaxed">
-              {vi ? "Chuẩn hóa theo tỷ lệ thực nghiệm 12 tháng B2; đưa thang đo MODIS về mức tương đương VIIRS." : "Calibrates using empirical 12-month k-ratios (B2); scales historical MODIS to VIIRS equivalent."}
+              {t("methods.exec_solution_t")}
             </p>
           </div>
           <div className="space-y-1 rounded-xl bg-slate-900/60 p-3 border border-slate-800">
-            <span className="font-bold text-white block">{vi ? "Kiểm chứng:" : "Verification:"}</span>
+            <span className="font-bold text-white block">{t("methods.exec_verify_l")}</span>
             <p className="text-slate-400 leading-relaxed">
-              {vi ? "Đánh giá trên tập holdout đóng băng theo thời gian (time-travel split), không rò rỉ dữ liệu tương lai." : "Evaluated on frozen time-travel holdout sets without future data leakage."}
+              {t("methods.exec_verify_t")}
             </p>
           </div>
           <div className="space-y-1 rounded-xl bg-slate-900/60 p-3 border border-slate-800">
-            <span className="font-bold text-white block">{vi ? "Ranh giới:" : "Boundaries:"}</span>
+            <span className="font-bold text-white block">{t("methods.exec_bound_l")}</span>
             <p className="text-slate-400 leading-relaxed">
-              {vi ? "Điểm nóng không phải là số vụ cháy; không có dữ liệu không được quy về 0 đám cháy." : "Hotspots are thermal detections, not fire counts; missing observations are not coerced to zero."}
+              {t("methods.exec_bound_t")}
             </p>
           </div>
         </div>
       </section>
 
       {/* 3. Section Switcher: one accessible, horizontally scrollable row on small screens. */}
-      <nav aria-label={vi ? "Mục lục phương pháp" : "Methods sections"}
+      <nav aria-label={t("methods.nav_label")}
         className="sticky top-0 z-20 rounded-xl border border-slate-800 bg-[#0B1220]/95 px-2 py-2 shadow-lg backdrop-blur-md">
       <div className="flex snap-x items-center gap-2 overflow-x-auto pb-0.5" role="group">
         {sections.map((s) => (
@@ -295,10 +296,10 @@ export function MethodsPage() {
         <section className="rounded-2xl border border-slate-800 bg-[#111C2E] p-6 shadow-sm space-y-4">
           <div className="space-y-1 border-b border-slate-800 pb-3">
             <h2 className="text-base font-bold text-white">
-              {vi ? "Nguồn dữ liệu vệ tinh sơ cấp" : "Primary Satellite Data Sources"}
+              {t("methods.src_title")}
             </h2>
             <p className="text-xs text-slate-400">
-              {vi ? "Toàn bộ dữ liệu điểm nhiệt được lấy từ hệ thống NASA FIRMS EOSDIS." : "All thermal observations originate from NASA EOSDIS FIRMS."}
+              {t("methods.src_sub")}
             </p>
           </div>
 
@@ -306,10 +307,10 @@ export function MethodsPage() {
             <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-blue-400">MODIS Collection 6.1</span>
-                <span className="text-slate-400">2000 - Hiện tại</span>
+                <span className="text-slate-400">{t("methods.src_modis_date")}</span>
               </div>
               <p className="font-sans text-xs text-slate-300 leading-relaxed">
-                Vệ tinh: Terra (bay qua lúc 10:30 sáng) và Aqua (13:30 chiều). Độ phân giải: pixel nhiệt 1 km (khoảng 100 ha). Sử dụng thuật toán chuẩn MODIS C6.1.
+                {t("methods.src_modis_desc")}
               </p>
               <a
                 href="https://earthdata.nasa.gov/data/tools/firms"
@@ -317,7 +318,7 @@ export function MethodsPage() {
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 text-xs text-cyan-400 hover:underline pt-1"
               >
-                <span>Tài liệu kỹ thuật NASA FIRMS MODIS</span>
+                <span>{t("methods.src_modis_docs")}</span>
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
             </div>
@@ -325,10 +326,10 @@ export function MethodsPage() {
             <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-teal-400">VIIRS 375 m Active Fire</span>
-                <span className="text-slate-400">2012 - Hiện tại</span>
+                <span className="text-slate-400">{t("methods.src_viirs_date")}</span>
               </div>
               <p className="font-sans text-xs text-slate-300 leading-relaxed">
-                Vệ tinh: Suomi NPP (13:30 chiều) và NOAA-20/21 (chùm JPSS). Độ phân giải: dải ảnh I-band 375 m (khoảng 14 ha). Phát hiện các đám cháy nhỏ hơn MODIS tới 7 lần diện tích.
+                {t("methods.src_viirs_desc")}
               </p>
               <a
                 href="https://earthdata.nasa.gov/data/tools/firms"
@@ -336,7 +337,7 @@ export function MethodsPage() {
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 text-xs text-teal-400 hover:underline pt-1"
               >
-                <span>Tài liệu kỹ thuật NASA FIRMS VIIRS</span>
+                <span>{t("methods.src_viirs_docs")}</span>
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
             </div>
@@ -357,15 +358,13 @@ export function MethodsPage() {
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-cyan-400 font-bold text-xs uppercase tracking-wider">
                   <BrainCircuit className="h-4 w-4" />
-                  <span>{vi ? "Mục tiêu & Dự báo phần dư" : "Residual Log-Ratio Objective"}</span>
+                  <span>{t("methods.card1_kicker")}</span>
                 </div>
                 <h3 className="text-sm font-bold text-white">
-                  {vi ? "Dự báo phần dư Log-Ratio thay vì điểm nhiệt thô" : "Log-Ratio Residuals vs Raw Hotspot Counts"}
+                  {t("methods.card1_title")}
                 </h3>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  {vi
-                    ? "STAN không dự đoán trực tiếp số vụ cháy từ con số không nhằm triệt tiêu hiện tượng hallucination và tránh giá trị âm. Mạng dự báo phần dư nhân tính theo phân phối Negative Binomial 2 trên neo HTS:"
-                    : "STAN avoids predicting raw fire counts from scratch to prevent hallucination and non-physical negative counts. It predicts bounded log-ratio residuals anchored on HTS with an NB2 count likelihood:"}
+                  {t("methods.card1_body")}
                 </p>
                 <div tabIndex={0}
                   className="rounded-xl border border-slate-800 bg-slate-900/80 p-3 text-cyan-300 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">
@@ -376,9 +375,7 @@ export function MethodsPage() {
                 </div>
               </div>
               <div className="rounded-lg bg-cyan-950/30 border border-cyan-800/40 p-2.5 text-[11px] text-cyan-200 leading-snug">
-                {vi
-                  ? "Bảo toàn quy luật vật lý: Phần dư bị chặn và co về neo HTS ở ô ít dữ liệu, tránh ngoại suy cực đoan."
-                  : "Physical preservation: Residuals are bounded and anchored to HTS on sparse tiles, preventing extreme extrapolation."}
+                {t("methods.card1_note")}
               </div>
             </div>
 
@@ -387,26 +384,26 @@ export function MethodsPage() {
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs uppercase tracking-wider">
                   <Layers className="h-4 w-4" />
-                  <span>{vi ? "Luồng Tensor & Dilated TCN + FiLM" : "Tensor Flow & Dilated TCN + FiLM"}</span>
+                  <span>{t("methods.card2_kicker")}</span>
                 </div>
                 <h3 className="text-sm font-bold text-white">
-                  {vi ? "Kích thước Tensor qua từng lớp" : "Tensor Dimensions Across Layers"}
+                  {t("methods.card2_title")}
                 </h3>
                 <div className="space-y-2 text-xs font-mono text-slate-300">
                   <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
-                    <span className="text-slate-400 font-sans">{vi ? "1. Cửa sổ 12T + lân cận:" : "1. 12M Window + Neighbours:"}</span>
+                    <span className="text-slate-400 font-sans">{t("methods.card2_r1")}</span>
                     <span className="text-white font-bold">[B, 12, C_in]</span>
                   </div>
                   <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
-                    <span className="text-slate-400 font-sans">{vi ? "2. Dilated TCN (causal):" : "2. Dilated TCN (causal):"}</span>
+                    <span className="text-slate-400 font-sans">{t("methods.card2_r2")}</span>
                     <span className="text-white font-bold">[B, 12, 64]</span>
                   </div>
                   <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
-                    <span className="text-slate-400 font-sans">{vi ? "3. Điều chế FiLM theo AOI/mùa:" : "3. FiLM AOI/Season Conditioning:"}</span>
+                    <span className="text-slate-400 font-sans">{t("methods.card2_r3")}</span>
                     <span className="text-cyan-300 font-bold">gamma * h + beta</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-400 font-sans">{vi ? "4. Đầu ra NB2 & Phân vị:" : "4. NB2 & Interval Output:"}</span>
+                    <span className="text-slate-400 font-sans">{t("methods.card2_r4")}</span>
                     <span className="text-emerald-300 font-bold">(mu, alpha) → [P10, P50, P90]</span>
                   </div>
                 </div>
@@ -416,9 +413,7 @@ export function MethodsPage() {
                 </div>
               </div>
               <div className="rounded-lg bg-indigo-950/30 border border-indigo-800/40 p-2.5 text-[11px] text-indigo-200 leading-snug">
-                {vi
-                  ? "TCN giãn nở bắt chuỗi mùa 12 tháng mà không rò rỉ tương lai; tầng FiLM điều chỉnh đặc trưng theo từng vùng AOI."
-                  : "Causal dilated TCN captures 12-month seasonality without future leakage; FiLM layers condition features per AOI."}
+                {t("methods.card2_note")}
               </div>
             </div>
 
@@ -427,15 +422,13 @@ export function MethodsPage() {
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider">
                   <ShieldCheck className="h-4 w-4" />
-                  <span>{vi ? "Cổng Kiểm định Holdout 2024-2025" : "2024-2025 Holdout Verification"}</span>
+                  <span>{t("methods.card3_kicker")}</span>
                 </div>
                 <h3 className="text-sm font-bold text-white">
-                  {vi ? "So sánh STAN, HTS & B2 (Raw Full)" : "STAN, HTS & B2 Benchmark (Raw Full)"}
+                  {t("methods.card3_title")}
                 </h3>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  {vi
-                    ? "STAN chỉ được dùng khi là forecast-safe (không dùng VIIRS cùng tháng ở ô lân cận) và cải thiện trên dữ liệu thực tế:"
-                    : "STAN is strictly forecast-safe (no same-month neighbour VIIRS) and evaluated on the full holdout across 3 AOIs:"}
+                  {t("methods.card3_body")}
                 </p>
                 <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-3 space-y-2 text-xs font-mono">
                   <div className="flex justify-between items-center text-slate-300 border-b border-slate-800 pb-1">
@@ -453,9 +446,7 @@ export function MethodsPage() {
                 </div>
               </div>
               <div className="rounded-lg bg-emerald-950/30 border border-emerald-800/40 p-2.5 text-[11px] text-emerald-200 leading-snug">
-                {vi
-                  ? "Kết luận: STAN thắng 95,8% số tháng (MAE -14,6%), nhưng 95% CI [-1.452,9; +81,8] vẫn chứa 0 nên luôn công bố kèm cờ trung thực."
-                  : "Verdict: STAN wins 95.8% of months (-14.6% MAE), while 95% CI [-1,452.9, +81.8] still includes 0 and is surfaced transparently."}
+                {t("methods.card3_note")}
               </div>
             </div>
           </div>
@@ -464,10 +455,10 @@ export function MethodsPage() {
           <div className="rounded-2xl border border-slate-800 bg-[#0B1220] p-6 shadow-sm space-y-4">
             <div className="space-y-1 border-b border-slate-800 pb-3">
               <h2 className="text-base font-bold text-white">
-                {vi ? "Đặc tả toán học & Tiêu chí vận hành từng mô hình" : "Mathematical Specifications & Operating Criteria"}
+                {t("methods.spec_title")}
               </h2>
               <p className="text-xs text-slate-400">
-                {vi ? "Các thông số, giả định vật lý và điều kiện từ chối (abstention) của từng phương pháp trong đường ống." : "Parameters, physical assumptions, and abstention criteria for each pipeline candidate."}
+                {t("methods.spec_sub")}
               </p>
             </div>
 
@@ -475,12 +466,12 @@ export function MethodsPage() {
               <table className="w-full text-left font-mono text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400 uppercase text-xs">
-                  <th className="py-2.5 pr-4">{vi ? "Mô hình & Phương pháp" : "Model & Method"}</th>
-                  <th className="py-2.5 pr-4">{vi ? "Công thức toán học" : "Mathematical Formula"}</th>
-                  <th className="py-2.5 pr-4">{vi ? "Biến mục tiêu" : "Target Variable"}</th>
-                  <th className="py-2.5 pr-4">{vi ? "Giả định khoa học" : "Scientific Assumptions"}</th>
-                  <th className="py-2.5 pr-4">{vi ? "Điều kiện từ chối" : "Abstention Conditions"}</th>
-                  <th className="py-2.5 text-right">{vi ? "Rủi ro sai lệch" : "Failure Modes"}</th>
+                  <th className="py-2.5 pr-4">{t("methods.th_model")}</th>
+                  <th className="py-2.5 pr-4">{t("methods.th_formula")}</th>
+                  <th className="py-2.5 pr-4">{t("methods.th_target")}</th>
+                  <th className="py-2.5 pr-4">{t("methods.th_assump")}</th>
+                  <th className="py-2.5 pr-4">{t("methods.th_abstain")}</th>
+                  <th className="py-2.5 text-right">{t("methods.th_fail")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/40">
@@ -513,24 +504,18 @@ export function MethodsPage() {
         <section className="rounded-2xl border border-slate-800 bg-[#111C2E] p-6 shadow-sm space-y-4">
           <div className="space-y-1 border-b border-slate-800 pb-3">
             <h2 className="text-base font-bold text-white">
-              {vi ? "Ma trận kiểm chứng Holdout độc lập" : "Independent Holdout Benchmark Matrix"}
+              {t("methods.bench_title")}
             </h2>
             <p className="text-xs text-slate-400 leading-relaxed">
               {bench?.headline ? (
-                <>
-                  {vi
-                    ? `Mỗi khu vực chỉ huấn luyện trên các năm trước thời kỳ holdout, loại bỏ hoàn toàn việc rò rỉ dữ liệu tương lai. Đánh giá trên ${bench.n_eval_intersection ?? 0} tháng-khu vực.`
-                    : `Each AOI trains strictly on years prior to the holdout period, eliminating future data leakage. Scored on ${bench.n_eval_intersection ?? 0} AOI-months.`}
-                </>
+                <>{t("methods.bench_desc", { count: bench.n_eval_intersection ?? 0 })}</>
               ) : (
-                vi ? "Đang nạp dữ liệu kiểm thử trực tiếp từ hệ thống API..." : "Loading benchmark data from API..."
+                t("methods.bench_loading")
               )}
             </p>
             {benchData === "sample" && (
               <p className="text-xs text-amber-300/90 leading-relaxed font-mono">
-                {vi
-                  ? "Bản ZIP sạch không kèm 1.4 GB raw NASA; bảng này chạy trên dữ liệu mẫu tất định. Chạy make data + rebuild_subset để bật raw."
-                  : "The clean ZIP omits the 1.4 GB raw NASA pull; this table runs on the deterministic sample. Run make data + rebuild_subset to enable raw."}
+                {t("methods.bench_sample_note")}
               </p>
             )}
           </div>
@@ -539,11 +524,11 @@ export function MethodsPage() {
             <table className="w-full text-left font-mono text-xs">
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400 uppercase text-xs">
-                  <th className="py-2.5">{vi ? "Kiến trúc mô hình" : "Model Pipeline"}</th>
+                  <th className="py-2.5">{t("methods.bench_th_pipeline")}</th>
                   <th className="py-2.5 text-right">Holdout MAE</th>
                   <th className="py-2.5 text-right">Holdout WAPE</th>
-                  <th className="py-2.5 text-right">{vi ? "Độ lệch Bias" : "Mean Bias"}</th>
-                  <th className="py-2.5 text-center">{vi ? "Trạng thái" : "Status"}</th>
+                  <th className="py-2.5 text-right">{t("methods.bench_th_bias")}</th>
+                  <th className="py-2.5 text-center">{t("methods.bench_th_status")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/40">
@@ -586,7 +571,7 @@ export function MethodsPage() {
                 ) : (
                   <tr>
                     <td colSpan={5} className="py-4 text-center text-slate-400">
-                      {benchErr ? `Lỗi nạp benchmark: ${benchErr}` : "Đang tải dữ liệu kiểm thử..."}
+                      {benchErr ? t("methods.bench_error", { error: benchErr }) : t("methods.bench_loading_row")}
                     </td>
                   </tr>
                 )}
@@ -597,17 +582,22 @@ export function MethodsPage() {
           {bench?.stan?.official && (
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4 text-xs text-slate-300 leading-relaxed font-sans space-y-1">
               <p className="font-bold text-emerald-300">
-                {vi ? "STAN - mô hình chủ lực (forecast-safe)" : "STAN - main model (forecast-safe)"}
+                {t("methods.bench_stan_title")}
               </p>
               <p>
-                {vi
-                  ? `Đang phục vụ chính (raw; trước 2024 dùng HTS fallback). Official 72 tháng: MAE ${Math.round(bench.stan.official.metrics.mae).toLocaleString()} so với B2 ${Math.round(bench.stan.official.b2_metrics.mae).toLocaleString()} (giảm ${(100 - 100 * bench.stan.official.metrics.mae / bench.stan.official.b2_metrics.mae).toFixed(1)}%), CI [${Math.round(bench.stan.official.comparisons?.stan_vs_b2?.ci95?.[0] ?? 0).toLocaleString()}, ${Math.round(bench.stan.official.comparisons?.stan_vs_b2?.ci95?.[1] ?? 0).toLocaleString()}]. Việt Nam ${Math.round(bench.stan.official.per_aoi?.vietnam?.stan?.mae ?? 0).toLocaleString()}, Amazon ${Math.round(bench.stan.official.per_aoi?.amazon?.stan?.mae ?? 0).toLocaleString()}, Australia ${Math.round(bench.stan.official.per_aoi?.australia?.stan?.mae ?? 0).toLocaleString()}.`
-                  : `Served as the main model (raw; HTS fallback before 2024). Official 72 months: MAE ${Math.round(bench.stan.official.metrics.mae).toLocaleString()} vs B2 ${Math.round(bench.stan.official.b2_metrics.mae).toLocaleString()} (-${(100 - 100 * bench.stan.official.metrics.mae / bench.stan.official.b2_metrics.mae).toFixed(1)}%), CI [${Math.round(bench.stan.official.comparisons?.stan_vs_b2?.ci95?.[0] ?? 0).toLocaleString()}, ${Math.round(bench.stan.official.comparisons?.stan_vs_b2?.ci95?.[1] ?? 0).toLocaleString()}]. Vietnam ${Math.round(bench.stan.official.per_aoi?.vietnam?.stan?.mae ?? 0).toLocaleString()}, Amazon ${Math.round(bench.stan.official.per_aoi?.amazon?.stan?.mae ?? 0).toLocaleString()}, Australia ${Math.round(bench.stan.official.per_aoi?.australia?.stan?.mae ?? 0).toLocaleString()}.`}
+                {t("methods.bench_stan_body", {
+                  mae: Math.round(bench.stan.official.metrics.mae).toLocaleString(),
+                  b2mae: Math.round(bench.stan.official.b2_metrics.mae).toLocaleString(),
+                  pct: (100 - (100 * bench.stan.official.metrics.mae) / bench.stan.official.b2_metrics.mae).toFixed(1),
+                  ci0: Math.round(bench.stan.official.comparisons?.stan_vs_b2?.ci95?.[0] ?? 0).toLocaleString(),
+                  ci1: Math.round(bench.stan.official.comparisons?.stan_vs_b2?.ci95?.[1] ?? 0).toLocaleString(),
+                  vn: Math.round(bench.stan.official.per_aoi?.vietnam?.stan?.mae ?? 0).toLocaleString(),
+                  amz: Math.round(bench.stan.official.per_aoi?.amazon?.stan?.mae ?? 0).toLocaleString(),
+                  aus: Math.round(bench.stan.official.per_aoi?.australia?.stan?.mae ?? 0).toLocaleString(),
+                })}
               </p>
               <p className="text-slate-400">
-                {vi
-                  ? `Thiết kế: dilated TCN 1/2/4 + FiLM theo mùa + target-month cross-attention + negative-binomial; ${bench.stan.params.toLocaleString()} tham số. Không dùng VIIRS cùng tháng của ô lân cận. Ablation: bỏ FiLM tệ hơn ~13%; Poisson gần tương đương; d=96 tốt hơn d=64/32. LOO: Việt Nam/Amazon thua HTS, Australia gần hoà.`
-                  : `Design: dilated TCN 1/2/4 + seasonal FiLM + target-month cross-attention + negative-binomial; ${bench.stan.params.toLocaleString()} params. It does not use same-month neighbour VIIRS. Ablation: removing FiLM is ~13% worse; Poisson is close; d=96 beats d=64/32. LOO: Vietnam/Amazon lose to HTS; Australia is a near-tie.`}
+                {t("methods.bench_stan_design", { params: bench.stan.params.toLocaleString() })}
               </p>
             </div>
           )}
@@ -615,17 +605,24 @@ export function MethodsPage() {
           {bench?.spatial && (
             <div className="rounded-xl border border-purple-500/30 bg-purple-950/20 p-4 text-xs text-slate-300 leading-relaxed font-sans space-y-1">
               <p className="font-bold text-purple-300">
-                {vi ? "Spatial HGB - tái dựng không gian (không phải dự báo)" : "Spatial HGB - spatial reconstruction (not a forecast)"}
+                {t("methods.bench_spatial_title")}
               </p>
               <p>
-                {vi
-                  ? `72 tháng: MAE ${Math.round(bench.spatial.headline.mae).toLocaleString()} so với B2 ${Math.round(bench.spatial.b2_headline.mae).toLocaleString()} (giảm ${(100 - 100 * bench.spatial.headline.mae / bench.spatial.b2_headline.mae).toFixed(1)}%). Spatial holdout (${bench.spatial.spatial_holdout?.held_tiles ?? 0} ô chưa thấy): ${Math.round(bench.spatial.spatial_holdout?.spatial_mae ?? 0).toLocaleString()} vs HTS ${Math.round(bench.spatial.spatial_holdout?.hts_mae ?? 0).toLocaleString()}.`
-                  : `72 months: MAE ${Math.round(bench.spatial.headline.mae).toLocaleString()} vs B2 ${Math.round(bench.spatial.b2_headline.mae).toLocaleString()} (-${(100 - 100 * bench.spatial.headline.mae / bench.spatial.b2_headline.mae).toFixed(1)}%). Spatial holdout (${bench.spatial.spatial_holdout?.held_tiles ?? 0} unseen tiles): ${Math.round(bench.spatial.spatial_holdout?.spatial_mae ?? 0).toLocaleString()} vs HTS ${Math.round(bench.spatial.spatial_holdout?.hts_mae ?? 0).toLocaleString()}.`}
+                {t("methods.bench_spatial_body", {
+                  months: 72,
+                  mae: Math.round(bench.spatial.headline.mae).toLocaleString(),
+                  b2mae: Math.round(bench.spatial.b2_headline.mae).toLocaleString(),
+                  pct: (100 - (100 * bench.spatial.headline.mae) / bench.spatial.b2_headline.mae).toFixed(1),
+                  tiles: bench.spatial.spatial_holdout?.held_tiles ?? 0,
+                  smae: Math.round(bench.spatial.spatial_holdout?.spatial_mae ?? 0).toLocaleString(),
+                  hmae: Math.round(bench.spatial.spatial_holdout?.hts_mae ?? 0).toLocaleString(),
+                })}
               </p>
               <p className="text-slate-400">
-                {vi
-                  ? `Lợi ích đến từ VIIRS cùng tháng của ô lân cận. Biến thể forecast-safe (chỉ VIIRS tháng trước + MODIS cùng tháng) đạt ${Math.round(bench.spatial.safe_headline.mae).toLocaleString()}, không thắng HTS ${Math.round(bench.spatial.hts_headline.mae).toLocaleString()}. Vì vậy mô hình chỉ dùng cho tái dựng/gap-fill, không dùng để tuyên bố dự báo.`
-                  : `The gain comes from same-month VIIRS in neighbouring tiles. The forecast-safe variant (previous-month VIIRS + same-month MODIS only) scores ${Math.round(bench.spatial.safe_headline.mae).toLocaleString()}, not beating HTS ${Math.round(bench.spatial.hts_headline.mae).toLocaleString()}. It is therefore a reconstruction/gap-fill model, not a forecasting claim.`}
+                {t("methods.bench_spatial_note", {
+                  safe: Math.round(bench.spatial.safe_headline.mae).toLocaleString(),
+                  hts: Math.round(bench.spatial.hts_headline.mae).toLocaleString(),
+                })}
               </p>
             </div>
           )}
@@ -633,17 +630,23 @@ export function MethodsPage() {
           {bench?.hts && (
             <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-4 text-xs text-slate-300 leading-relaxed font-sans space-y-1">
               <p className="font-bold text-amber-300">
-                {vi ? "HTS - ứng viên tốt nhất (chưa vượt gate 95%)" : "HTS - strongest candidate (95% gate not passed)"}
+                {t("methods.bench_hts_title")}
               </p>
               <p>
-                {vi
-                  ? `Holdout 72 tháng: MAE ${Math.round(bench.hts.hts_mae).toLocaleString()} so với B2 ${Math.round(bench.hts.b2_mae).toLocaleString()} (giảm ${(bench.hts.mean_gain_vs_b2 * 100).toFixed(1)}%). Việt Nam ${Math.round(bench.hts.per_aoi?.vietnam?.mae ?? 0).toLocaleString()}, Amazon ${Math.round(bench.hts.per_aoi?.amazon?.mae ?? 0).toLocaleString()}, Australia ${Math.round(bench.hts.per_aoi?.australia?.mae ?? 0).toLocaleString()}. CI 95% [${Math.round(bench.hts.comparisons?.hts_vs_b2?.ci95?.[0] ?? 0).toLocaleString()}, +${Math.round(bench.hts.comparisons?.hts_vs_b2?.ci95?.[1] ?? 0).toLocaleString()}], P(better)=${((bench.hts.comparisons?.hts_vs_b2?.prob_a_better ?? 0) * 100).toFixed(0)}%.`
-                  : `72-month holdout: MAE ${Math.round(bench.hts.hts_mae).toLocaleString()} vs B2 ${Math.round(bench.hts.b2_mae).toLocaleString()} (-${(bench.hts.mean_gain_vs_b2 * 100).toFixed(1)}% MAE). Vietnam ${Math.round(bench.hts.per_aoi?.vietnam?.mae ?? 0).toLocaleString()}, Amazon ${Math.round(bench.hts.per_aoi?.amazon?.mae ?? 0).toLocaleString()}, Australia ${Math.round(bench.hts.per_aoi?.australia?.mae ?? 0).toLocaleString()}. 95% CI [${Math.round(bench.hts.comparisons?.hts_vs_b2?.ci95?.[0] ?? 0).toLocaleString()}, +${Math.round(bench.hts.comparisons?.hts_vs_b2?.ci95?.[1] ?? 0).toLocaleString()}], P(better)=${((bench.hts.comparisons?.hts_vs_b2?.prob_a_better ?? 0) * 100).toFixed(0)}%.`}
+                {t("methods.bench_hts_body", {
+                  mae: Math.round(bench.hts.hts_mae).toLocaleString(),
+                  b2mae: Math.round(bench.hts.b2_mae).toLocaleString(),
+                  pct: ((bench.hts.mean_gain_vs_b2 ?? 0) * 100).toFixed(1),
+                  vn: Math.round(bench.hts.per_aoi?.vietnam?.mae ?? 0).toLocaleString(),
+                  amz: Math.round(bench.hts.per_aoi?.amazon?.mae ?? 0).toLocaleString(),
+                  aus: Math.round(bench.hts.per_aoi?.australia?.mae ?? 0).toLocaleString(),
+                  ci0: Math.round(bench.hts.comparisons?.hts_vs_b2?.ci95?.[0] ?? 0).toLocaleString(),
+                  ci1: Math.round(bench.hts.comparisons?.hts_vs_b2?.ci95?.[1] ?? 0).toLocaleString(),
+                  prob: (((bench.hts.comparisons?.hts_vs_b2?.prob_a_better ?? 0) as number) * 100).toFixed(0),
+                })}
               </p>
               <p className="text-slate-400">
-                {vi
-                  ? "Raw-only: chọn method=hts trong Calendar khi dùng NASA raw. Sample trả 409 vì không có ô 1°. Không tự thay B2; badge candidate là bắt buộc."
-                  : "Raw-only: choose method=hts in Calendar with NASA raw. Sample returns 409 (no 1° tiles). It never replaces B2 automatically; the candidate badge is required."}
+                {t("methods.bench_hts_note")}
               </p>
             </div>
           )}
@@ -655,28 +658,34 @@ export function MethodsPage() {
         <section className="rounded-2xl border border-amber-500/30 bg-amber-950/10 p-6 shadow-sm space-y-4">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-300 border-b border-amber-500/20 pb-3">
             <ShieldAlert className="h-5 w-5" />
-            <span>{vi ? "Ranh giới khoa học & Giới hạn sản phẩm" : "Scientific Boundaries & Operational Limits"}</span>
+            <span>{t("methods.limits_title")}</span>
           </div>
 
           <div className="space-y-4 text-xs text-slate-300 leading-relaxed font-sans">
             <div className="space-y-1">
-              <strong className="text-white text-sm block">1. Điểm nóng không tương đương số vụ cháy thực tế (Hotspots != Fire Incidents)</strong>
+              <strong className="text-white text-sm block">
+                {t("methods.limits_b1_title")}
+              </strong>
               <p className="text-slate-400">
-                Điểm nóng là các lượt phát hiện nhiệt độ cao từ cảm biến khi vệ tinh bay qua. Một đám cháy quy mô lớn có thể tạo ra hàng chục điểm nóng cùng lúc. Ngược lại, đám cháy ngún dưới tán rừng hoặc cháy quy mô nhỏ có thể bị bỏ sót.
+                {t("methods.limits_b1_desc")}
               </p>
             </div>
 
             <div className="space-y-1">
-              <strong className="text-white text-sm block">2. Thiếu dữ liệu không đồng nghĩa với không có cháy (Missing != Absence of Fire)</strong>
+              <strong className="text-white text-sm block">
+                {t("methods.limits_b2_title")}
+              </strong>
               <p className="text-slate-400">
-                Tình trạng mây dày hoặc lệch quỹ đạo khiến cảm biến không thể quét mặt đất. Hệ thống đánh dấu đây là ô thiếu dữ liệu ("No data") thay vì tự động điền số 0 gây hiểu lầm là đã dập tắt cháy.
+                {t("methods.limits_b2_desc")}
               </p>
             </div>
 
             <div className="space-y-1">
-              <strong className="text-white text-sm block">3. Không phục vụ điều phối cứu hỏa khẩn cấp (Not Operational Dispatch)</strong>
+              <strong className="text-white text-sm block">
+                {t("methods.limits_b3_title")}
+              </strong>
               <p className="text-slate-400">
-                Sản phẩm được thiết kế phục vụ nghiên cứu xu hướng đa thập kỷ và phân tích khoa học Trái Đất. Không sử dụng sản phẩm này cho mục đích cảnh báo tức thời hoặc điều xe chữa cháy tác chiến.
+                {t("methods.limits_b3_desc")}
               </p>
             </div>
           </div>
@@ -688,10 +697,10 @@ export function MethodsPage() {
         <section className="rounded-2xl border border-slate-800 bg-[#111C2E] p-6 shadow-sm space-y-5">
           <div className="space-y-1 border-b border-slate-800 pb-3">
             <h2 className="text-base font-bold text-white">
-              {vi ? "Tái lập kết quả & Nhập tệp CSV tùy chỉnh" : "Reproduction Guide & Custom CSV Ingestion"}
+              {t("methods.repro_title")}
             </h2>
             <p className="text-xs text-slate-400">
-              {vi ? "Hướng dẫn chạy mã nguồn mở và công cụ tải tệp FIRMS kiểm thử tại chỗ." : "Instructions for open-source reproduction and local CSV parsing tool."}
+              {t("methods.repro_sub")}
             </p>
           </div>
 
@@ -699,12 +708,10 @@ export function MethodsPage() {
           <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-cyan-400">
               <Upload className="h-4 w-4" />
-              <span>{vi ? "Công cụ kiểm tra tệp FIRMS CSV của bạn" : "Custom FIRMS CSV Parser"}</span>
+              <span>{t("methods.csv_title")}</span>
             </div>
             <p className="text-xs text-slate-300">
-              {vi
-                ? "Tải tệp CSV từ NASA FIRMS Area API và nạp tại đây để kiểm tra tính tương thích và chạy quy trình hiệu chuẩn tại chỗ (tối đa 5.000 dòng)."
-                : "Upload a CSV downloaded from the NASA FIRMS Area API to validate schema and test harmonization locally (up to 5,000 rows)."}
+              {t("methods.csv_desc")}
             </p>
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -720,7 +727,7 @@ export function MethodsPage() {
                 disabled={!file || uploadLoading}
                 className="rounded-xl bg-orange-600 hover:bg-orange-500 px-5 py-2.5 text-xs font-bold text-white shadow-sm transition disabled:opacity-50 min-h-[40px]"
               >
-                {uploadLoading ? (vi ? "Đang xử lý..." : "Processing...") : (vi ? "Xử lý tệp" : "Run Ingestion")}
+                {uploadLoading ? t("methods.csv_processing") : t("methods.csv_run")}
               </button>
             </div>
 
@@ -735,20 +742,10 @@ export function MethodsPage() {
           <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 space-y-3 font-mono text-xs">
             <div className="flex items-center gap-2 text-slate-300 font-bold">
               <Terminal className="h-4 w-4 text-cyan-400" />
-              <span>{vi ? "Tái lập môi trường qua Terminal" : "CLI Reproduction Commands"}</span>
+              <span>{t("methods.term_title")}</span>
             </div>
             <pre tabIndex={0} className="p-3 rounded-lg bg-slate-950 text-slate-300 overflow-x-auto border border-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">
-{`# 1. Clone repository và cài đặt môi trường
-git clone https://github.com/nasa-spaceapps/fireharmony.git
-cd fireharmony
-
-# 2. Cài đặt phụ thuộc backend và chạy server
-cd backend && pip install -r requirements.txt
-python -m uvicorn app.main:app --port 8000
-
-# 3. Chạy frontend
-cd ../frontend && npm install
-npm run build && npm run preview`}
+{t("methods.term_script")}
             </pre>
           </div>
         </section>

@@ -9,20 +9,17 @@ interface BlindSpotsTabProps {
 }
 
 export function BlindSpotsTab({ spots }: BlindSpotsTabProps) {
-  const { lang } = useLang();
-  const vi = lang === "vi";
+  const { t } = useLang();
 
   if (!spots) {
     return (
       <div className="rounded-2xl border border-dashed border-border/70 p-10 text-center text-sm text-slate-400 bg-slate-950/40">
         <Eye className="mx-auto mb-3 h-10 w-10 text-cyan-400 opacity-60 animate-pulse" />
         <p className="font-bold text-base text-slate-200">
-          {vi ? "Chưa có dữ liệu điểm mù quan trắc" : "Sensor Blind Spots Audit Ready"}
+          {t("lab.blind_empty_title")}
         </p>
         <p className="mt-1.5 text-xs text-slate-400 max-w-md mx-auto">
-          {vi
-            ? "Chọn năm và tháng ở bảng điều khiển bên trái rồi bấm 'Quét điểm mù quan trắc'."
-            : "Select Year and Month on the left console and click 'Scan Blind Spots' to audit daily coverage."}
+          {t("lab.blind_empty_hint")}
         </p>
       </div>
     );
@@ -41,23 +38,26 @@ export function BlindSpotsTab({ spots }: BlindSpotsTabProps) {
         <div className="flex items-center justify-between border-b border-cyan-500/20 pb-2">
           <span className="font-mono text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-cyan-400" />
-            {vi ? "KẾT LUẬN KIỂM TOÁN ĐIỂM MÙ VỆ TINH (EXECUTIVE BLIND SPOT AUDIT)" : "EXECUTIVE BLIND SPOT AUDIT VERDICT"}
+            {t("lab.blind_verdict_title")}
           </span>
           <span className="font-mono text-xs rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2.5 py-0.5 text-cyan-200">
             {spots.ym} · {spots.coverage_class.toUpperCase()}
           </span>
         </div>
         <p className="text-xs sm:text-sm text-slate-100 font-medium leading-relaxed">
-          {vi
-            ? `Tháng ${spots.ym} đạt độ phủ ghép đôi ${pct(spots.paired_coverage_ratio, 1)}. Ghi nhận ${detectedDays} ngày có quan trắc điểm nóng và ${unknownDays} ngày khuyết dữ liệu quan trắc. Quy chuẩn khoa học: Các ngày thiếu quan sát do mây mù hoặc góc quét quỹ đạo tuyệt đối không được gán bằng 0 để tránh bóp méo xu hướng biến động thực tế.`
-            : `Period ${spots.ym} achieves ${pct(spots.paired_coverage_ratio, 1)} paired coverage. Logged ${detectedDays} active detection days and ${unknownDays} unobserved gap days. Scientific protocol: Days missing coverage due to cloud attenuation or swath gaps are strictly masked rather than filled with zero, preventing false baseline artifacts.`}
+          {t("lab.blind_verdict_body", {
+            ym: spots.ym,
+            coverage: pct(spots.paired_coverage_ratio, 1),
+            detected: detectedDays,
+            unknown: unknownDays,
+          })}
         </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi
           icon={ShieldCheck}
-          label={vi ? "Độ phủ ghép đôi" : "Paired Coverage"}
+          label={t("lab.blind_kpi_paired")}
           value={pct(spots.paired_coverage_ratio, 1)}
           hint={`${spots.ym} · Class: ${spots.coverage_class}`}
           tone={
@@ -70,30 +70,30 @@ export function BlindSpotsTab({ spots }: BlindSpotsTabProps) {
         />
         <Kpi
           icon={Activity}
-          label={vi ? "Ngày có detection" : "Days with Detection"}
+          label={t("lab.blind_kpi_detected")}
           value={String(detectedDays)}
-          hint={vi ? "Ít nhất 1 cảm biến ghi nhận" : "Detected by ≥1 sensor"}
+          hint={t("lab.blind_hint_detected")}
           tone="good"
         />
         <Kpi
           icon={CircleSlash}
-          label={vi ? "Đã yêu cầu, không detection" : "Requested, No Detection"}
+          label={t("lab.blind_kpi_empty")}
           value={String(emptyDays)}
-          hint={vi ? "Không phải bằng chứng trời quang / không cháy" : "Not proof of clear sky or no fire"}
+          hint={t("lab.blind_hint_empty")}
           tone="warn"
         />
         <Kpi
           icon={AlertTriangle}
-          label={vi ? "Không yêu cầu / Không rõ" : "Unknown / Unrequested"}
+          label={t("lab.blind_kpi_unknown")}
           value={String(unknownDays)}
-          hint={vi ? "Không được vẽ thành 0" : "Never treated as zero"}
+          hint={t("lab.blind_hint_unknown")}
           tone="bad"
         />
       </div>
 
       <Section
-        title={vi ? "Bản đồ nhiệt Ngày × Cảm biến" : "Daily Sensor Observation Heatmap"}
-        subtitle={vi ? "Mỗi ô là 1 ngày quan trắc; hover để xem chi tiết" : "Each tile represents one day of observations"}
+        title={t("lab.blind_heatmap_title")}
+        subtitle={t("lab.blind_heatmap_sub")}
       >
         <div className="overflow-x-auto pb-2">
           <div className="min-w-[720px]">
@@ -148,16 +148,16 @@ export function BlindSpotsTab({ spots }: BlindSpotsTabProps) {
 
         <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-300 border-t border-border/40 pt-2.5">
           <span className="inline-flex items-center gap-1.5">
-            <i className="h-3 w-3 rounded bg-orange-500" /> {vi ? "Có detection" : "Detections logged"}
+            <i className="h-3 w-3 rounded bg-orange-500" /> {t("lab.blind_legend_detected")}
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <i className="h-3 w-3 rounded bg-sky-600/40" /> {vi ? "Đã yêu cầu, không có detection" : "Requested, no detection"}
+            <i className="h-3 w-3 rounded bg-sky-600/40" /> {t("lab.blind_legend_requested")}
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <i className="h-3 w-3 rounded bg-slate-800" /> {vi ? "Không yêu cầu" : "Not requested"}
+            <i className="h-3 w-3 rounded bg-slate-800" /> {t("lab.blind_legend_unrequested")}
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <i className="h-3 w-3 rounded bg-amber-600/30" /> {vi ? "Không rõ (Unknown)" : "Unknown coverage"}
+            <i className="h-3 w-3 rounded bg-amber-600/30" /> {t("lab.blind_legend_unknown")}
           </span>
         </div>
       </Section>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Pause, Play, RotateCcw } from "lucide-react";
 import { useLang } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -7,12 +7,14 @@ interface MapTimeScrubberProps {
   currentPeriod: string;
   onSelectPeriod: (period: string) => void;
   availableYears: number[];
+  isLoading?: boolean;
 }
 
 export function MapTimeScrubber({
   currentPeriod,
   onSelectPeriod,
   availableYears,
+  isLoading = false,
 }: MapTimeScrubberProps) {
   const { t } = useLang();
 
@@ -38,11 +40,11 @@ export function MapTimeScrubber({
     }
   }, [parsed]);
 
-  // Animation player loop
+  // Animation player loop: wait until the current month finishes loading before advancing
   useEffect(() => {
-    if (!isPlaying) return;
+    if (!isPlaying || isLoading) return;
 
-    const timer = setInterval(() => {
+    const timer = setTimeout(() => {
       const nextMonth = parsed.isAll ? 1 : (parsed.month % 12) + 1;
       let nextYear = activeYear;
 
@@ -60,10 +62,10 @@ export function MapTimeScrubber({
       }
 
       onSelectPeriod(`${nextYear}-${String(nextMonth).padStart(2, "0")}`);
-    }, 950);
+    }, 850);
 
-    return () => clearInterval(timer);
-  }, [isPlaying, parsed, activeYear, availableYears, onSelectPeriod]);
+    return () => clearTimeout(timer);
+  }, [isPlaying, isLoading, parsed, activeYear, availableYears, onSelectPeriod]);
 
   const handlePrevYear = () => {
     const idx = availableYears.indexOf(activeYear);
@@ -96,18 +98,18 @@ export function MapTimeScrubber({
   };
 
   return (
-    <div data-ui-review="calendar-scrubber" className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[400] w-[min(94%,672px)] max-w-full">
-      <div className="rounded-2xl border border-slate-800/90 bg-[#0B1220]/95 backdrop-blur-md p-2.5 shadow-2xl space-y-2 text-xs">
+    <div data-ui-review="calendar-scrubber" className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-[400] w-[min(96%,560px)] max-w-full">
+      <div className="rounded-xl border border-slate-800/90 bg-[#0B1220]/95 backdrop-blur-md p-2 shadow-2xl space-y-1.5 text-xs">
         {/* Controls row */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-1.5 flex-nowrap">
           {/* Year selector with prev/next */}
-          <div className="flex items-center gap-1 bg-slate-900/90 border border-slate-800 rounded-xl px-1.5 py-1">
+          <div className="flex items-center gap-0.5 bg-slate-900/90 border border-slate-800 rounded-lg px-1 py-0.5 shrink-0">
             <button
               type="button"
               onClick={handlePrevYear}
               disabled={availableYears.indexOf(activeYear) <= 0}
               aria-label="Previous Year"
-              className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400"
+              className="inline-flex min-h-[28px] min-w-[28px] items-center justify-center rounded-md p-1 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </button>
@@ -133,36 +135,40 @@ export function MapTimeScrubber({
               onClick={handleNextYear}
               disabled={availableYears.indexOf(activeYear) >= availableYears.length - 1}
               aria-label="Next Year"
-              className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400"
+              className="inline-flex min-h-[28px] min-w-[28px] items-center justify-center rounded-md p-1 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400"
             >
               <ChevronRight className="h-3.5 w-3.5" />
             </button>
           </div>
 
           {/* Current Period Label */}
-          <div className="flex min-w-0 items-center gap-2 font-mono">
-            <span className="text-slate-400 hidden sm:inline text-[11px]">
+          <div className="flex min-w-0 items-center gap-1.5 font-mono">
+            <span className="text-slate-400 hidden md:inline text-[11px] whitespace-nowrap">
               {t("calendar.timeline_period")}
             </span>
-            <span className="text-white font-bold bg-slate-800 px-2.5 py-0.5 rounded-md border border-slate-700">
+            <span className="text-white font-bold bg-slate-800 px-2 py-0.5 rounded-md border border-slate-700 text-[11px] truncate">
               {parsed.isAll ? t("calendar.all_months") : `${activeYear}-${String(parsed.month).padStart(2, "0")}`}
             </span>
           </div>
 
           {/* Play/Pause & Reset All */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
               onClick={() => setIsPlaying(!isPlaying)}
               title={isPlaying ? t("calendar.pause_playback") : t("calendar.play_playback")}
               className={cn(
-                "flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-bold transition min-h-[30px]",
+                "flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold transition min-h-[28px]",
                 isPlaying
                   ? "bg-amber-500 text-slate-950 font-extrabold shadow-amber-500/30"
                   : "bg-cyan-600 hover:bg-cyan-500 text-white shadow-sm"
               )}
             >
-              {isPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+              {isPlaying ? (
+                isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Pause className="h-3 w-3" />
+              ) : (
+                <Play className="h-3 w-3" />
+              )}
               <span className="hidden sm:inline">{isPlaying ? t("calendar.pause") : t("calendar.play")}</span>
             </button>
 
@@ -171,7 +177,7 @@ export function MapTimeScrubber({
               onClick={handleSelectAll}
               title={t("calendar.view_all_year")}
               className={cn(
-                "rounded-xl px-2 py-1 text-[11px] font-semibold transition border min-h-[30px] flex items-center gap-1",
+                "rounded-lg px-2 py-1 text-[11px] font-semibold transition border min-h-[28px] flex items-center gap-1",
                 parsed.isAll
                   ? "border-cyan-500/40 bg-cyan-950/40 text-cyan-300 font-bold"
                   : "border-slate-800 bg-slate-900/80 text-slate-400 hover:text-white"
@@ -184,7 +190,7 @@ export function MapTimeScrubber({
         </div>
 
         {/* 12 Months button row */}
-        <div className="grid grid-cols-12 gap-1 pt-1 border-t border-slate-800/80">
+        <div className="grid grid-cols-6 sm:grid-cols-12 gap-1 pt-1 border-t border-slate-800/80">
           {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
             const isSelected = !parsed.isAll && parsed.year === activeYear && parsed.month === m;
             return (

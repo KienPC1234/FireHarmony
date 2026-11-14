@@ -191,19 +191,19 @@ export function XraySidebar({
           <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 leading-relaxed text-slate-400">
             <span>{t("xray.total_months")}:</span>
             <span className="text-slate-200">
-              {vi ? `${totalMonths} cặp tháng` : `${totalMonths} monthly pairs`}
+              {t("xray.sidebar_pairs", { count: totalMonths })}
             </span>
           </div>
           <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 leading-relaxed text-slate-400">
-            <span>{vi ? "STAN (chính)" : "STAN (primary)"}:</span>
+            <span>{t("xray.sidebar_stan")}:</span>
             <span className={stanTrained ? "text-emerald-400 font-bold" : "text-amber-400"}>
-              {stanTrained ? (vi ? "Sẵn sàng" : "Operational") : (vi ? "Cần retrain" : "Not trained")}
+              {stanTrained ? t("xray.sidebar_ready") : t("xray.sidebar_not_trained")}
             </span>
           </div>
           <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 leading-relaxed text-slate-400">
-            <span>{vi ? "HTS (fallback)" : "HTS (fallback)"}:</span>
+            <span>{t("xray.sidebar_hts")}:</span>
             <span className={htsTrained ? "text-emerald-400 font-bold" : "text-amber-400"}>
-              {htsTrained ? (vi ? "Sẵn sàng" : "Operational") : (vi ? "Cần retrain" : "Not trained")}
+              {htsTrained ? t("xray.sidebar_ready") : t("xray.sidebar_not_trained")}
             </span>
           </div>
         </div>
@@ -212,7 +212,7 @@ export function XraySidebar({
       {/* Quick Navigation to Ecosystem */}
       <div className="rounded-2xl border border-slate-800 bg-[#111C2E] p-3.5 shadow-sm space-y-2">
         <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
-          {vi ? "Công cụ liên quan" : "Related Cockpit Tools"}
+          {t("xray.sidebar_related")}
         </div>
         <div className="space-y-1">
           <Link

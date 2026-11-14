@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleMarker, MapContainer, Marker, Polygon, Rectangle, TileLayer, Tooltip, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -35,17 +35,46 @@ const BASEMAPS: Record<BasemapKey, { label: string; url: string; attribution: st
 const SATELLITE_LABELS_URL =
   "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
 
-function MapResizer() {
+function MapResizer({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
+  const mountedRef = useRef(false);
+  // P2-12: remember the last applied view so a parent re-render that passes
+  // an equal (but newly allocated) center/zoom does not yank the map back
+  // while the user is panning.
+  const appliedRef = useRef<{ lat: number; lng: number; zoom: number } | null>(null);
+
   useEffect(() => {
     map.invalidateSize();
     const t1 = setTimeout(() => map.invalidateSize(), 150);
     const t2 = setTimeout(() => map.invalidateSize(), 500);
+    const container = map.getContainer();
+    const ro =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => {
+            map.invalidateSize({ pan: false });
+          })
+        : null;
+    ro?.observe(container);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
+      ro?.disconnect();
     };
   }, [map]);
+
+  const [lat, lng] = center;
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      appliedRef.current = { lat, lng, zoom };
+      return;
+    }
+    const prev = appliedRef.current;
+    if (prev && prev.lat === lat && prev.lng === lng && prev.zoom === zoom) return;
+    appliedRef.current = { lat, lng, zoom };
+    map.setView([lat, lng], zoom, { animate: true });
+  }, [map, lat, lng, zoom]);
+
   return null;
 }
 
@@ -74,6 +103,7 @@ export function AoiMap({
   geometry = null,
   cells,
   preview = null,
+  hasCustomFilter = false,
   onSelect,
   onClearBbox,
   fullBleed = false,
@@ -89,6 +119,7 @@ export function AoiMap({
   geometry?: string | null;
   cells: HotspotCell[];
   preview?: { returned: number; total: number; preview: boolean; level?: string } | null;
+  hasCustomFilter?: boolean;
   onSelect: (bbox: string, geometry?: string | null) => void;
   onClearBbox?: () => void;
   fullBleed?: boolean;
@@ -98,12 +129,13 @@ export function AoiMap({
   activeZoneId?: string;
   onSelectZone?: (z: HotspotCluster | null) => void;
 }) {
-  const { lang } = useLang();
-  const vi = lang === "vi";
+  const { t } = useLang();
 
-  const [basemap, setBasemap] = useState<BasemapKey>("dark");
-  const [layerMode, setLayerMode] = useState<LayerMode>("all");
+  const [basemap, setBasemap] = useState<BasemapKey>("satellite");
+  const [layerMode, setLayerMode] = useState<LayerMode>("points");
   const [drawMode, setDrawMode] = useState<DrawMode>("none");
+  const [drawVertices, setDrawVertices] = useState<[number, number][]>([]);
+  const [showLegend, setShowLegend] = useState<boolean>(true);
   const [selectedZone, setSelectedZone] = useState<HotspotCluster | null>(null);
 
   const fireZones = useMemo(() => buildHotspotClusters(cells, 0.45), [cells]);
@@ -165,6 +197,7 @@ export function AoiMap({
             drawMode={drawMode}
             setDrawMode={setDrawMode}
             bbox={bbox}
+            hasCustomFilter={hasCustomFilter || Boolean(drawnRing)}
             onClearBbox={onClearBbox}
             onSetBbox={(b) => onSelect(b, null)}
             zoneCount={fireZones.length}
@@ -176,16 +209,21 @@ export function AoiMap({
 
       {/* 2. MAIN MAP CANVAS (ABSOLUTE FILL OVER FLEX-1 CONTAINER) */}
       <div className="relative flex-1 min-h-0 w-full bg-[#060B13]">
-        <div className="absolute inset-0">
+        <div
+          className={cn("absolute inset-0", drawMode !== "none" && "cursor-crosshair")}
+          role="region"
+          aria-label={t("map.region_label")}
+        >
           <MapContainer
             center={center}
             zoom={zoom}
             preferCanvas={true}
             dragging={drawMode === "none"}
+            doubleClickZoom={drawMode === "none"}
             className="h-full w-full"
-            style={{ height: "100%", width: "100%", background: "#060B13" }}
+            style={{ height: "100%", width: "100%", background: "#060B13", cursor: drawMode !== "none" ? "crosshair" : undefined }}
           >
-            <MapResizer />
+            <MapResizer center={center} zoom={zoom} />
 
             <TileLayer
               key={basemap}
@@ -199,6 +237,9 @@ export function AoiMap({
 
             <DrawPolygonLayer
               mode={drawMode}
+              vertices={drawVertices}
+              setVertices={setDrawVertices}
+              onCancel={() => setDrawMode("none")}
               onDone={(b, pts) => {
                 setDrawMode("none");
                 if (!pts) {
@@ -218,8 +259,8 @@ export function AoiMap({
               />
             )}
 
-            {/* Active Bounding Rectangle if set */}
-            {rect && (
+            {/* Active Bounding Rectangle if user drew/entered a custom box */}
+            {hasCustomFilter && !drawnRing && rect && (
               <Rectangle
                 bounds={rect}
                 pathOptions={{
@@ -263,15 +304,16 @@ export function AoiMap({
                           <span>{zone.name}</span>
                         </div>
                         <div className="text-orange-400 font-semibold">
-                          {zone.totalDetections} {vi ? "điểm nhiệt trên" : "detections across"} {zone.cellCount} {vi ? "ô" : "cells"}
+                          {t("map.zone_summary", {
+                            detections: zone.totalDetections,
+                            cells: zone.cellCount,
+                          })}
                         </div>
                         <div className="text-xs text-slate-400">
-                          {vi ? "Đỉnh điểm:" : "Peak date:"} {zone.peakDate}
+                          {t("map.peak_date")} {zone.peakDate}
                         </div>
                         <div className="max-w-[280px] text-[11px] leading-snug text-amber-200/90">
-                          {vi
-                            ? "Bao hình học quanh các ô phát hiện: KHÔNG phải đường viền cháy, diện tích cháy hay mức nguy cơ."
-                            : "Convex hull around detected cells: NOT a fire perimeter, burned area, or risk grade."}
+                          {t("map.hull_note")}
                         </div>
                       </div>
                     </Tooltip>
@@ -302,10 +344,13 @@ export function AoiMap({
                           <span>{zone.name}</span>
                         </div>
                         <div className="text-white">
-                          {zone.totalDetections} {vi ? "điểm phát hiện" : "hotspots"} · {zone.cellCount} {vi ? "ô" : "cells"}
+                          {t("map.zone_hotspots", {
+                            detections: zone.totalDetections,
+                            cells: zone.cellCount,
+                          })}
                         </div>
                         <div className="max-w-[200px] text-[11px] text-amber-200/90">
-                          {vi ? "Cụm quan sát, không phải ranh giới cháy" : "Observed cluster, not a fire perimeter"}
+                          {t("map.cluster_note")}
                         </div>
                       </div>
                     </Tooltip>
@@ -355,10 +400,10 @@ export function AoiMap({
                       <div className="font-mono text-xs">
                         <div className="font-bold text-white">{c.date}</div>
                         <div className="text-teal-300 font-semibold">
-                          {c.harmonized_count} {vi ? "điểm phát hiện" : "detections"}
+                          {t("map.detections_count", { count: c.harmonized_count })}
                         </div>
                         <div className="text-xs text-slate-300">
-                          {isEst ? `${vi ? "MODIS chuỗi nền (1km)" : "MODIS Baseline (1km)"}` : vi ? "VIIRS quan sát (375m)" : "VIIRS Observed (375m)"}
+                          {isEst ? t("map.modis_baseline") : t("map.viirs_observed")}
                         </div>
                         <div className="text-xs text-slate-400">
                           {c.lat.toFixed(3)}°, {c.lon.toFixed(3)}°
@@ -371,33 +416,105 @@ export function AoiMap({
           </MapContainer>
         </div>
 
+        {drawMode !== "none" && (
+          <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-[900] flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/40 bg-[#0B1220]/95 px-3 py-1.5 text-xs text-slate-200 shadow-xl backdrop-blur-md max-w-[95%]">
+            <span className="font-mono text-[11px] text-amber-300 font-semibold">
+              {drawMode === "box"
+                ? t("map.draw_box_hint")
+                : t("map.draw_polygon_hint", { count: drawVertices.length })}
+            </span>
+            {drawMode === "polygon" && drawVertices.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setDrawVertices((prev) => prev.slice(0, -1))}
+                className="rounded border border-slate-700 bg-slate-900 px-2 py-0.5 text-[11px] text-slate-200 hover:bg-slate-800"
+              >
+                {t("map.draw_undo")}
+              </button>
+            )}
+            {drawMode === "polygon" && drawVertices.length >= 3 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (drawVertices.length < 3) return;
+                  const lats = drawVertices.map((p) => p[0]);
+                  const lons = drawVertices.map((p) => p[1]);
+                  const bboxStr = `${Math.min(...lons).toFixed(2)},${Math.min(...lats).toFixed(2)},${Math.max(...lons).toFixed(2)},${Math.max(...lats).toFixed(2)}`;
+                  const coords = drawVertices.map(([lat, lon]) => [Number(lon.toFixed(4)), Number(lat.toFixed(4))]);
+                  coords.push(coords[0]);
+                  setDrawMode("none");
+                  onSelect(bboxStr, JSON.stringify({ type: "Polygon", coordinates: [coords] }));
+                }}
+                className="rounded border border-emerald-500/50 bg-emerald-600/30 px-2 py-0.5 text-[11px] font-bold text-emerald-200 hover:bg-emerald-600/50"
+              >
+                {t("map.draw_finish")}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setDrawMode("none")}
+              className="rounded border border-slate-700 bg-slate-900 px-2 py-0.5 text-[11px] text-slate-400 hover:text-white"
+            >
+              {t("map.draw_cancel")}
+            </button>
+          </div>
+        )}
+
+        {drawMode === "none" && (hasCustomFilter || Boolean(drawnRing)) && onClearBbox && (
+          <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-[900]">
+            <button
+              type="button"
+              onClick={onClearBbox}
+              className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/50 bg-[#0B1220]/95 px-3 py-1 text-xs font-semibold text-rose-200 shadow-xl backdrop-blur-md hover:bg-rose-950/90 hover:text-white transition"
+            >
+              <span>×</span>
+              <span>{t("calendar.clear_filter")}</span>
+            </button>
+          </div>
+        )}
+
         {!hideLegend && (
-          <div className="pointer-events-none absolute bottom-3 left-3 z-[800] rounded-lg border border-white/10 bg-[#0B1220]/85 px-3 py-2 text-xs text-slate-200 shadow-lg backdrop-blur-md">
-            <div className="flex flex-col gap-1.5">
-              <span className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full border border-white bg-[#2DD4BF]" />
-                {vi ? "VIIRS quan sát (375 m)" : "VIIRS observed (375 m)"}
-              </span>
-              <span className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full border border-white bg-[#60A5FA]" />
-                {vi ? "MODIS chuỗi nền (1 km)" : "MODIS baseline (1 km)"}
-              </span>
-              <span className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-sm border border-dashed border-amber-300 bg-amber-500/20" />
-                {vi ? "Cụm điểm nóng (bao lồi, không phải ranh giới cháy)" : "Hotspot cluster (convex hull, not a fire perimeter)"}
-              </span>
-              {preview && (
-                <span className="mt-1 border-t border-white/10 pt-1.5 text-[11px] text-slate-300">
-                  {preview.preview
-                    ? (vi
-                        ? `Xem trước ${preview.returned.toLocaleString()} / ${preview.total.toLocaleString()} ô (${preview.level ?? "ô-tháng"})`
-                        : `Preview ${preview.returned.toLocaleString()} of ${preview.total.toLocaleString()} cells (${preview.level ?? "cell-month"})`)
-                    : (vi
-                        ? `${preview.returned.toLocaleString()} ô đã trả về (${preview.level ?? "ô-tháng"})`
-                        : `${preview.returned.toLocaleString()} cells returned (${preview.level ?? "cell-month"})`)}
-                </span>
-              )}
+          <div className="absolute top-2.5 right-2.5 z-[800] max-w-[220px] rounded-lg border border-white/10 bg-[#0B1220]/85 px-2.5 py-1.5 text-[11px] text-slate-200 shadow-lg backdrop-blur-md">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-mono text-[10px] uppercase tracking-wider text-slate-400">{t("map.legend_title")}</span>
+              <button
+                type="button"
+                onClick={() => setShowLegend((v) => !v)}
+                className="text-[10px] text-cyan-400 hover:text-cyan-200"
+              >
+                {showLegend ? t("map.legend_hide") : t("map.legend_show")}
+              </button>
             </div>
+            {showLegend && (
+              <div className="mt-1 flex flex-col gap-1">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 shrink-0 rounded-full border border-white bg-[#2DD4BF]" />
+                  <span className="truncate">{t("map.legend_viirs")}</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 shrink-0 rounded-full border border-white bg-[#60A5FA]" />
+                  <span className="truncate">{t("map.legend_modis")}</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 shrink-0 rounded-sm border border-dashed border-amber-300 bg-amber-500/20" />
+                  <span className="truncate">{t("map.legend_cluster")}</span>
+                </span>
+                {preview && (
+                  <span className="mt-0.5 border-t border-white/10 pt-1 text-[10px] text-slate-300">
+                    {preview.preview
+                      ? t("map.preview_of", {
+                          returned: preview.returned.toLocaleString(),
+                          total: preview.total.toLocaleString(),
+                          level: preview.level ?? t("map.level_cell_month"),
+                        })
+                      : t("map.cells_returned", {
+                          returned: preview.returned.toLocaleString(),
+                          level: preview.level ?? t("map.level_cell_month"),
+                        })}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -12,8 +12,7 @@ interface CrossDatasetTabProps {
 }
 
 export function CrossDatasetTab({ burned, setBurned, crossRes }: CrossDatasetTabProps) {
-  const { lang } = useLang();
-  const vi = lang === "vi";
+  const { t } = useLang();
 
   const crossChart = (crossRes?.joined ?? []).map((r) => ({
     x: r.activity_index,
@@ -24,8 +23,8 @@ export function CrossDatasetTab({ burned, setBurned, crossRes }: CrossDatasetTab
   return (
     <div className="space-y-4 animate-fade-in">
       <Section
-        title={vi ? "Chuỗi Burned Area đối chiếu" : "Burned Area Series Input"}
-        subtitle={vi ? "Định dạng: year,month,burned_area" : "Format: year,month,burned_area"}
+        title={t("lab.cross_input_title")}
+        subtitle={t("lab.cross_input_sub")}
       >
         <textarea
           value={burned}
@@ -36,30 +35,26 @@ export function CrossDatasetTab({ burned, setBurned, crossRes }: CrossDatasetTab
           aria-label="Burned area series"
         />
         <p className="mt-2 text-xs text-slate-400">
-          {vi
-            ? "Lưu ý: Đây là kiểm tra tương quan nhất quán, không phải ground truth tuyệt đối. Burned area và hotspot là hai đại lượng vật lý khác biệt."
-            : "A correlation sanity check, not ground truth. Burned area (hectares) and hotspot counts are distinct physical quantities."}
+          {t("lab.cross_note")}
         </p>
       </Section>
 
       {!crossRes && (
-        <Section title={vi ? "Chưa có dữ liệu đối chiếu" : "No External Dataset Loaded"}>
+        <Section title={t("lab.cross_empty_title")}>
           <p className="text-xs text-slate-400 leading-relaxed">
-            {vi
-              ? "Dán chuỗi burned-area của bạn (ví dụ MCD64A1) vào ô trên rồi bấm chạy. Hệ thống không tự sinh số mẫu và không coi đây là ground truth."
-              : "Paste your own burned-area series (e.g. MCD64A1) above, then run. No sample values are generated and this is not treated as ground truth."}
+            {t("lab.cross_empty_body")}
           </p>
         </Section>
       )}
 
       {crossRes && (
-        <Section title={vi ? "Kết quả tương quan" : "Cross-dataset Correlation Results"}>
+        <Section title={t("lab.cross_results_title")}>
           {crossRes.available ? (
             <>
               <div className="grid gap-3 sm:grid-cols-3">
                 <Kpi
                   icon={Database}
-                  label={vi ? "Số tháng khớp (n)" : "Matched Months (n)"}
+                  label={t("lab.cross_kpi_months")}
                   value={String(crossRes.n ?? 0)}
                 />
                 <Kpi
@@ -82,14 +77,14 @@ export function CrossDatasetTab({ burned, setBurned, crossRes }: CrossDatasetTab
                     <XAxis
                       type="number"
                       dataKey="x"
-                      name={vi ? "Chỉ số hoạt động" : "Activity Index"}
+                      name={t("lab.cross_axis_activity")}
                       tick={{ fontSize: 11, fill: "#94a3b8" }}
                       tickFormatter={(v) => compact(Number(v))}
                     />
                     <YAxis
                       type="number"
                       dataKey="y"
-                      name={vi ? "Diện tích cháy" : "Burned Area"}
+                      name={t("lab.cross_axis_burned")}
                       tick={{ fontSize: 11, fill: "#94a3b8" }}
                       tickFormatter={(v) => compact(Number(v))}
                     />
@@ -113,12 +108,8 @@ export function CrossDatasetTab({ burned, setBurned, crossRes }: CrossDatasetTab
             <div className="rounded-xl border border-dashed border-border/70 p-6 text-center text-xs text-slate-400">
               <Link2 className="mx-auto mb-2 h-6 w-6 opacity-40 text-cyan-400" />
               {crossRes.reason === "no_series"
-                ? vi
-                  ? "Chưa có chuỗi dữ liệu. Nhập CSV ở khung trên rồi bấm Run."
-                  : "No series yet. Enter CSV above and click Run."
-                : vi
-                ? `Không đủ tháng khớp (n=${crossRes.n ?? 0}).`
-                : `Not enough matched months (n=${crossRes.n ?? 0}).`}
+                ? t("lab.cross_no_series")
+                : t("lab.cross_not_enough", { n: crossRes.n ?? 0 })}
             </div>
           )}
         </Section>

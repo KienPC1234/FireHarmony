@@ -3,10 +3,26 @@ import { ChevronLeft, ChevronRight, Database, Globe, Info, Sparkles, Table as Ta
 import { useLang } from "@/lib/i18n";
 import { backendMethod, type CalibMethod } from "@/lib/researchContext";
 import { cn, compact } from "@/lib/utils";
+import { anomalyLabel } from "./anomaly";
+import { SENSOR_LEGEND_KEYS } from "../map/sensorLegend";
 import { DataStatus } from "@/components/common/DataStatus";
 import { IntegratedAiAssistant } from "@/components/ai/IntegratedAiAssistant";
 
 export type DockTab = "overview" | "month" | "ai";
+
+export interface SavedCustomAoi {
+  id: string;
+  name: string;
+  baseAoi: string;
+  bbox: string;
+  geometry: string | null;
+}
+
+export type CustomAoiProbe =
+  | { status: "pending" }
+  | { status: "ready"; from: string | null; to: string | null }
+  | { status: "empty" }
+  | { status: "error" };
 
 export interface ActiveMonth {
   year: number;
@@ -27,12 +43,24 @@ interface CalendarDockProps {
   onSelectDataFeed?: (feed: "raw" | "sample") => void;
   method: CalibMethod;
   onSelectMethod: (method: CalibMethod) => void;
+  sourceType?: "all" | "land" | "vegetation";
+  onSelectSourceType?: (val: "all" | "land" | "vegetation") => void;
+  qaMin?: string;
+  onSelectQaMin?: (val: string) => void;
+  platformSet?: string;
+  onSelectPlatformSet?: (val: string) => void;
   totalDetections: number;
   totalHarmonized: number;
   anomalyCount: number;
   activeMonth: ActiveMonth | null;
   onShowMonthOnMap: (ym: string) => void;
   onOpenMatrix: () => void;
+  customAois?: SavedCustomAoi[];
+  aoiProbes?: Record<string, CustomAoiProbe>;
+  onApplyCustomAoi?: (aoi: SavedCustomAoi) => void;
+  onDeleteCustomAoi?: (id: string) => void;
+  modisRange?: string | null;
+  viirsRange?: string | null;
 }
 
 const AOI_OPTIONS = [
@@ -40,14 +68,6 @@ const AOI_OPTIONS = [
   { id: "amazon", key: "aoi.amazon_short" },
   { id: "australia", key: "aoi.australia_short" },
 ];
-
-function anomalyLabel(z: number | null, t: (k: string) => string): { text: string; tone: string } {
-  if (z === null) return { text: t("calendar.dock_z_no_data"), tone: "text-slate-400" };
-  if (z >= 2) return { text: t("calendar.dock_z_unusually_high"), tone: "text-rose-300" };
-  if (z >= 1) return { text: t("calendar.dock_z_above_typical"), tone: "text-amber-300" };
-  if (z <= -1) return { text: t("calendar.dock_z_below_typical"), tone: "text-sky-300" };
-  return { text: t("calendar.dock_z_within_typical"), tone: "text-emerald-300" };
-}
 
 export function CalendarDock({
   open,
@@ -60,12 +80,24 @@ export function CalendarDock({
   onSelectDataFeed,
   method,
   onSelectMethod,
+  sourceType = "all",
+  onSelectSourceType,
+  qaMin = "all",
+  onSelectQaMin,
+  platformSet = "all",
+  onSelectPlatformSet,
   totalDetections,
   totalHarmonized,
   anomalyCount,
   activeMonth,
   onShowMonthOnMap,
   onOpenMatrix,
+  customAois = [],
+  aoiProbes = {},
+  onApplyCustomAoi,
+  onDeleteCustomAoi,
+  modisRange = null,
+  viirsRange = null,
 }: CalendarDockProps) {
   const { t } = useLang();
   const isSynthetic = data !== "raw";
@@ -117,7 +149,7 @@ export function CalendarDock({
               aria-selected={tab === tabItem.id}
               onClick={() => onTabChange(tabItem.id)}
               className={cn(
-                "flex-1 rounded-md px-2 py-1.5 text-sm font-medium transition",
+                "flex-1 rounded-md px-1.5 py-1.5 text-xs font-medium transition whitespace-nowrap",
                 tab === tabItem.id ? "bg-slate-700/80 text-white" : "text-slate-400 hover:text-white",
               )}
             >
@@ -136,9 +168,9 @@ export function CalendarDock({
       </div>
 
       {tab === "overview" && (
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-          <section className="space-y-2">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+          <section className="space-y-1.5">
+            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
               {t("calendar.dock_aoi_title")}
             </h2>
             <div className="grid grid-cols-3 gap-1 rounded-lg bg-slate-900/80 p-1">
@@ -148,7 +180,7 @@ export function CalendarDock({
                   type="button"
                   onClick={() => onSelectAoi(o.id)}
                   className={cn(
-                    "rounded-md py-2 text-sm font-medium transition",
+                    "rounded-md py-1.5 text-xs font-medium transition",
                     aoi === o.id ? "bg-cyan-500/20 text-cyan-200" : "text-slate-400 hover:text-white",
                   )}
                 >
@@ -158,8 +190,79 @@ export function CalendarDock({
             </div>
           </section>
 
-          <section className="space-y-2">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <section className="space-y-1.5">
+            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              {t("calendar.custom_aois_title")}
+            </h2>
+            {customAois.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-slate-800 px-2.5 py-2 text-[11px] leading-snug text-slate-500">
+                {t("calendar.custom_aois_empty")}
+              </p>
+            ) : (
+              <ul className="space-y-1.5">
+                {customAois.map((c) => {
+                  const probe = aoiProbes[c.id] ?? { status: "pending" as const };
+                  const rangeLabel = probe.status === "ready" && probe.from && probe.to
+                    ? `${probe.from.slice(0, 4)}-${probe.to.slice(0, 4)}`
+                    : t("calendar.aoi_range_unknown");
+                  const statusLabel = probe.status === "ready"
+                    ? t("calendar.aoi_status_ready")
+                    : probe.status === "empty"
+                    ? t("calendar.aoi_status_empty")
+                    : probe.status === "error"
+                    ? t("calendar.aoi_status_error")
+                    : t("calendar.aoi_status_pending");
+                  return (
+                    <li
+                      key={c.id}
+                      className="rounded-lg border border-slate-800 bg-slate-900/60 px-2.5 py-2"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-xs font-semibold text-slate-200" title={c.name}>
+                          {c.name}
+                        </span>
+                        <span className="shrink-0 font-mono text-[10px] text-cyan-300">
+                          {rangeLabel}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 truncate font-mono text-[10px] text-slate-500" title={c.bbox}>
+                        {c.bbox}
+                      </div>
+                      <div className="mt-1.5 flex items-center justify-between gap-2">
+                        <span className={cn(
+                          "font-mono text-[10px]",
+                          probe.status === "ready" ? "text-emerald-300"
+                          : probe.status === "pending" ? "text-slate-400"
+                          : "text-amber-300",
+                        )}>
+                          {statusLabel}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => onApplyCustomAoi?.(c)}
+                            className="rounded border border-cyan-500/40 bg-cyan-500/15 px-2 py-0.5 text-[11px] font-semibold text-cyan-200 hover:bg-cyan-500/30 transition"
+                          >
+                            {t("common.apply")}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onDeleteCustomAoi?.(c.id)}
+                            className="rounded border border-slate-700 px-2 py-0.5 text-[11px] text-slate-400 hover:text-rose-300 hover:border-rose-500/40 transition"
+                          >
+                            {t("calendar.aoi_delete")}
+                          </button>
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+
+          <section className="space-y-1.5">
+            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
               {t("calendar.dock_feed_title")}
             </h2>
             <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-900/80 p-1">
@@ -174,7 +277,7 @@ export function CalendarDock({
                 )}
               >
                 <Database className="h-3.5 w-3.5 shrink-0" />
-                <span>NASA Raw</span>
+                <span>{t("calendar.feed_raw")}</span>
               </button>
               <button
                 type="button"
@@ -186,16 +289,21 @@ export function CalendarDock({
                     : "text-slate-400 hover:text-white hover:bg-slate-800/60",
                 )}
               >
-                <span>Sample</span>
+                <span>{t("calendar.feed_sample")}</span>
               </button>
             </div>
           </section>
 
-          <section className="space-y-2">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              {t("calendar.dock_calibration_title")}
-            </h2>
-            <div className="grid gap-1.5">
+          <section className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                {t("calendar.dock_calibration_title")}
+              </h2>
+              <span className="font-mono text-[10px] text-slate-400">
+                {method === "stan" ? "main" : method === "hts_anchor" ? "fallback" : "baseline"}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-1 rounded-lg bg-slate-900/80 p-1">
               <button
                 type="button"
                 onClick={() => {
@@ -203,23 +311,14 @@ export function CalendarDock({
                   onSelectMethod?.("stan");
                 }}
                 className={cn(
-                  "rounded-lg border px-3 py-2 text-left transition",
+                  "rounded-md py-1.5 px-2 text-xs font-semibold transition",
                   method === "stan"
-                    ? "border-emerald-500/50 bg-emerald-950/25"
-                    : "border-slate-800 bg-slate-900/50 hover:border-slate-700",
+                    ? "bg-emerald-500/20 text-emerald-200 border border-emerald-500/40"
+                    : "text-slate-400 hover:text-white",
                 )}
               >
-                <span className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-white">STAN</span>
-                  <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300">
-                    main
-                  </span>
-                </span>
-                <span className="mt-0.5 block text-xs text-slate-400">
-                  {t("calendar.stan_desc")}
-                </span>
+                STAN
               </button>
-
               <button
                 type="button"
                 onClick={() => {
@@ -227,43 +326,99 @@ export function CalendarDock({
                   onSelectMethod?.("hts_anchor");
                 }}
                 className={cn(
-                  "rounded-lg border px-3 py-2 text-left transition",
+                  "rounded-md py-1.5 px-2 text-xs font-semibold transition",
                   method === "hts_anchor"
-                    ? "border-amber-500/50 bg-amber-950/20"
-                    : "border-slate-800 bg-slate-900/50 hover:border-slate-700",
+                    ? "bg-amber-500/20 text-amber-200 border border-amber-500/40"
+                    : "text-slate-400 hover:text-white",
                 )}
               >
-                <span className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-white">HTS</span>
-                  <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-300">
-                    fallback
-                  </span>
-                </span>
-                <span className="mt-0.5 block text-xs text-slate-400">
-                  {t("calendar.hts_desc")}
-                </span>
+                HTS
               </button>
-
               <button
                 type="button"
                 onClick={() => onSelectMethod?.("k_ratio")}
                 className={cn(
-                  "rounded-lg border px-3 py-2 text-left transition",
+                  "rounded-md py-1.5 px-2 text-xs font-semibold transition",
                   method === "k_ratio"
-                    ? "border-cyan-500/50 bg-cyan-950/30"
-                    : "border-slate-800 bg-slate-900/50 hover:border-slate-700",
+                    ? "bg-cyan-500/20 text-cyan-200 border border-cyan-500/40"
+                    : "text-slate-400 hover:text-white",
                 )}
               >
-                <span className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-white">B2 anchor</span>
-                  <span className="rounded border border-slate-600/40 bg-slate-700/20 px-1.5 py-0.5 font-mono text-[10px] text-slate-300">
-                    baseline
-                  </span>
-                </span>
-                <span className="mt-0.5 block text-xs text-slate-400">
-                  {t("calendar.b2_desc")}
-                </span>
+                B2
               </button>
+            </div>
+            <p className="rounded-lg border border-slate-800/80 bg-slate-900/40 px-2.5 py-1.5 text-[11px] leading-snug text-slate-400">
+              {method === "stan"
+                ? t("calendar.stan_desc")
+                : method === "hts_anchor"
+                ? t("calendar.hts_desc")
+                : t("calendar.b2_desc")}
+            </p>
+          </section>
+
+          <section className="space-y-2.5">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              {t("calendar.dock_filters_title")}
+            </h2>
+            <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-900/50 p-2.5">
+              <div>
+                <span className="mb-1 block text-[11px] font-medium text-slate-400">
+                  {t("calendar.filter_source_type")}
+                </span>
+                <div className="grid grid-cols-3 gap-1 rounded-md bg-slate-950/80 p-0.5">
+                  {([
+                    { id: "all", key: "calendar.source_all" },
+                    { id: "land", key: "calendar.source_land" },
+                    { id: "vegetation", key: "calendar.source_vegetation" },
+                  ] as const).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => onSelectSourceType?.(opt.id)}
+                      className={cn(
+                        "rounded px-1.5 py-1 text-[11px] font-medium transition text-center leading-tight",
+                        sourceType === opt.id
+                          ? "bg-emerald-500/25 text-emerald-200 border border-emerald-500/40"
+                          : "text-slate-400 hover:text-white",
+                      )}
+                    >
+                      {t(opt.key)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="mb-1 block text-[11px] font-medium text-slate-400">
+                    {t("calendar.filter_qa")}
+                  </span>
+                  <select
+                    aria-label={t("calendar.filter_qa")}
+                    value={qaMin}
+                    onChange={(e) => onSelectQaMin?.(e.target.value)}
+                    className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-[11px] text-slate-200 focus:outline-none"
+                  >
+                    <option value="all">{t("calendar.qa_all")}</option>
+                    <option value="nominal">{t("calendar.qa_nominal")}</option>
+                    <option value="high">{t("calendar.qa_high")}</option>
+                  </select>
+                </div>
+                <div>
+                  <span className="mb-1 block text-[11px] font-medium text-slate-400">
+                    {t("calendar.filter_platform")}
+                  </span>
+                  <select
+                    aria-label={t("calendar.filter_platform")}
+                    value={platformSet}
+                    onChange={(e) => onSelectPlatformSet?.(e.target.value)}
+                    className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-[11px] text-slate-200 focus:outline-none"
+                  >
+                    <option value="all">{t("calendar.platform_all")}</option>
+                    <option value="snpp">{t("calendar.platform_snpp")}</option>
+                  </select>
+                </div>
+              </div>
             </div>
           </section>
 
@@ -296,14 +451,14 @@ export function CalendarDock({
               </thead>
               <tbody className="divide-y divide-slate-800/60">
                 <tr>
-                  <td className="py-2 font-medium text-teal-300">VIIRS</td>
+                  <td className="py-2 font-medium text-teal-300">{t(SENSOR_LEGEND_KEYS.viirs)}</td>
                   <td className="py-2 text-slate-300">375 m</td>
-                  <td className="py-2 text-right font-mono text-slate-400">2012-2025</td>
+                  <td className="py-2 text-right font-mono text-slate-400">{viirsRange ?? t("calendar.sensor_range_loading")}</td>
                 </tr>
                 <tr>
-                  <td className="py-2 font-medium text-blue-300">MODIS</td>
+                  <td className="py-2 font-medium text-blue-300">{t(SENSOR_LEGEND_KEYS.modis)}</td>
                   <td className="py-2 text-slate-300">1 km</td>
-                  <td className="py-2 text-right font-mono text-slate-400">2001-2025</td>
+                  <td className="py-2 text-right font-mono text-slate-400">{modisRange ?? t("calendar.sensor_range_loading")}</td>
                 </tr>
               </tbody>
             </table>
@@ -371,7 +526,9 @@ export function CalendarDock({
                   {t("calendar.month_explain_ai")}
                 </button>
                 <Link
-                  to={`/evidence?aoi=${aoi}&data=${data}&ym=${ym}`}
+                  // P2-07: carry the QA/platform filters so the evidence card
+                  // quotes the same cells as this calendar view.
+                  to={`/evidence?aoi=${aoi}&data=${data}&ym=${ym}&qa_min=${qaMin}&platform_set=${platformSet}`}
                   className="flex items-center justify-center rounded-lg border border-slate-700 py-2.5 text-sm font-medium text-slate-200 hover:border-slate-500 hover:text-white"
                 >
                   {t("calendar.month_evidence")}
