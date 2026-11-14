@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   CalendarDays,
+  Download,
   Globe,
   ScanEye,
   Sparkles,
@@ -24,7 +25,7 @@ import { backendMethod, useResearchContext, type AoiId } from "@/lib/researchCon
 import { ErrorState, Loading } from "@/components/states";
 import { AoiMap } from "@/components/AoiMap";
 import { SCENARIO_PRESETS, type ScenarioPreset } from "@/components/calendar/calendarPresets";
-import type { FireZone } from "@/components/map/clusterZones";
+import type { HotspotCluster } from "@/components/map/clusterZones";
 import { CalendarDock, type DockTab } from "@/components/calendar/CalendarDock";
 import { SeasonComparisonCard } from "@/components/calendar/SeasonComparisonCard";
 import { MapTimeScrubber } from "@/components/calendar/MapTimeScrubber";
@@ -53,9 +54,23 @@ const AOI_BBOX: Record<string, string> = {
   australia: "113,-39,153,-12",
 };
 
+type RangePreset = "all" | "1m" | "12m" | "custom";
+
+function monthEnd(ym: string): string {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m, 0));
+  return d.toISOString().slice(0, 10);
+}
+
+function shiftMonth(ym: string, delta: number): string {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return d.toISOString().slice(0, 7);
+}
+
 export function CalendarPage() {
   const { t } = useLang();
-  const { aoi, dataFeed, setAoi, setDataFeed, method, setMethod } = useResearchContext();
+  const { aoi, dataFeed, mode, setAoi, setDataFeed, method, setMethod } = useResearchContext();
   const [search, setSearch] = useSearchParams();
 
   // Tab: map (default), matrix, scenarios
@@ -69,12 +84,28 @@ export function CalendarPage() {
   const [matrixMode, setMatrixMode] = useState<"compact" | "zscore">("compact");
 
   // Map temporal filter
-  const [mapPeriod, setMapPeriod] = useState<string>("all");
-  const [activeZone, setActiveZone] = useState<FireZone | null>(null);
+  const [mapPeriod, setMapPeriod] = useState<string>(search.get("ym") || "all");
+  const [activeZone, setActiveZone] = useState<HotspotCluster | null>(null);
 
   // Data state
   const [data, setData] = useState<CalendarResponse | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [rawUnavailable, setRawUnavailable] = useState<{ status: number; code?: string; message: string } | null>(null);
+
+  // P0-05: one validated range for calendar, map, export and evidence.
+  const [rangePreset, setRangePreset] = useState<RangePreset>(
+    search.get("from") || search.get("to") ? "custom" : "all",
+  );
+  const [fromDate, setFromDate] = useState<string>(search.get("from") || "");
+  const [toDate, setToDate] = useState<string>(search.get("to") || "");
+
+  // P0-06: map cells for the selected month come from /map-cells, not from
+  // the capped /calendar daily slice.
+  const [monthCells, setMonthCells] = useState<Array<{
+    lat: number; lon: number; harmonized_count: number; date: string; estimate_type: string;
+  }>>([]);
+  const [mapMeta, setMapMeta] = useState<{ returned: number; total: number; preview: boolean; level: string } | null>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
 
   // Filters state
   const [, setBbox] = useState<string>(AOI_BBOX[aoi] ?? AOI_BBOX.vietnam);
@@ -98,6 +129,9 @@ export function CalendarPage() {
     dataset?: string;
     qa_min: string;
     platform_set: string;
+    geometry: string | null;
+    from_date: string | null;
+    to_date: string | null;
   }>({
     bbox: AOI_BBOX[search.get("aoi") || aoi] ?? AOI_BBOX.vietnam,
     aoi: search.get("aoi") || aoi,
@@ -109,13 +143,33 @@ export function CalendarPage() {
     dataset: search.get("dataset") || undefined,
     qa_min: search.get("qa_min") || "all",
     platform_set: search.get("platform_set") || "all",
+    geometry: search.get("geometry") || null,
+    from_date: search.get("from") || null,
+    to_date: search.get("to") || null,
   });
 
   const prevFeed = useRef(dataFeed);
   useEffect(() => {
     if (prevFeed.current !== dataFeed) {
-      if (dataFeed === "raw" && method === "k_ratio") setMethod("stan");
-      if (dataFeed === "sample" && method === "stan") setMethod("k_ratio");
+      if (dataFeed === "raw") {
+        if (method === "k_ratio") setMethod("stan");
+        // Coerce in the same update so raw does not first run a cold stat pass
+        // and then re-run as STAN.
+        setApplied((prev) => ({
+          ...prev,
+          data: "raw",
+          method: method === "k_ratio" ? "stan" : prev.method,
+        }));
+      } else {
+        if (method === "stan") setMethod("k_ratio");
+        // Switch data and method in one update: sample has no tiles, so a
+        // transient method=stan request would 409 before the method sync lands.
+        setApplied((prev) => ({
+          ...prev,
+          data: "sample",
+          method: prev.method === "stan" || prev.method === "hts" ? "stat" : prev.method,
+        }));
+      }
       prevFeed.current = dataFeed;
     }
   }, [dataFeed, method, setMethod]);
@@ -132,9 +186,55 @@ export function CalendarPage() {
   useEffect(() => {
     setData(null);
     setError(null);
+    setRawUnavailable(null);
+    // The synthetic sample has no tile artifacts; never send stan/hts there.
+    const requestMethod = applied.data !== "raw"
+      && (applied.method === "stan" || applied.method === "hts")
+      ? "stat"
+      : applied.method;
     api
       .calendar(
         25000,
+        applied.bbox || undefined,
+        applied.aoi,
+        applied.data,
+        requestMethod,
+        applied.dataset,
+        applied.qa_min,
+        applied.platform_set,
+        applied.geometry || undefined,
+        applied.from_date || undefined,
+        applied.to_date || undefined,
+      )
+      .then(setData)
+      .catch((e) => {
+        // P0-04: never swap NASA raw for the synthetic demo behind the user's
+        // back. Keep the raw selection and offer an explicit opt-in.
+        if (applied.data === "raw") {
+          const status = typeof (e as { status?: number })?.status === "number"
+            ? (e as { status: number }).status : 0;
+          const detail = (e as { detail?: { error_code?: string; message?: string } })?.detail;
+          setRawUnavailable({
+            status,
+            code: detail?.error_code,
+            message: detail?.message
+              || (e instanceof Error ? e.message : t("calendar.raw_unavailable_body")),
+          });
+          return;
+        }
+        setError(e);
+      });
+  }, [applied, t]);
+
+  // P0-06: fetch map cells for exactly the selected month.
+  useEffect(() => {
+    if (activeTab !== "map" || !/^\d{4}-\d{2}$/.test(mapPeriod)) return;
+    let alive = true;
+    setMapError(null);
+    setMapMeta(null);
+    api
+      .mapCells(
+        mapPeriod,
         applied.bbox || undefined,
         applied.aoi,
         applied.data,
@@ -142,17 +242,34 @@ export function CalendarPage() {
         applied.dataset,
         applied.qa_min,
         applied.platform_set,
+        applied.geometry || undefined,
+        6,
+        applied.from_date || undefined,
+        applied.to_date || undefined,
       )
-      .then(setData)
+      .then((r) => {
+        if (!alive) return;
+        setMonthCells(
+          r.cells.map((c) => ({
+            lat: c.lat,
+            lon: c.lon,
+            harmonized_count: c.harmonized_count,
+            date: mapPeriod,
+            estimate_type: c.estimate_type,
+          })),
+        );
+        setMapMeta({ returned: r.returned, total: r.total, preview: r.preview, level: r.aggregation_level });
+      })
       .catch((e) => {
-        if (applied.data === "raw") {
-          setDataFeed("sample");
-          setApplied({ ...applied, data: "sample" });
-          return;
-        }
-        setError(e);
+        if (!alive) return;
+        setMonthCells([]);
+        setMapMeta(null);
+        setMapError(e instanceof Error ? e.message : String(e));
       });
-  }, [applied, setDataFeed]);
+    return () => {
+      alive = false;
+    };
+  }, [mapPeriod, activeTab, applied]);
 
   // URL sync is intentionally keyed on `applied`; including `search` would
   // re-run on the write it performs.
@@ -163,9 +280,49 @@ export function CalendarPage() {
     next.set("qa_min", applied.qa_min);
     next.set("platform_set", applied.platform_set);
     if (applied.dataset) next.set("dataset", applied.dataset);
+    if (applied.from_date) next.set("from", applied.from_date); else next.delete("from");
+    if (applied.to_date) next.set("to", applied.to_date); else next.delete("to");
+    if (applied.geometry) next.set("geometry", applied.geometry); else next.delete("geometry");
+    if (mapPeriod !== "all") next.set("ym", mapPeriod); else next.delete("ym");
     setSearch(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applied]);
+  }, [applied, mapPeriod]);
+
+  const applyRangePreset = (preset: RangePreset) => {
+    setRangePreset(preset);
+    if (preset === "custom") return;
+    let lo = "";
+    let hi = "";
+    if (preset !== "all") {
+      const anchor = data?.summary?.period?.to
+        || new Date().toISOString().slice(0, 7);
+      const start = preset === "12m" ? shiftMonth(anchor, -11) : anchor;
+      lo = `${start}-01`;
+      hi = monthEnd(anchor);
+    }
+    setFromDate(lo);
+    setToDate(hi);
+    setApplied((prev) => ({ ...prev, from_date: lo || null, to_date: hi || null }));
+  };
+
+  const setCustomRange = (lo: string, hi: string) => {
+    setFromDate(lo);
+    setToDate(hi);
+    if (!lo || !hi || lo > hi) return;
+    setApplied((prev) => ({ ...prev, from_date: lo, to_date: hi }));
+  };
+
+  const geometryForRequest = applied.geometry;
+
+  // P1-07: Escape closes the month inspector opened from a matrix button.
+  useEffect(() => {
+    if (!activeMonth) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setActiveMonth(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [activeMonth]);
 
   const periods = useMemo(() => {
     if (!data) return [];
@@ -176,7 +333,7 @@ export function CalendarPage() {
     return Array.from(set).sort();
   }, [data]);
 
-  const mapCells = useMemo(() => {
+  const dailyMapCells = useMemo(() => {
     if (!data) return [];
     const rows = mapPeriod === "all" ? data.daily : data.daily.filter((d) => String(d.date).slice(0, 7) === mapPeriod);
     return rows.map((d) => ({
@@ -187,6 +344,16 @@ export function CalendarPage() {
       estimate_type: String(d.estimate_type ?? ""),
     }));
   }, [data, mapPeriod]);
+
+  const mapCells = mapPeriod === "all" ? dailyMapCells : monthCells;
+  const mapPreview = mapPeriod === "all"
+    ? {
+        returned: data?.daily?.length ?? 0,
+        total: data?.summary?.n_daily_cells_total ?? data?.daily_cells ?? 0,
+        preview: (data?.daily?.length ?? 0) < (data?.summary?.n_daily_cells_total ?? data?.daily_cells ?? 0),
+        level: "cell-day",
+      }
+    : mapMeta;
 
   const yearly = useMemo(
     () => (data ? data.calendar.years.map((y, i) => ({ year: y, detections: data.calendar.row_totals[i] })) : []),
@@ -217,13 +384,78 @@ export function CalendarPage() {
     setActiveTab("map");
   };
 
+  if (rawUnavailable) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-[#060B13] p-6">
+        <div className="max-w-xl space-y-4 rounded-2xl border border-amber-500/40 bg-slate-950/95 p-6 text-slate-200">
+          <div className="flex items-center gap-2 text-amber-300">
+            <Zap className="h-5 w-5" />
+            <h1 className="text-base font-bold">{t("calendar.raw_unavailable_title")}</h1>
+          </div>
+          <p className="text-sm text-slate-300">{t("calendar.raw_unavailable_body")}</p>
+          <dl className="space-y-1 rounded-xl border border-slate-800 bg-slate-900/70 p-3 font-mono text-xs">
+            <div className="flex justify-between gap-4">
+              <dt className="text-slate-500">HTTP</dt>
+              <dd>{rawUnavailable.status || "-"} {rawUnavailable.code ? `· ${rawUnavailable.code}` : ""}</dd>
+            </div>
+            <div>
+              <dt className="mb-0.5 text-slate-500">{t("calendar.raw_unavailable_detail")}</dt>
+              <dd className="break-words text-slate-300">{rawUnavailable.message}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-slate-500">AOI</dt>
+              <dd>{applied.aoi} · {applied.method}</dd>
+            </div>
+          </dl>
+          <p className="text-xs text-amber-200/90">{t("calendar.raw_unavailable_keep")}</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setApplied((prev) => ({ ...prev }))}
+              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800 min-h-[40px]"
+            >
+              {t("calendar.retry")}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setRawUnavailable(null);
+                setDataFeed("sample");
+                setMethod("k_ratio");
+                setApplied((prev) => ({ ...prev, data: "sample", method: "stat" }));
+              }}
+              className="rounded-lg border border-sky-500/50 bg-sky-950/60 px-3 py-2 text-xs font-bold text-sky-200 hover:bg-sky-900/60 min-h-[40px]"
+            >
+              {t("calendar.use_synthetic")}
+            </button>
+            <Link
+              to="/methods"
+              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-300 hover:text-white min-h-[40px]"
+            >
+              {t("calendar.raw_unavailable_methods")}
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (error) return <ErrorState error={error} onRetry={() => setApplied({ ...applied })} />;
   if (!data) return <Loading label={t("common.loading")} />;
 
   const isSynthetic = applied.data === "sample";
-  const totalObserved = data.daily?.reduce((sum, d) => sum + (Number(d.count) || 1), 0) ?? 0;
-  const totalHarmonized = data.calendar?.row_totals?.reduce((sum, v) => sum + (v || 0), 0) ?? 0;
+  const summary = data.summary;
+  // P0-01: server-side totals over the full filtered set. Never derive a KPI
+  // from the capped `daily` slice, and never add MODIS+VIIRS as "fires".
+  const totalObserved = summary?.sensor_detections_total ?? 0;
+  const totalModis = summary?.modis_detections ?? 0;
+  const totalViirs = summary?.viirs_detections ?? 0;
+  const totalHarmonized = summary?.harmonized_total
+    ?? data.calendar?.row_totals?.reduce((sum, v) => sum + (v || 0), 0) ?? 0;
   const criticalCount = data.critical_periods?.length ?? 0;
+  const methodShown = data.effective_method || data.method_id || applied.method;
+  const delayLine = summary
+    ? `${compact(summary.n_daily_cells_returned)} / ${compact(summary.n_daily_cells_total)} ${t("calendar.cells_returned")}`
+    : "";
 
   return (
     <div className="flex-1 min-h-0 flex flex-col h-full w-full bg-[#060B13] text-slate-100 overflow-hidden">
@@ -238,7 +470,11 @@ export function CalendarPage() {
           </div>
 
           {/* Mode Badge & Playwright Token */}
-          {isSynthetic ? (
+          {applied.dataset ? (
+            <span className="rounded-md border border-amber-500/40 bg-amber-950/40 px-2 py-0.5 text-xs font-mono font-bold text-amber-300">
+              USER UPLOAD (UNVERIFIED)
+            </span>
+          ) : isSynthetic ? (
             <span className="rounded-md border border-sky-500/40 bg-sky-950/40 px-2 py-0.5 text-xs font-mono font-bold text-sky-300">
               SYNTHETIC DEMO
             </span>
@@ -265,10 +501,71 @@ export function CalendarPage() {
             </select>
           </div>
 
+          <div className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/90 px-2 py-1 text-xs">
+            <span className="text-slate-400 font-medium hidden sm:inline">{t("calendar.date_range")}</span>
+            <select
+              value={rangePreset}
+              onChange={(e) => applyRangePreset(e.target.value as RangePreset)}
+              className="rounded bg-transparent font-mono text-xs text-cyan-300 focus:outline-none cursor-pointer"
+              aria-label={t("calendar.date_range")}
+            >
+              <option value="all" className="bg-slate-900 text-slate-200">{t("calendar.range_all")}</option>
+              <option value="1m" className="bg-slate-900 text-slate-200">{t("calendar.range_1m")}</option>
+              <option value="12m" className="bg-slate-900 text-slate-200">{t("calendar.range_12m")}</option>
+              <option value="custom" className="bg-slate-900 text-slate-200">{t("calendar.range_custom")}</option>
+            </select>
+            {rangePreset === "custom" && (
+              <>
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setCustomRange(e.target.value, toDate)}
+                  className="rounded bg-slate-950 px-1 py-0.5 font-mono text-[11px] text-slate-200"
+                  aria-label={t("calendar.from_date")}
+                />
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setCustomRange(fromDate, e.target.value)}
+                  className="rounded bg-slate-950 px-1 py-0.5 font-mono text-[11px] text-slate-200"
+                  aria-label={t("calendar.to_date")}
+                />
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center rounded-lg border border-slate-800 bg-slate-900 overflow-hidden">
+            <a
+              href={api.exportUrl(
+                2000000, applied.bbox || undefined, applied.aoi, applied.data,
+                applied.method, applied.dataset, applied.qa_min,
+                applied.platform_set, geometryForRequest || undefined,
+                applied.from_date || undefined, applied.to_date || undefined,
+              )}
+              title={t("calendar.export_csv_title")}
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-300 hover:text-white transition min-h-[30px]"
+            >
+              <Download className="h-3.5 w-3.5 text-cyan-400" />
+              <span className="hidden sm:inline">{t("calendar.export_csv")}</span>
+            </a>
+            <a
+              href={api.exportDetectionsUrl(
+                applied.bbox || undefined, applied.aoi, applied.data,
+                applied.dataset, applied.qa_min, applied.platform_set,
+                geometryForRequest || undefined,
+                applied.from_date || undefined, applied.to_date || undefined,
+              )}
+              title={t("calendar.export_detections_title")}
+              className="border-l border-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-400 hover:text-white transition min-h-[30px]"
+            >
+              {t("calendar.export_detections")}
+            </a>
+          </div>
+
           <div className="hidden 2xl:flex items-center gap-2 whitespace-nowrap text-xs text-slate-400 font-mono">
-            <span>{compact(totalObserved)} {t("common.hotspots")}</span>
+            <span>{compact(totalObserved)} {t("calendar.sensor_detections")}</span>
             <span>•</span>
-            <span className="text-cyan-300">{compact(totalHarmonized)} k-ratio</span>
+            <span className="text-cyan-300">{compact(totalHarmonized)} {t("calendar.calibrated_short")}</span>
             <span>•</span>
             <span className="text-orange-400">{criticalCount} {t("common.anomalies")}</span>
           </div>
@@ -349,6 +646,24 @@ export function CalendarPage() {
         </div>
       </header>
 
+      {/* P1-02: Research mode reveals provenance/coverage detail; Explore keeps
+          the same page without model plumbing. */}
+      {mode === "research" && summary && (
+        <div className="shrink-0 border-b border-slate-800 bg-[#08101c] px-3 py-1.5 font-mono text-[11px] text-slate-400 flex flex-wrap gap-x-4 gap-y-1">
+          <span>method_id <span className="text-cyan-300">{data.method_id ?? "-"}</span></span>
+          <span>effective <span className="text-cyan-300">{methodShown}</span></span>
+          <span>scope <span className="text-cyan-300">{summary.source_scope}</span></span>
+          <span>estimated_index <span className="text-cyan-300">{summary.estimated_index == null ? "-" : summary.estimated_index.toFixed(3)}</span></span>
+          <span>filter_hash <span className="text-cyan-300">{summary.filter_hash}</span></span>
+          {summary.period.from && (
+            <span>period <span className="text-cyan-300">{summary.period.from} → {summary.period.to}</span></span>
+          )}
+          {applied.geometry && (
+            <span>geometry_hash <span className="text-cyan-300">{data.geometry_hash}</span></span>
+          )}
+        </div>
+      )}
+
       {/* 2. BODY CONTENT */}
 
       {/* VIEW 1: SATELLITE GIS WORKSTATION (DEFAULT) */}
@@ -357,24 +672,33 @@ export function CalendarPage() {
           {/* Main Map Canvas - Clean, Zero Overlapping Floating Box */}
           <div className="relative flex-1 min-h-0 h-full self-stretch flex flex-col overflow-hidden">
             <AoiMap
-              key={`${aoi}-${mapPeriod}`}
               center={AOI_CENTER[aoi]?.c ?? [13, 106.5]}
               zoom={AOI_CENTER[aoi]?.z ?? 6}
               bbox={applied.bbox || null}
+              geometry={applied.geometry}
               cells={mapCells}
+              preview={mapPreview}
               fullBleed={true}
               height="100%"
               hideToolbar={false}
               hideLegend={false}
               activeZoneId={activeZone?.id}
               onSelectZone={(z) => setActiveZone(z)}
-              onSelect={(b) => {
+              onClearBbox={() => {
+                setApplied({ ...applied, bbox: AOI_BBOX[aoi] ?? "", geometry: null });
+              }}
+              onSelect={(b, geom) => {
                 setBbox(b);
-                setApplied({ ...applied, bbox: b });
+                setApplied({ ...applied, bbox: b, geometry: geom ?? null });
               }}
             />
 
             {/* Interactive Temporal Scrubber & Playback Bar */}
+            {mapError && (
+              <div className="absolute left-3 top-14 z-[800] rounded-lg border border-rose-500/40 bg-rose-950/90 px-3 py-2 text-xs text-rose-200">
+                {t("calendar.map_cells_error")}: {mapError}
+              </div>
+            )}
             {data.calendar?.years && data.calendar.years.length > 0 && (
               <MapTimeScrubber
                 currentPeriod={mapPeriod}
@@ -431,8 +755,12 @@ export function CalendarPage() {
                 {totalObserved.toLocaleString()}
               </span>
               <span className="text-xs text-slate-400 block">
-                {t("calendar.kpi_observed_sub")}
+                {t("calendar.kpi_observed_sub", {
+                  modis: totalModis.toLocaleString(),
+                  viirs: totalViirs.toLocaleString(),
+                })}
               </span>
+              <span className="text-[11px] font-mono text-slate-500 block">{delayLine}</span>
             </div>
 
             <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 space-y-1">
@@ -481,6 +809,7 @@ export function CalendarPage() {
             years={data.calendar.years}
             matrix={data.calendar.matrix}
             months={data.calendar.months}
+            eligibleMask={data.calendar.eligible_mask}
             aoi={applied.aoi}
             onSelectPeriod={(ym) => {
               setMapPeriod(ym);
@@ -497,7 +826,9 @@ export function CalendarPage() {
                   <h2 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
                     {t("calendar.matrix_title")}
                   </h2>
-                  <span className="text-xs text-slate-400 font-mono">(2001 - 2025)</span>
+                  <span className="text-xs text-slate-400 font-mono">
+                    ({data.calendar.years[0] ?? "-"} – {data.calendar.years.at(-1) ?? "-"})
+                  </span>
                 </div>
                 <p className="text-xs text-slate-400">
                   {t("calendar.matrix_desc")}
@@ -616,32 +947,38 @@ export function CalendarPage() {
                           return compact(v);
                         })();
 
+                        const label = `${y}-${String(m).padStart(2, "0")}: ${
+                          v === null ? t("common.no_data") : `${v.toLocaleString()} detections`
+                        }, z=${z == null ? "-" : z.toFixed(1)}${isPartial ? `, ${t("common.partial_coverage")}` : ""}`;
                         return (
-                          <td
-                            key={m}
-                            onClick={() => {
-                              setActiveMonth({
-                                year: y,
-                                month: m,
-                                val: v,
-                                z,
-                                coverage: isPartial
-                                  ? t("common.partial_coverage")
-                                  : t("common.complete_coverage"),
-                                ratio: z,
-                                isPartial,
-                                coverageRatio: cinfo?.coverage_ratio ?? undefined,
-                              });
-                              setMapPeriod(ck);
-                            }}
-                            className={cn(
-                              "p-1.5 transition-all border border-slate-800/40 cursor-pointer select-none text-xs",
-                              colorFor(z),
-                              isSelected && "ring-2 ring-cyan-400 z-10 scale-105 font-bold shadow-md",
-                            )}
-                            title={`${y}-${m}: ${v === null ? t("common.no_data") : `${v.toLocaleString()} (z=${z ?? 0})`}`}
-                          >
-                            {cellDisplay}
+                          <td key={m} className="p-0.5 border border-slate-800/40">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveMonth({
+                                  year: y,
+                                  month: m,
+                                  val: v,
+                                  z,
+                                  coverage: isPartial
+                                    ? t("common.partial_coverage")
+                                    : t("common.complete_coverage"),
+                                  ratio: z,
+                                  isPartial,
+                                  coverageRatio: cinfo?.coverage_ratio ?? undefined,
+                                });
+                                setMapPeriod(ck);
+                              }}
+                              aria-label={label}
+                              title={label}
+                              className={cn(
+                                "w-full rounded px-1 py-1.5 transition-all select-none text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300",
+                                colorFor(z),
+                                isSelected && "ring-2 ring-cyan-400 font-bold shadow-md",
+                              )}
+                            >
+                              {cellDisplay}
+                            </button>
                           </td>
                         );
                       })}
@@ -736,7 +1073,10 @@ export function CalendarPage() {
                     {t("calendar.dock_calibration_title")}
                   </span>
                   <span className="text-purple-300 font-semibold text-sm">
-                    SensorFormer anchor
+                    {methodShown}
+                  </span>
+                  <span className="block text-[11px] text-slate-500">
+                    {t("calendar.month_method_note", { method: methodShown })}
                   </span>
                 </div>
 
@@ -758,6 +1098,7 @@ export function CalendarPage() {
               years={data.calendar.years}
               matrix={data.calendar.matrix}
               months={data.calendar.months}
+              eligibleMask={data.calendar.eligible_mask}
               aoi={applied.aoi}
               onSelectPeriod={(period) => {
                 setMapPeriod(period);

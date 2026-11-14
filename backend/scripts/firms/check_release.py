@@ -55,6 +55,9 @@ def main() -> int:
         ("docs metrics snapshot", [PY, "-m", "scripts.firms.render_docs", "--check"], None),
         ("environment check", [PY, "-m", "scripts.check_env"], None),
     ]
+    if (BACKEND / "data" / "firms" / "demo_pack" / "manifest.json").exists():
+        checks.append(("demo pack checksums",
+                       [PY, "-m", "scripts.firms.demo_pack", "verify"], None))
     if a.rebuild:
         checks.append(("rebuild fixture (raw)",
                        [PY, "-m", "scripts.firms.rebuild_benchmark", "--data", "raw"], None))

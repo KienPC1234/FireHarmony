@@ -1,0 +1,2552 @@
+{
+  "dataset_id": "vietnam-2024-01_2025-12",
+  "aoi": "vietnam",
+  "from_month": "2024-01",
+  "to_month": "2025-12",
+  "months": 24,
+  "files": 362,
+  "rows": 459832,
+  "bytes": 36157124,
+  "source": "NASA FIRMS active-fire CSV subset (public domain). Hotspot records are not individual fires.",
+  "dataset_ready": true,
+  "request_coverage": "not inferred from this pack; see /api/firms/coverage",
+  "observation_coverage": "unknown (no cloud/footprint product in this pack)",
+  "built_utc": "2026-11-12T10:46:27+00:00",
+  "checksum_sha256": "0e0e96fa61e44a03f4d19e06b2e56a8703ba9d3c1e0b83aeda9a208411cd711a",
+  "entries": [
+    {
+      "name": "vietnam_MODIS_SP_2024-01-01_5d_ab55c1b7f4a092c5.csv",
+      "sha256": "ab55c1b7f4a092c5ad4203efefcdec010d8d405a299df42e43b55f9cb7619228",
+      "bytes": 87896,
+      "rows": 1103,
+      "month": "2024-01"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-01-06_5d_8704a0dcd2ea8dc1.csv",
+      "sha256": "8704a0dcd2ea8dc1ab1385abacecdc4528bfa7f35736838e07400c11347453f7",
+      "bytes": 89332,
+      "rows": 1140,
+      "month": "2024-01"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-01-11_5d_a56fd2c54d3a3634.csv",
+      "sha256": "a56fd2c54d3a36345eaa3d156c1234c038952b0728a059d908417dc7642f6bc9",
+      "bytes": 123377,
+      "rows": 1570,
+      "month": "2024-01"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-01-13_5d_56c19d02847fb6f6.csv",
+      "sha256": "56c19d02847fb6f62c5be63be313fd30634188078f1f550b62b0f7d1dac37022",
+      "bytes": 139365,
+      "rows": 1764,
+      "month": "2024-01"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-01-16_5d_a269f1b0ea5a7d88.csv",
+      "sha256": "a269f1b0ea5a7d88c7b0a3a0af64e96f8469c948f7848862c85a5b8628c8aa07",
+      "bytes": 144093,
+      "rows": 1830,
+      "month": "2024-01"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-01-21_5d_bd813e9d7dc0876b.csv",
+      "sha256": "bd813e9d7dc0876b53fb0ed665f8d4d75eae1d2ca7738ff8d15fd8a868e05363",
+      "bytes": 184140,
+      "rows": 2340,
+      "month": "2024-01"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-01-26_5d_bc1dda6c6d42bbe6.csv",
+      "sha256": "bc1dda6c6d42bbe6610c6a0823381ee6faf6bcd19a33404ee94826a28549fdd7",
+      "bytes": 148646,
+      "rows": 1869,
+      "month": "2024-01"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-01-31_1d_be2fb4fa68a37f26.csv",
+      "sha256": "be2fb4fa68a37f26cfa53a33dd20a443d88282445896b35315a89ee647d293e2",
+      "bytes": 8028,
+      "rows": 101,
+      "month": "2024-01"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-02-01_5d_0a164208438d973b.csv",
+      "sha256": "0a164208438d973b480d004bf8dfe1b03059f9c7c61d3a71f2d6bfa4aac5a364",
+      "bytes": 74488,
+      "rows": 938,
+      "month": "2024-02"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-02-06_5d_7b10f8e7140e4730.csv",
+      "sha256": "7b10f8e7140e47307a8834e482588bf60b816d046a04ed9ec35b54ffac94f6fe",
+      "bytes": 92488,
+      "rows": 1168,
+      "month": "2024-02"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-02-11_5d_cd9c65f22cdac182.csv",
+      "sha256": "cd9c65f22cdac1826408d6860ea60e5d43d7c102429bb4340bb09e41cb80f1b7",
+      "bytes": 241540,
+      "rows": 3059,
+      "month": "2024-02"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-02-13_5d_e4524f79b0d84c18.csv",
+      "sha256": "e4524f79b0d84c186cf33d950fb0aae6d525a21baed520ae5ef6a3758e6827ab",
+      "bytes": 175384,
+      "rows": 2236,
+      "month": "2024-02"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-02-16_5d_eb50fb62f35942e3.csv",
+      "sha256": "eb50fb62f35942e3af481b6f81dbb6500c42146b61076ccd2e17871e9339c660",
+      "bytes": 108690,
+      "rows": 1373,
+      "month": "2024-02"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-02-21_5d_8ee988b1080258d3.csv",
+      "sha256": "8ee988b1080258d3d2e330d942fb450f1d1371432feb5e2b2450293e2d8544a0",
+      "bytes": 126222,
+      "rows": 1609,
+      "month": "2024-02"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-02-26_5d_dc0aa651e1999374.csv",
+      "sha256": "dc0aa651e19993749b2ce9b0eb5e41e1312a47041a0293e5d29bb06a555e3ae5",
+      "bytes": 109133,
+      "rows": 1368,
+      "month": "2024-02"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-03-01_5d_9b2fde66ab0de766.csv",
+      "sha256": "9b2fde66ab0de766e887601b3e656f5638d833328ae934de381723f0f3fab320",
+      "bytes": 124329,
+      "rows": 1573,
+      "month": "2024-03"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-03-06_5d_4a61792753cec3cc.csv",
+      "sha256": "4a61792753cec3ccc9b81501b4c8cc36b25e59c626ca8b762a06ff86bf626536",
+      "bytes": 105431,
+      "rows": 1340,
+      "month": "2024-03"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-03-11_5d_7e8ab38583945a6c.csv",
+      "sha256": "7e8ab38583945a6ccf2b2f8664592a8e827d56dc42016ccea26dae9c63c03fd8",
+      "bytes": 96552,
+      "rows": 1217,
+      "month": "2024-03"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-03-13_5d_46072f0601168870.csv",
+      "sha256": "46072f06011688706d9222e918bc07bbf96711fccae7d928848c84c71b458d9e",
+      "bytes": 97586,
+      "rows": 1234,
+      "month": "2024-03"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-03-16_5d_babf8671be0e5b66.csv",
+      "sha256": "babf8671be0e5b6643c47d3d79a3cdf245c6dd2f3bdddf1af272b5c0731e69cb",
+      "bytes": 128673,
+      "rows": 1624,
+      "month": "2024-03"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-03-21_5d_218e387db4c94a51.csv",
+      "sha256": "218e387db4c94a51eec1d683ef3500286f146ab6636f1982df7738654f679e6c",
+      "bytes": 74927,
+      "rows": 945,
+      "month": "2024-03"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-03-26_5d_542b546147aa09c5.csv",
+      "sha256": "542b546147aa09c516099635dfaa6f7ca0a949db2035aee62ff92458975e194d",
+      "bytes": 38489,
+      "rows": 479,
+      "month": "2024-03"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-03-31_1d_eca2afa3b11bdff0.csv",
+      "sha256": "eca2afa3b11bdff01891aabb294f7d1f523f6ac11bcffbeca44b5bcf8312c1f1",
+      "bytes": 6107,
+      "rows": 74,
+      "month": "2024-03"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-04-01_5d_07c6734b761eaf5d.csv",
+      "sha256": "07c6734b761eaf5d4eb985e6b739b11b87bff8d4c7362cac5e06e820fadc38ee",
+      "bytes": 75511,
+      "rows": 958,
+      "month": "2024-04"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-04-06_5d_4db662688e90032f.csv",
+      "sha256": "4db662688e90032fe60f9b195e1b8b11191d43f6b6eba91586f2408f5944b7a9",
+      "bytes": 85409,
+      "rows": 1081,
+      "month": "2024-04"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-04-11_5d_0773204530333c47.csv",
+      "sha256": "0773204530333c4714825ca9eb0ed7420a3312731c142f3227c7fe67e1f213e9",
+      "bytes": 59017,
+      "rows": 743,
+      "month": "2024-04"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-04-13_5d_35a3677869713760.csv",
+      "sha256": "35a36778697137600e5bd933fecde0e5ea3fc8548dd57a84d5b7f10600feb15a",
+      "bytes": 42515,
+      "rows": 538,
+      "month": "2024-04"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-04-16_5d_0a37548240c62271.csv",
+      "sha256": "0a37548240c62271c938a2f21c0107dca4af7f7769d0f0667844205e241ec1b1",
+      "bytes": 54222,
+      "rows": 684,
+      "month": "2024-04"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-04-21_5d_1adec38be709e513.csv",
+      "sha256": "1adec38be709e5134b8afc48a794a3d8026ca214db9580242496905dad8d224c",
+      "bytes": 68902,
+      "rows": 868,
+      "month": "2024-04"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-04-26_5d_3e6d84c38a7926a3.csv",
+      "sha256": "3e6d84c38a7926a3d2842f08465d9db9fb13cd30d650d6e605642cf6bd90c5a1",
+      "bytes": 63526,
+      "rows": 796,
+      "month": "2024-04"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-05-01_5d_3dc575371514d0ae.csv",
+      "sha256": "3dc575371514d0aea29fc4cb408925933461dc81ef70cf2b39d7938678f2d1a4",
+      "bytes": 31937,
+      "rows": 405,
+      "month": "2024-05"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-05-06_5d_64b5c003cb9ef398.csv",
+      "sha256": "64b5c003cb9ef39832b9652d61413b9953f587c05251202660ab0a3fcce49075",
+      "bytes": 24135,
+      "rows": 305,
+      "month": "2024-05"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-05-11_5d_627fabb2e7986731.csv",
+      "sha256": "627fabb2e798673124b4aecbc11e2b6ddd9f6ee36b9e4ed9709f3e9551f1ccdb",
+      "bytes": 11020,
+      "rows": 140,
+      "month": "2024-05"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-05-13_5d_0a9d1f1330007904.csv",
+      "sha256": "0a9d1f13300079044f8d2b40b43163626dd079e8f80023ede1b611f2636c8ef9",
+      "bytes": 12143,
+      "rows": 154,
+      "month": "2024-05"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-05-16_5d_29a150e76563b6db.csv",
+      "sha256": "29a150e76563b6dbd6edc4ced1648a2db22f99993addc4f1269472f9f39fac35",
+      "bytes": 6327,
+      "rows": 79,
+      "month": "2024-05"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-05-21_5d_d9e1a430abb85713.csv",
+      "sha256": "d9e1a430abb857138643f25628f3dfbc8f11e3b0c8991b59f870a26bc2b206bd",
+      "bytes": 5530,
+      "rows": 69,
+      "month": "2024-05"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-05-26_5d_a6bfede42f6635c5.csv",
+      "sha256": "a6bfede42f6635c50916d209d042ddfcd119aea6315cc32bbbaf4ebaf9a953db",
+      "bytes": 5045,
+      "rows": 62,
+      "month": "2024-05"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-05-31_1d_9bbbfecb5dc18176.csv",
+      "sha256": "9bbbfecb5dc18176bc161457562a60cd72d8a146ed1fd5ee134d195308138a59",
+      "bytes": 206,
+      "rows": 1,
+      "month": "2024-05"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-06-01_5d_d20019713d25a5ee.csv",
+      "sha256": "d20019713d25a5ee845fcb48f8be280cdbd04d138e304a061d48a76546887b82",
+      "bytes": 10138,
+      "rows": 129,
+      "month": "2024-06"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-06-06_5d_23b9216650b6937e.csv",
+      "sha256": "23b9216650b6937e455a5b6af890b9ee6313fb0b6d369eafab65c670137744e1",
+      "bytes": 4216,
+      "rows": 52,
+      "month": "2024-06"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-06-11_5d_503c77dc9e61e989.csv",
+      "sha256": "503c77dc9e61e9894ef303810c0efd7a63093cacdfc57472ad02f15b94e53fa1",
+      "bytes": 15413,
+      "rows": 193,
+      "month": "2024-06"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-06-13_5d_27289ceb93081e4b.csv",
+      "sha256": "27289ceb93081e4b6ee98661a5781fcef14cd5a23e6c3010aa36c7602d56afde",
+      "bytes": 14530,
+      "rows": 181,
+      "month": "2024-06"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-06-16_5d_878e0815a24f08c5.csv",
+      "sha256": "878e0815a24f08c57817cd92c7ce1ff74ed651c0ad76c15fe89b24b371cffa17",
+      "bytes": 5992,
+      "rows": 74,
+      "month": "2024-06"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-06-21_5d_a24f21e0e0464dc4.csv",
+      "sha256": "a24f21e0e0464dc4c356d41a05075c07032349fc2bbdab53052bd1205befb7fc",
+      "bytes": 1059,
+      "rows": 12,
+      "month": "2024-06"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-06-26_5d_0404b9dd063e78b5.csv",
+      "sha256": "0404b9dd063e78b5d8abf54541371f4dfc145821cc041e56923d39f1c9f71e77",
+      "bytes": 3917,
+      "rows": 48,
+      "month": "2024-06"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-07-01_5d_5a56a90c68e95524.csv",
+      "sha256": "5a56a90c68e95524b3cbbfb783daaeb99155fb42764807dc16e9dd5455177bc8",
+      "bytes": 9837,
+      "rows": 122,
+      "month": "2024-07"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-07-06_5d_15380f0fe8671b82.csv",
+      "sha256": "15380f0fe8671b82c1bca4e04aaa4b706b9f05d717a775c53ddc71fe0032c17a",
+      "bytes": 3655,
+      "rows": 45,
+      "month": "2024-07"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-07-11_5d_c0b9ca28aacdf2ab.csv",
+      "sha256": "c0b9ca28aacdf2abe2795992b64d2409d2398a1176adb8d40d63edf0f47a82db",
+      "bytes": 2484,
+      "rows": 30,
+      "month": "2024-07"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-07-13_5d_8156dbc58a93de41.csv",
+      "sha256": "8156dbc58a93de41d80404fcfeec797f67c6ace369cdafe560747882afdec4d1",
+      "bytes": 1227,
+      "rows": 14,
+      "month": "2024-07"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-07-16_5d_6202e1b922246b88.csv",
+      "sha256": "6202e1b922246b88b8afa6708358bfb6c23820c5cc0e28ad7d9d0848561e5d63",
+      "bytes": 209,
+      "rows": 1,
+      "month": "2024-07"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-07-21_5d_321d71f53b3bc03d.csv",
+      "sha256": "321d71f53b3bc03d54e0c3eef3c9150a1a41fdccd6710c17225b3886f27b9c84",
+      "bytes": 2600,
+      "rows": 31,
+      "month": "2024-07"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-07-26_5d_3d8e69e0c78b6219.csv",
+      "sha256": "3d8e69e0c78b62192f2ec6724be02f4e6b7d4c52eb8c488a5d399d62506cc029",
+      "bytes": 1936,
+      "rows": 23,
+      "month": "2024-07"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-07-31_1d_30f475a07a35d18c.csv",
+      "sha256": "30f475a07a35d18c12bccd6e4bd0665827626149813e5d8ac39d98b0bfa15a13",
+      "bytes": 1053,
+      "rows": 12,
+      "month": "2024-07"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-08-01_5d_9173570d968b3ce1.csv",
+      "sha256": "9173570d968b3ce15f0dbd867774a4028015c8f0cbc04c95582e145a1dfbb3c4",
+      "bytes": 12687,
+      "rows": 159,
+      "month": "2024-08"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-08-06_5d_2f162614c91169a6.csv",
+      "sha256": "2f162614c91169a65abc1779d79ab9cbbbc2e17f03627d4f318aa81e461ed692",
+      "bytes": 12344,
+      "rows": 154,
+      "month": "2024-08"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-08-11_5d_81e82678f653598c.csv",
+      "sha256": "81e82678f653598c2b48d0f2fdca6d0496a54c5bc9ccc41f5e008760fd3dee7c",
+      "bytes": 12651,
+      "rows": 158,
+      "month": "2024-08"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-08-13_5d_c9ff65ccd2921766.csv",
+      "sha256": "c9ff65ccd29217669496fb8cdf62a2c5a59e86831b9be84565aa9cfc022e60a9",
+      "bytes": 10327,
+      "rows": 129,
+      "month": "2024-08"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-08-16_5d_e225e0f57e3974ab.csv",
+      "sha256": "e225e0f57e3974ab85d041d9541032dbd78bf5da1bfdedefa422e9076a018fcb",
+      "bytes": 7730,
+      "rows": 96,
+      "month": "2024-08"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-08-21_5d_172d4dfcdfb274d4.csv",
+      "sha256": "172d4dfcdfb274d45a7ccf47c574c01d6b212aa83eb296f70f7d622a45089cc5",
+      "bytes": 8280,
+      "rows": 104,
+      "month": "2024-08"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-08-26_5d_64af89c8d38c7046.csv",
+      "sha256": "64af89c8d38c70467fd96ec75c9054d9a483a357b3083e1f9eecf8bacd47851e",
+      "bytes": 7181,
+      "rows": 90,
+      "month": "2024-08"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-08-31_1d_51cf40355b10c9b4.csv",
+      "sha256": "51cf40355b10c9b45323167d4e67c932d9c474ff4b33257f7f81b5fb5987c603",
+      "bytes": 363,
+      "rows": 3,
+      "month": "2024-08"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-09-01_5d_f7359e6974a08007.csv",
+      "sha256": "f7359e6974a08007cca2a4b302b2a298b2bc749c822d872751173c1624d4fd43",
+      "bytes": 2075,
+      "rows": 25,
+      "month": "2024-09"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-09-06_5d_32187800a29be21d.csv",
+      "sha256": "32187800a29be21df8c6dd0a197768946e95e36a0c9b4237975361fe6aedd5f5",
+      "bytes": 3531,
+      "rows": 44,
+      "month": "2024-09"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-09-11_5d_a8871f9757b60f06.csv",
+      "sha256": "a8871f9757b60f069fbf227d57fc2799e755e1ed3b5b53c6676479a008773acd",
+      "bytes": 2509,
+      "rows": 31,
+      "month": "2024-09"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-09-13_5d_23a7621c2a6fe8d6.csv",
+      "sha256": "23a7621c2a6fe8d628230e27a79ab6fadf61efcfeec43d61146c3d33ad99b29c",
+      "bytes": 684,
+      "rows": 7,
+      "month": "2024-09"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-09-16_5d_8c768e3e9039e9bc.csv",
+      "sha256": "8c768e3e9039e9bc55994f914e6e2fd47b8751dc676c12888bd37712dde5eec0",
+      "bytes": 766,
+      "rows": 8,
+      "month": "2024-09"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-09-21_5d_c3d69bbb7e461fa7.csv",
+      "sha256": "c3d69bbb7e461fa7c32a5f8a492ddef394ec738477baac8e9ac8c2a1ebdb59ee",
+      "bytes": 753,
+      "rows": 8,
+      "month": "2024-09"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-09-26_5d_4629a0c2bb7f4530.csv",
+      "sha256": "4629a0c2bb7f453096792b959c294b28e1bddc000c5f6a4266c7a35dbb9434dd",
+      "bytes": 9567,
+      "rows": 122,
+      "month": "2024-09"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-10-01_5d_c24d055de41f5864.csv",
+      "sha256": "c24d055de41f5864f7bcd80b47e67be97a0b57de9d30b11ee96637494a864ce4",
+      "bytes": 3991,
+      "rows": 49,
+      "month": "2024-10"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-10-06_5d_0bd14df5c05cae6c.csv",
+      "sha256": "0bd14df5c05cae6cfdce1674240e0e750ec6c4ed802c4ab1722582516be20c89",
+      "bytes": 3381,
+      "rows": 41,
+      "month": "2024-10"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-10-11_5d_1c00e17e7f473111.csv",
+      "sha256": "1c00e17e7f47311184974d3e6e7dda657c9c2d2ec1cc42a433ec355b00f7c9d2",
+      "bytes": 3909,
+      "rows": 47,
+      "month": "2024-10"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-10-13_5d_a8663718a122740d.csv",
+      "sha256": "a8663718a122740dc83f2b9ac1b638f82a35eb283ff5a485c3c56e807905aef0",
+      "bytes": 2611,
+      "rows": 31,
+      "month": "2024-10"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-10-16_5d_5a266b8f975b45c1.csv",
+      "sha256": "5a266b8f975b45c184821383a2190fdf1a3b2637b38580c6718faa8f428c1b59",
+      "bytes": 2920,
+      "rows": 35,
+      "month": "2024-10"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-10-21_5d_87b80500ca2e7635.csv",
+      "sha256": "87b80500ca2e763588d7de0f295dcacf1e42ce120dec072e00383201ecfa8119",
+      "bytes": 3225,
+      "rows": 39,
+      "month": "2024-10"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-10-26_5d_a34cbefca9aa87c4.csv",
+      "sha256": "a34cbefca9aa87c4e5623ccb2483a45d1a3764f1b3fa9bc724e56a330343acb1",
+      "bytes": 2064,
+      "rows": 24,
+      "month": "2024-10"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-10-31_1d_03945e749a55c1e0.csv",
+      "sha256": "03945e749a55c1e0c3047bcecbab9be44196e5c802249e1b98ccda7d9a6457fe",
+      "bytes": 1768,
+      "rows": 21,
+      "month": "2024-10"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-11-01_5d_020b0585839dd882.csv",
+      "sha256": "020b0585839dd882ae11a32c56977179d7038c8df7545ff1c632a203d0855de6",
+      "bytes": 1216,
+      "rows": 14,
+      "month": "2024-11"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-11-06_5d_98842f9be9f5e4de.csv",
+      "sha256": "98842f9be9f5e4de92ba9c5ba18f8150875dc1d484c046272dc41786acbf9a6d",
+      "bytes": 4995,
+      "rows": 62,
+      "month": "2024-11"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-11-11_5d_d4f2c58effa26544.csv",
+      "sha256": "d4f2c58effa26544092c7b4a968e1a487718a54c30327552b9ad29f21ee53f01",
+      "bytes": 4151,
+      "rows": 51,
+      "month": "2024-11"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-11-13_5d_601e4320bc8c1c5b.csv",
+      "sha256": "601e4320bc8c1c5bc0bc7a32e2edd9ed0c2864ae5329699661547d08548b1dd8",
+      "bytes": 6302,
+      "rows": 78,
+      "month": "2024-11"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-11-16_5d_ad671f048d42b3a9.csv",
+      "sha256": "ad671f048d42b3a9201877c89e309e53d1d010a4ede3bf048ef53ab689170191",
+      "bytes": 5513,
+      "rows": 68,
+      "month": "2024-11"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-11-21_5d_9651377bc9e4ff9d.csv",
+      "sha256": "9651377bc9e4ff9ddee1e1c218e58f19cc2fba493f6e13650d96dc6e63ad2a8e",
+      "bytes": 2275,
+      "rows": 27,
+      "month": "2024-11"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-11-26_5d_b38ae6ec2316195b.csv",
+      "sha256": "b38ae6ec2316195b903d55ce84ca7bf1de23e0bbb867cf751bc81377cccef9ed",
+      "bytes": 3092,
+      "rows": 38,
+      "month": "2024-11"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-12-01_5d_6511c7117290573a.csv",
+      "sha256": "6511c7117290573a6f04a5277f98789c315e75172b64e8fe7e46a9c496c73b79",
+      "bytes": 3545,
+      "rows": 44,
+      "month": "2024-12"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-12-06_5d_d9ae73a57d9aa12f.csv",
+      "sha256": "d9ae73a57d9aa12f015623e60632c74fc0ae6f07a41a2a9b57caa9c2913fb520",
+      "bytes": 4175,
+      "rows": 52,
+      "month": "2024-12"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-12-11_5d_076a91c51b801819.csv",
+      "sha256": "076a91c51b80181956941e79a715d268aa69b415e1022d833d5f6d17e3cf05af",
+      "bytes": 1373,
+      "rows": 16,
+      "month": "2024-12"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-12-13_5d_cc7a8f949eedc5e9.csv",
+      "sha256": "cc7a8f949eedc5e9d0752ead6ccbe3f83fad93179897eb3e9fd9e572160bc2d2",
+      "bytes": 11365,
+      "rows": 142,
+      "month": "2024-12"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-12-16_5d_85b37a6be9bc4f62.csv",
+      "sha256": "85b37a6be9bc4f62223d1796f6f5cf7684dd8182106c427b7b0605bcae0c6967",
+      "bytes": 28094,
+      "rows": 354,
+      "month": "2024-12"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-12-21_5d_7749d11b7dec52a0.csv",
+      "sha256": "7749d11b7dec52a061631f7b6751a4face19dea4493f9a7e28388e7e5036ce18",
+      "bytes": 10361,
+      "rows": 130,
+      "month": "2024-12"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-12-26_5d_2f678e4f77e11d67.csv",
+      "sha256": "2f678e4f77e11d67b7cc45ccaf5251110d525f106e9b3194d17e00981e631a8e",
+      "bytes": 42422,
+      "rows": 538,
+      "month": "2024-12"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2024-12-31_1d_45f1bd333913fdba.csv",
+      "sha256": "45f1bd333913fdbae13912ecf4ecfca8123f0085449e985da71899345d523a81",
+      "bytes": 291,
+      "rows": 2,
+      "month": "2024-12"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-01-01_5d_a241fa54697cb3e1.csv",
+      "sha256": "a241fa54697cb3e14642af9506c69abcc19a3f736eae862ba01c44f7ff1b8567",
+      "bytes": 54090,
+      "rows": 686,
+      "month": "2025-01"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-01-06_5d_fa22f206a70b8e75.csv",
+      "sha256": "fa22f206a70b8e755e4f591b093d4a42fc8608cb847c9b016fee54666102214d",
+      "bytes": 132955,
+      "rows": 1684,
+      "month": "2025-01"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-01-11_5d_1b24a0ee21c2ee70.csv",
+      "sha256": "1b24a0ee21c2ee7043f23bf3eb3ac5baf29c554371327a794264b6b6e16b6695",
+      "bytes": 127239,
+      "rows": 1617,
+      "month": "2025-01"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-01-13_5d_423d917b94a05300.csv",
+      "sha256": "423d917b94a053008aced07c5df69a643827dc9b56968981dfea3ac5e653e7ee",
+      "bytes": 96913,
+      "rows": 1231,
+      "month": "2025-01"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-01-16_5d_080542812418c1bc.csv",
+      "sha256": "080542812418c1bcee5acb3d609617a4b163f0105e160e03ef8134e1bc853e3d",
+      "bytes": 120107,
+      "rows": 1521,
+      "month": "2025-01"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-01-21_5d_af6eb61f257eefd0.csv",
+      "sha256": "af6eb61f257eefd020b620bea578257da0de570f5d5ca56841dc186af295555b",
+      "bytes": 83667,
+      "rows": 1064,
+      "month": "2025-01"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-01-26_5d_3a2edd5209a99985.csv",
+      "sha256": "3a2edd5209a999855b01cda88d97917abd75c000be6de575fd890033c49cbbac",
+      "bytes": 152637,
+      "rows": 1937,
+      "month": "2025-01"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-01-31_1d_9bcf8c6bc5d97a60.csv",
+      "sha256": "9bcf8c6bc5d97a60dbe07f34ac3960822d8cb18c83604b5d8541b5e1e24de4ca",
+      "bytes": 51008,
+      "rows": 656,
+      "month": "2025-01"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-02-01_5d_3e146a1ae678bd98.csv",
+      "sha256": "3e146a1ae678bd98a89df67291e46ce7f048e0bf1e0d7e75153d07e37707ea5b",
+      "bytes": 147717,
+      "rows": 1872,
+      "month": "2025-02"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-02-06_5d_2225784061dd1d20.csv",
+      "sha256": "2225784061dd1d20fcfbcad8f3fa5b94d3dd8b3092d26030ec513ba5a78b3a56",
+      "bytes": 118233,
+      "rows": 1500,
+      "month": "2025-02"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-02-11_5d_41e60136df7fe76e.csv",
+      "sha256": "41e60136df7fe76ee30d7c1a8e4a0164d6bd1adb0d44e765ec88c9376fac7f21",
+      "bytes": 69583,
+      "rows": 879,
+      "month": "2025-02"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-02-13_5d_d4bc3ae28c1c8f0c.csv",
+      "sha256": "d4bc3ae28c1c8f0c8ec258a53a2b13d12fc3ee7834137f35f4164c1452d6e879",
+      "bytes": 82846,
+      "rows": 1044,
+      "month": "2025-02"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-02-16_5d_6708bc008670c613.csv",
+      "sha256": "6708bc008670c61371696cccf8f9fe97183920cd5320ac0c5f4eb25faefeba48",
+      "bytes": 133094,
+      "rows": 1680,
+      "month": "2025-02"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-02-21_5d_4e001b8523d3e02c.csv",
+      "sha256": "4e001b8523d3e02ca38c2930980dda4dfd4abf903ea3613c78d9e81417cbc52c",
+      "bytes": 45147,
+      "rows": 568,
+      "month": "2025-02"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-02-26_5d_d16f0f271a3194b4.csv",
+      "sha256": "d16f0f271a3194b4202af1cb993225919fa23d076c8702f00725496040b66998",
+      "bytes": 79108,
+      "rows": 1001,
+      "month": "2025-02"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-03-01_5d_dd4cb2502f6109b3.csv",
+      "sha256": "dd4cb2502f6109b344af125fb333e80acea92d8b4c184447e702a84bec496ca7",
+      "bytes": 80553,
+      "rows": 1022,
+      "month": "2025-03"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-03-06_5d_4aa68a9084febeef.csv",
+      "sha256": "4aa68a9084febeef582cbb879702fab52d7b19e0fc4472e2aea5dfe7fba8b8e5",
+      "bytes": 41294,
+      "rows": 522,
+      "month": "2025-03"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-03-11_5d_82646688d9fc3e74.csv",
+      "sha256": "82646688d9fc3e748cd451ef16f17b11151095479b7a20af3f929e1bd560ff48",
+      "bytes": 49985,
+      "rows": 631,
+      "month": "2025-03"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-03-13_5d_5bac02b67bb35b01.csv",
+      "sha256": "5bac02b67bb35b019f6c97b2f138af89679b62967664addc5eea155c223e0180",
+      "bytes": 50753,
+      "rows": 642,
+      "month": "2025-03"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-03-16_5d_f17783406bc98808.csv",
+      "sha256": "f17783406bc988088d4cb8ab92f5fb70345867f9787759196781eedfd3b8a34e",
+      "bytes": 74148,
+      "rows": 938,
+      "month": "2025-03"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-03-21_5d_082da60c649ea0df.csv",
+      "sha256": "082da60c649ea0dfb180b901ecf8acc11e08af11ace301e7e2fdc90a945d41a8",
+      "bytes": 131003,
+      "rows": 1651,
+      "month": "2025-03"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-03-26_5d_ba5816ef43be9b0a.csv",
+      "sha256": "ba5816ef43be9b0a1b6c8cdb0cd3af4a90f7fbefbb1309b9e9a642ea5cf7f2e2",
+      "bytes": 74048,
+      "rows": 939,
+      "month": "2025-03"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-03-31_1d_dd3c4289ee59af6c.csv",
+      "sha256": "dd3c4289ee59af6c71c30499a2ac46df5cc372254391aa36a40e0b90d6b28eb5",
+      "bytes": 784,
+      "rows": 8,
+      "month": "2025-03"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-04-01_5d_d6d58d7f81044547.csv",
+      "sha256": "d6d58d7f81044547ac7b2416fcbbe18ef46daa878d20d5f70443eeacd98f2b85",
+      "bytes": 67496,
+      "rows": 851,
+      "month": "2025-04"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-04-06_5d_95353bf7e1fbfdf9.csv",
+      "sha256": "95353bf7e1fbfdf9f26757b48bf230f3709708d2ec61a00d435f23c63674a26b",
+      "bytes": 38912,
+      "rows": 491,
+      "month": "2025-04"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-04-11_5d_119a314cf777c946.csv",
+      "sha256": "119a314cf777c94681f1f4fe491951832df683b0c387fd82955514f0d9cabdad",
+      "bytes": 13356,
+      "rows": 168,
+      "month": "2025-04"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-04-13_5d_65d61b01cd6e31bb.csv",
+      "sha256": "65d61b01cd6e31bb83f8c9a163de432f152a81b63322fc63d01e3450074d1184",
+      "bytes": 11958,
+      "rows": 150,
+      "month": "2025-04"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-04-16_5d_916a185a8de28b0e.csv",
+      "sha256": "916a185a8de28b0eac2487a75e9609bbe6def7bc38c51cd81f09ee2b56bb1d6c",
+      "bytes": 25879,
+      "rows": 329,
+      "month": "2025-04"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-04-21_5d_8c018c5a027a343b.csv",
+      "sha256": "8c018c5a027a343bf525f02530138c5fee26ace03cf6272e645c09d562410714",
+      "bytes": 36632,
+      "rows": 463,
+      "month": "2025-04"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-04-26_5d_bfec38f2fad411de.csv",
+      "sha256": "bfec38f2fad411de68f20035fe7bb40638943c0f880ddebd8653524e701259aa",
+      "bytes": 27386,
+      "rows": 347,
+      "month": "2025-04"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-05-01_5d_20f481366ee83dc6.csv",
+      "sha256": "20f481366ee83dc69617a4217d2c28c8658848016bbecfe67b4f0f7c90179adc",
+      "bytes": 12817,
+      "rows": 161,
+      "month": "2025-05"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-05-06_5d_7d3eb29409260ce4.csv",
+      "sha256": "7d3eb29409260ce46c12fbbd6d948c39bdb51d33828f70017a366811a396a8e0",
+      "bytes": 16817,
+      "rows": 210,
+      "month": "2025-05"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-05-11_5d_87d4217e1fc83bb7.csv",
+      "sha256": "87d4217e1fc83bb7a421ae13c20076f6e327645952abd521304c7bf3c16e2cbd",
+      "bytes": 7077,
+      "rows": 89,
+      "month": "2025-05"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-05-13_5d_0dca86b04e560b95.csv",
+      "sha256": "0dca86b04e560b95ff79e84a6a88e9b38b0d8f2638a7a62361f55d1c286bce8f",
+      "bytes": 8989,
+      "rows": 113,
+      "month": "2025-05"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-05-16_5d_87c2b648788f25d7.csv",
+      "sha256": "87c2b648788f25d79499267a447192dfe62120f1264546eadb9ba4bab8fee939",
+      "bytes": 10971,
+      "rows": 138,
+      "month": "2025-05"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-05-21_5d_a31b95610a536752.csv",
+      "sha256": "a31b95610a5367524f71ae18a5894a0a6da9776b09cd7d82fed7cbfcb67dc2ca",
+      "bytes": 5729,
+      "rows": 71,
+      "month": "2025-05"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-05-26_5d_1490f676c7085d4b.csv",
+      "sha256": "1490f676c7085d4b68fb42cfecd0661ec4e8f76a1affb03f80ea4c85a63a92b1",
+      "bytes": 2365,
+      "rows": 28,
+      "month": "2025-05"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-05-31_1d_043236a01e39536d.csv",
+      "sha256": "043236a01e39536daf9c58f77a810828f809b370b36feb9617d42be5501f968c",
+      "bytes": 290,
+      "rows": 2,
+      "month": "2025-05"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-06-01_5d_94110531e44c9cab.csv",
+      "sha256": "94110531e44c9cab938dea5598befa7ba26c571b177360df8583c0cf6ae62558",
+      "bytes": 6346,
+      "rows": 78,
+      "month": "2025-06"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-06-06_5d_c2e9e16db442bd8f.csv",
+      "sha256": "c2e9e16db442bd8fdaa548f82ca35935efecd06f993f1ccc0933e4b3627568fc",
+      "bytes": 3306,
+      "rows": 40,
+      "month": "2025-06"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-06-11_5d_1a774bc7024cfc2b.csv",
+      "sha256": "1a774bc7024cfc2b8ec7a6cddab3911d2e63720d9dc2e38db76a970d9db1f4c7",
+      "bytes": 600,
+      "rows": 6,
+      "month": "2025-06"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-06-13_5d_242ee1b28b8e1f96.csv",
+      "sha256": "242ee1b28b8e1f96d26d9a55e0fb74a47e0d280447f31d60e51d020d2509af2c",
+      "bytes": 6808,
+      "rows": 86,
+      "month": "2025-06"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-06-16_5d_d88fb6349031a12d.csv",
+      "sha256": "d88fb6349031a12d65093f50f01d033f6b3b4b13d8f176104ab2c9c5346f04b0",
+      "bytes": 8341,
+      "rows": 105,
+      "month": "2025-06"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-06-21_5d_309838d4bd58151e.csv",
+      "sha256": "309838d4bd58151e62ffbae0768499c3d984739d13e1a2eb377686dc0b613476",
+      "bytes": 4370,
+      "rows": 54,
+      "month": "2025-06"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-06-26_5d_8d6cd687b93f253c.csv",
+      "sha256": "8d6cd687b93f253c38317e1ba88d24874883424e82fca4041e42895759c2bbe5",
+      "bytes": 2660,
+      "rows": 32,
+      "month": "2025-06"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-07-01_5d_4e2da6594899e365.csv",
+      "sha256": "4e2da6594899e365b2d4c2402d6cdb3a062e321bdb34c1ba39afc347fd153f4b",
+      "bytes": 3206,
+      "rows": 39,
+      "month": "2025-07"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-07-06_5d_b011fe7152cbd24f.csv",
+      "sha256": "b011fe7152cbd24fd3f03e9b5bd01cfd9cfdc373a07ba210d69d08f8e54a9346",
+      "bytes": 3792,
+      "rows": 46,
+      "month": "2025-07"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-07-11_5d_65d48558c7aca36f.csv",
+      "sha256": "65d48558c7aca36f7063004c2b39caae213203c8c512d3806e11e70f0de6764e",
+      "bytes": 4767,
+      "rows": 59,
+      "month": "2025-07"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-07-13_5d_2267dcedfbd8f3f5.csv",
+      "sha256": "2267dcedfbd8f3f5e926837a269c4a54f4564bf035b699d83d69cc2ebe0d571a",
+      "bytes": 6049,
+      "rows": 75,
+      "month": "2025-07"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-07-16_5d_d333014cc51807c0.csv",
+      "sha256": "d333014cc51807c07987349db8f48be900ce82e75c2c926372033a5ea21109c2",
+      "bytes": 3706,
+      "rows": 45,
+      "month": "2025-07"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-07-21_5d_ee800d01f402e473.csv",
+      "sha256": "ee800d01f402e47318897fad4266cef377815e5aa268cbcaa2fd3a5339522050",
+      "bytes": 931,
+      "rows": 10,
+      "month": "2025-07"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-07-26_5d_cefea8876adf83af.csv",
+      "sha256": "cefea8876adf83af591496d1a4ad66958934de21a236ef7650f2db77feb9d5da",
+      "bytes": 1385,
+      "rows": 16,
+      "month": "2025-07"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-07-31_1d_8552ae6698cdde9c.csv",
+      "sha256": "8552ae6698cdde9cc3b20e68ad405ed0c121cae33de6156f015f4010cdcb2159",
+      "bytes": 1062,
+      "rows": 12,
+      "month": "2025-07"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-08-01_5d_e5ffa8f6074cd98b.csv",
+      "sha256": "e5ffa8f6074cd98b6f221eff1de8b3b64f142ca2163a6b77e33787e0263d99e2",
+      "bytes": 12329,
+      "rows": 155,
+      "month": "2025-08"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-08-06_5d_bfa03417b2d3d0b9.csv",
+      "sha256": "bfa03417b2d3d0b9dea2d6788b6d8c1f45b4915d7b79a3041643f71b3b9481a5",
+      "bytes": 10488,
+      "rows": 131,
+      "month": "2025-08"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-08-11_5d_b7d1c6f17e1e0e6c.csv",
+      "sha256": "b7d1c6f17e1e0e6cc8f3e7e0c5ccff4f642c6848eb8586721708aacfac7ff94f",
+      "bytes": 4633,
+      "rows": 57,
+      "month": "2025-08"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-08-13_5d_1fe82a8c008793b3.csv",
+      "sha256": "1fe82a8c008793b33aee8617853f774e9b0969e2e57910946269dc7e5b7bf305",
+      "bytes": 3207,
+      "rows": 39,
+      "month": "2025-08"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-08-16_5d_ce1488aea703bbe7.csv",
+      "sha256": "ce1488aea703bbe766b68c778317a2fd09cbd7c6442d0a93a2fe9f7c9f704e7f",
+      "bytes": 4904,
+      "rows": 61,
+      "month": "2025-08"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-08-21_5d_df383f4dfbb0ea29.csv",
+      "sha256": "df383f4dfbb0ea29f8fbe34c784b29aa3188a829566657193bd79086fc0ebf57",
+      "bytes": 2865,
+      "rows": 34,
+      "month": "2025-08"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-08-26_5d_51b183a1a8c6b9d5.csv",
+      "sha256": "51b183a1a8c6b9d54836f5058a0e977217468ec979cfe33da58893f2226ce7a6",
+      "bytes": 896,
+      "rows": 10,
+      "month": "2025-08"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-08-31_1d_af8155e7d0d3de97.csv",
+      "sha256": "af8155e7d0d3de97bcee8b2129c9dee2529de76fee1b2d1ed0460f4207feda9f",
+      "bytes": 1668,
+      "rows": 20,
+      "month": "2025-08"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-09-01_5d_41c66417c9fb9226.csv",
+      "sha256": "41c66417c9fb922646376a156bb54d29c00102b39cae9bc8ad0c9326697ec165",
+      "bytes": 3658,
+      "rows": 45,
+      "month": "2025-09"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-09-06_5d_0a0ddfe0a43cf024.csv",
+      "sha256": "0a0ddfe0a43cf024f6545c18bbff9038722beacb55a2859bb7c6cb1e2a0387ad",
+      "bytes": 4891,
+      "rows": 60,
+      "month": "2025-09"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-09-11_5d_e12574acca080e6a.csv",
+      "sha256": "e12574acca080e6acdb7c2217ae4bb5b56a30ab41abe5dd5cd409ed7f53696a4",
+      "bytes": 4167,
+      "rows": 51,
+      "month": "2025-09"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-09-13_5d_c40d9ee486f8e522.csv",
+      "sha256": "c40d9ee486f8e5225f98fcc24e23eacff93dd84f27ad3cc3e93100c584815719",
+      "bytes": 2487,
+      "rows": 30,
+      "month": "2025-09"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-09-16_5d_d71f496be97b38f7.csv",
+      "sha256": "d71f496be97b38f71713b3592dc2eb3b28be1c9e9d56c5b18204050b976e1cfc",
+      "bytes": 992,
+      "rows": 11,
+      "month": "2025-09"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-09-21_5d_d885d463484f514b.csv",
+      "sha256": "d885d463484f514bd5a2d88746b707dc9477759c67ae229799805fca5aeef365",
+      "bytes": 446,
+      "rows": 4,
+      "month": "2025-09"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-09-26_5d_f9cfd16c96e4953d.csv",
+      "sha256": "f9cfd16c96e4953dab970eb8fc244f47c0057fc30eb877e0f28b372860f7caf7",
+      "bytes": 449,
+      "rows": 4,
+      "month": "2025-09"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-10-01_5d_d9f9bb078074fc1d.csv",
+      "sha256": "d9f9bb078074fc1d14b84c257cb706e74e688b71c5895ba88251da25db5c1ce5",
+      "bytes": 6450,
+      "rows": 80,
+      "month": "2025-10"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-10-06_5d_f68c656a7a78dfb6.csv",
+      "sha256": "f68c656a7a78dfb68f61cf46294bd64793cc9451b0594b8614a5b980c644109c",
+      "bytes": 3145,
+      "rows": 38,
+      "month": "2025-10"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-10-11_5d_bbf6868c6110821e.csv",
+      "sha256": "bbf6868c6110821eb23e35ad9f6e42a4638cebda3ba3731e8b68075b4cfbaf56",
+      "bytes": 2212,
+      "rows": 26,
+      "month": "2025-10"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-10-13_5d_57f829909ab4dc1e.csv",
+      "sha256": "57f829909ab4dc1ed5f951cfd7eebbb973e58f249454231f830dd6234fdf93f7",
+      "bytes": 2459,
+      "rows": 29,
+      "month": "2025-10"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-10-16_5d_d58c207a7f69a70d.csv",
+      "sha256": "d58c207a7f69a70d91e7991a6227d6ffb0af4b5428114da01cca0c32d05af7ea",
+      "bytes": 4283,
+      "rows": 52,
+      "month": "2025-10"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-10-21_5d_85f281a17602c606.csv",
+      "sha256": "85f281a17602c6064f82aed01d8511cc66d19dd814eb70b45c12d46067b8bb9a",
+      "bytes": 998,
+      "rows": 11,
+      "month": "2025-10"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-10-26_5d_b335277b53c6ffb4.csv",
+      "sha256": "b335277b53c6ffb4476f76ef457d775527f70fe5287310a46db6301d06266520",
+      "bytes": 127,
+      "rows": 0,
+      "month": "2025-10"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-10-31_1d_2f99adb08c776930.csv",
+      "sha256": "2f99adb08c776930e4fcd70c98edf9160a92e817e32bb55749fa98f7d1577659",
+      "bytes": 286,
+      "rows": 2,
+      "month": "2025-10"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-11-01_5d_1891ec33fbaed452.csv",
+      "sha256": "1891ec33fbaed4520c541e483d9be958887ebdcc1a7f821a8647c8ee3e27e554",
+      "bytes": 283,
+      "rows": 2,
+      "month": "2025-11"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-11-06_5d_fb2db657d826e2f9.csv",
+      "sha256": "fb2db657d826e2f950810af74b97d8c82794346832944b26399d09c6aac9be90",
+      "bytes": 1700,
+      "rows": 20,
+      "month": "2025-11"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-11-11_2d_b335277b53c6ffb4.csv",
+      "sha256": "b335277b53c6ffb4476f76ef457d775527f70fe5287310a46db6301d06266520",
+      "bytes": 127,
+      "rows": 0,
+      "month": "2025-11"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-11-13_5d_8add7b0a8ce7c41a.csv",
+      "sha256": "8add7b0a8ce7c41aab6d20950567a4255a767397ed4f8a66ac741cf65d219e3e",
+      "bytes": 3821,
+      "rows": 48,
+      "month": "2025-11"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-11-18_5d_cb81de36123b8c20.csv",
+      "sha256": "cb81de36123b8c2074b653b97fbcc6a5987a42e2e7566241a821f6a32f0156c1",
+      "bytes": 970,
+      "rows": 11,
+      "month": "2025-11"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-11-23_5d_c090f1b9f291791f.csv",
+      "sha256": "c090f1b9f291791f31faab0584731d46b9415105bd6b4b1ee1e389e788228767",
+      "bytes": 3432,
+      "rows": 42,
+      "month": "2025-11"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-11-28_3d_522c7be8b72e740d.csv",
+      "sha256": "522c7be8b72e740d21af5e666bc33e6649ece8a4530b4b346703cb8542e6c67e",
+      "bytes": 3304,
+      "rows": 41,
+      "month": "2025-11"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-12-01_5d_fc84f5bb255c4f00.csv",
+      "sha256": "fc84f5bb255c4f00fc777d1b6202a732477bbcc8dd56e967d9fcc230d51d488b",
+      "bytes": 3053,
+      "rows": 37,
+      "month": "2025-12"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-12-06_5d_b68babb72be9946e.csv",
+      "sha256": "b68babb72be9946e1b74a95c480a2c551616153bf61fac48e59401274868e8c5",
+      "bytes": 5701,
+      "rows": 70,
+      "month": "2025-12"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-12-11_2d_0195a6399326665f.csv",
+      "sha256": "0195a6399326665f43e4e9f73b8a1a7b315e64332edaee5a3fd46ecf073064f8",
+      "bytes": 1652,
+      "rows": 19,
+      "month": "2025-12"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-12-13_5d_7a0b69a893106a46.csv",
+      "sha256": "7a0b69a893106a469f5fc2c8f9fdf5562252e822f275c9a4a39be212e557f633",
+      "bytes": 5805,
+      "rows": 72,
+      "month": "2025-12"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-12-18_5d_da2f996a79c3f5f6.csv",
+      "sha256": "da2f996a79c3f5f68606e93b1a6399bc805c13531ece521503528e6ebcaa381c",
+      "bytes": 11485,
+      "rows": 144,
+      "month": "2025-12"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-12-23_5d_1d69d573c376c487.csv",
+      "sha256": "1d69d573c376c4876fb8f25e452d82c1539b97bac300388d1276873261cafc09",
+      "bytes": 12681,
+      "rows": 160,
+      "month": "2025-12"
+    },
+    {
+      "name": "vietnam_MODIS_SP_2025-12-28_4d_ac6ea951f64dff6a.csv",
+      "sha256": "ac6ea951f64dff6a1c6031b09d47a673c04cb0d59516972efd74e1e7aa07cb40",
+      "bytes": 13081,
+      "rows": 163,
+      "month": "2025-12"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-01-01_5d_c82e9e23b292c9a7.csv",
+      "sha256": "c82e9e23b292c9a71f71113b6623cdb56d271368a5328088d9b9905b67dbcadd",
+      "bytes": 378681,
+      "rows": 4826,
+      "month": "2024-01"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-01-06_5d_518b5a38c613f4bd.csv",
+      "sha256": "518b5a38c613f4bd6f9edf080bc86b7b2932bcbdd21d68f46369b1380fcb72b8",
+      "bytes": 419472,
+      "rows": 5349,
+      "month": "2024-01"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-01-11_5d_c0f8ca198c6505cc.csv",
+      "sha256": "c0f8ca198c6505ccfcf02bb6191ebca8669fb40e9d3dc550c4edcc0efe3339fe",
+      "bytes": 631457,
+      "rows": 8059,
+      "month": "2024-01"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-01-13_5d_211530b8e6c55eef.csv",
+      "sha256": "211530b8e6c55eefe29dd6ee857d86dea0a9095de95a55639680901fed671c11",
+      "bytes": 682489,
+      "rows": 8706,
+      "month": "2024-01"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-01-16_5d_58bcc4bce4ad3dd4.csv",
+      "sha256": "58bcc4bce4ad3dd43437a33bab7ecbb61ba1adca953c98085985f4104e6ce051",
+      "bytes": 649681,
+      "rows": 8290,
+      "month": "2024-01"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-01-21_5d_b76e0883a5602b94.csv",
+      "sha256": "b76e0883a5602b94e6625fc6cade82b7ab68b6b74b75d914e9cf5abaedae2acd",
+      "bytes": 914609,
+      "rows": 11662,
+      "month": "2024-01"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-01-26_5d_363d1f46044889db.csv",
+      "sha256": "363d1f46044889dbcb9521e91506eb948c6cdac25de2d64d6f931d95a7bbbd22",
+      "bytes": 820799,
+      "rows": 10457,
+      "month": "2024-01"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-01-31_1d_bcc9368ada8c9eea.csv",
+      "sha256": "bcc9368ada8c9eea248ab1afdacb63865e4d9eea9b9b497d7fd843eaef94b061",
+      "bytes": 20228,
+      "rows": 254,
+      "month": "2024-01"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-02-01_5d_c9439f088a5b263c.csv",
+      "sha256": "c9439f088a5b263c163609875040997728f3f99f87dd45949e081ae98a03ac58",
+      "bytes": 394385,
+      "rows": 5029,
+      "month": "2024-02"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-02-06_5d_cfd7f3a2f0620fe3.csv",
+      "sha256": "cfd7f3a2f0620fe3134adf69ed368bad7941bb385b2031ac72f093d2b37d2a66",
+      "bytes": 659281,
+      "rows": 8395,
+      "month": "2024-02"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-02-11_5d_fce99fb5622bc7d0.csv",
+      "sha256": "fce99fb5622bc7d0f9cb481816a9eed70e8bb92de7165d108a83256b3dcde949",
+      "bytes": 1268587,
+      "rows": 16171,
+      "month": "2024-02"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-02-13_5d_5fc8764b427bc0c5.csv",
+      "sha256": "5fc8764b427bc0c52be2546c0fa78cb488cf719cce81ba1a013d244a82fe728f",
+      "bytes": 1036133,
+      "rows": 13219,
+      "month": "2024-02"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-02-16_5d_c964349e2b36ee65.csv",
+      "sha256": "c964349e2b36ee65ea367a4d766740191a408cd6132d9972070993ee926807d9",
+      "bytes": 666222,
+      "rows": 8495,
+      "month": "2024-02"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-02-21_5d_874f274520ba0f76.csv",
+      "sha256": "874f274520ba0f76e4436f31467b05a4191f99add45eca1eeef27d9fd06ad220",
+      "bytes": 683703,
+      "rows": 8714,
+      "month": "2024-02"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-02-26_5d_4eef65282ae08882.csv",
+      "sha256": "4eef65282ae088829b56e9e0df58c1ed850c1c606c1cb4dadc3078d2e3166df5",
+      "bytes": 765081,
+      "rows": 9751,
+      "month": "2024-02"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-03-01_5d_7e2bf6965bedc3cb.csv",
+      "sha256": "7e2bf6965bedc3cbaafa03d932d431d6319b717ef48116025082f365a9adf6cb",
+      "bytes": 707137,
+      "rows": 9007,
+      "month": "2024-03"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-03-06_5d_a6363e3c2b1c5d1a.csv",
+      "sha256": "a6363e3c2b1c5d1a7f0f0bf28dd473df920a57f784f3413ac0c3c35502a368aa",
+      "bytes": 540979,
+      "rows": 6888,
+      "month": "2024-03"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-03-11_5d_b8ca8e58289a7016.csv",
+      "sha256": "b8ca8e58289a7016627949c967013e1a51934ac15eaf79d382c01a9dcf04da11",
+      "bytes": 495228,
+      "rows": 6306,
+      "month": "2024-03"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-03-13_5d_85453bc3bc8e93a5.csv",
+      "sha256": "85453bc3bc8e93a5f0b38d338a3ae9964f3411c8ea26ce8e189b0325c28d3baf",
+      "bytes": 431407,
+      "rows": 5488,
+      "month": "2024-03"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-03-16_5d_d3712e16fb6bd2dc.csv",
+      "sha256": "d3712e16fb6bd2dc8b3e4fd40542479e147e16ee0736029349cf287e557e6468",
+      "bytes": 697453,
+      "rows": 8880,
+      "month": "2024-03"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-03-21_5d_28f7ac4c8fd40b4f.csv",
+      "sha256": "28f7ac4c8fd40b4f71f020cfa3dea21f4d7a3d2e1a5cbb350f6a31e314f88078",
+      "bytes": 513757,
+      "rows": 6543,
+      "month": "2024-03"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-03-26_5d_8287f2387697b403.csv",
+      "sha256": "8287f2387697b403ae37cc93143049054305bd7e4bccd8cd4b7fe9f84cda1dfa",
+      "bytes": 368531,
+      "rows": 4705,
+      "month": "2024-03"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-03-31_1d_f2a7a80276a86c6b.csv",
+      "sha256": "f2a7a80276a86c6b7c1198f14fb504ca23b1facacfc446bd504ba3916b6658cb",
+      "bytes": 43076,
+      "rows": 548,
+      "month": "2024-03"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-04-01_5d_77520611d1699012.csv",
+      "sha256": "77520611d16990122ba98339bfe6ada9d4dd9c139f48b3858f5098c1cb202c4e",
+      "bytes": 381854,
+      "rows": 4862,
+      "month": "2024-04"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-04-06_5d_d80bd7e08c515601.csv",
+      "sha256": "d80bd7e08c51560115fb52b8a185749396f28b69f5ee94f966bd8550a66115ce",
+      "bytes": 497070,
+      "rows": 6327,
+      "month": "2024-04"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-04-11_5d_f8eb631466161150.csv",
+      "sha256": "f8eb6314661611501392af23c0f82455d6662ddf3e2e4a70cc673365c13c839a",
+      "bytes": 379951,
+      "rows": 4837,
+      "month": "2024-04"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-04-13_5d_348e1b764008ddb4.csv",
+      "sha256": "348e1b764008ddb489cf2fb92acfd8cc23031ca7c2aa3f0bd6ec699aaac28a29",
+      "bytes": 292847,
+      "rows": 3724,
+      "month": "2024-04"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-04-16_5d_83c55f51d9902b94.csv",
+      "sha256": "83c55f51d9902b94cd0b5a733a9a3990a1046553fe643298c1d7c7829701125a",
+      "bytes": 292262,
+      "rows": 3713,
+      "month": "2024-04"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-04-21_5d_b445ec537bc6231e.csv",
+      "sha256": "b445ec537bc6231ece457df6658eca7bad64e3596ca00cf77918714ec6602061",
+      "bytes": 425660,
+      "rows": 5419,
+      "month": "2024-04"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-04-26_5d_5907278c765e94dc.csv",
+      "sha256": "5907278c765e94dc5641b4fbac8579f484de9f33470fcf8a37c24482c025b89a",
+      "bytes": 431084,
+      "rows": 5478,
+      "month": "2024-04"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-05-01_5d_1df03e214e17c390.csv",
+      "sha256": "1df03e214e17c390593aea1473d3d3df474d7f4c198f5276599633c390b43065",
+      "bytes": 221588,
+      "rows": 2815,
+      "month": "2024-05"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-05-06_5d_a989d0a19d72c864.csv",
+      "sha256": "a989d0a19d72c864cc313e36edb5e2dffaf7a182a47d592a4c8934cfffbfe606",
+      "bytes": 119906,
+      "rows": 1527,
+      "month": "2024-05"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-05-11_5d_522c15a7fa5419d9.csv",
+      "sha256": "522c15a7fa5419d9bcdbdefc859c1a94c62e7a4107c5190bc845d01408192bd1",
+      "bytes": 56901,
+      "rows": 723,
+      "month": "2024-05"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-05-13_5d_8bdc98d0e22acf36.csv",
+      "sha256": "8bdc98d0e22acf360ee2dd050809b521f7bee34c0e67f8dd05c008bdba9d78a7",
+      "bytes": 38375,
+      "rows": 488,
+      "month": "2024-05"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-05-16_5d_daf0450ab31c0ebe.csv",
+      "sha256": "daf0450ab31c0ebefb58d7126363ee0b2b6ddc338a8b6490ede63d58c8ac250e",
+      "bytes": 23368,
+      "rows": 296,
+      "month": "2024-05"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-05-21_5d_10760068be7a027a.csv",
+      "sha256": "10760068be7a027a4715c7bea0859d2882b86fcb209101eab90bdd9ed725ffcf",
+      "bytes": 18269,
+      "rows": 232,
+      "month": "2024-05"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-05-26_5d_41bb74d07a38f651.csv",
+      "sha256": "41bb74d07a38f651b08899be601895afd86011c65c7df6741e548162fd244a7f",
+      "bytes": 19041,
+      "rows": 241,
+      "month": "2024-05"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-05-31_1d_3505bc30679b4672.csv",
+      "sha256": "3505bc30679b4672e35048d886860827f74a34968ca654b30a18b6ab231990fd",
+      "bytes": 127,
+      "rows": 0,
+      "month": "2024-05"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-06-01_5d_cef69973de31f467.csv",
+      "sha256": "cef69973de31f467d8f8aed649f1982c3ce7122c2c6c7db5ff72adf29f9c649b",
+      "bytes": 18458,
+      "rows": 234,
+      "month": "2024-06"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-06-06_5d_baa5677ed9ea20cb.csv",
+      "sha256": "baa5677ed9ea20cb4310c94a63bc007d633b4c4143cfb6ef897325c8c60d5f8c",
+      "bytes": 15164,
+      "rows": 192,
+      "month": "2024-06"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-06-11_5d_b04ceedaed9673b2.csv",
+      "sha256": "b04ceedaed9673b26d20f74bc4372266d84801e843bd5e9d8419a7baeed0a282",
+      "bytes": 50742,
+      "rows": 645,
+      "month": "2024-06"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-06-13_5d_77ce7df35ff0ad62.csv",
+      "sha256": "77ce7df35ff0ad62a602c9718f10088d711497c74d3f48a1804185b687db22ab",
+      "bytes": 41648,
+      "rows": 529,
+      "month": "2024-06"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-06-16_5d_e45080f27d649bc0.csv",
+      "sha256": "e45080f27d649bc0280a3b48ee5fe2e97628a10aab8c01a53f55dfafbb632e93",
+      "bytes": 26594,
+      "rows": 337,
+      "month": "2024-06"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-06-21_5d_27a5fedca9caba21.csv",
+      "sha256": "27a5fedca9caba21e5e74123ac423bcbd7a4b6b3d512114b2ec1f3173872aa0f",
+      "bytes": 3265,
+      "rows": 40,
+      "month": "2024-06"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-06-26_5d_3a4b1aa9a9445ea7.csv",
+      "sha256": "3a4b1aa9a9445ea72883e95101dfc23119591daa866365e191b913461dcd8103",
+      "bytes": 16613,
+      "rows": 210,
+      "month": "2024-06"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-07-01_5d_6f72a23f42a79374.csv",
+      "sha256": "6f72a23f42a79374fde7c2b21dd019c37a6f364c136b39a680bfad6725ef3f8f",
+      "bytes": 21780,
+      "rows": 276,
+      "month": "2024-07"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-07-06_5d_9194a5fe42e4a183.csv",
+      "sha256": "9194a5fe42e4a183b480d2dd1ffad193066dbfafd17a63be4059be8056620973",
+      "bytes": 8846,
+      "rows": 111,
+      "month": "2024-07"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-07-11_5d_3505bc30679b4672.csv",
+      "sha256": "3505bc30679b4672e35048d886860827f74a34968ca654b30a18b6ab231990fd",
+      "bytes": 127,
+      "rows": 0,
+      "month": "2024-07"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-07-13_5d_903317c90df642a1.csv",
+      "sha256": "903317c90df642a11ca938b75d1d71f6a4c90bcd3f2f8eb1aa6cb52d9c45b8b0",
+      "bytes": 523,
+      "rows": 5,
+      "month": "2024-07"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-07-16_5d_5f6706e64571f5ed.csv",
+      "sha256": "5f6706e64571f5edcb44ccfb004591eefd0c73dc75091d28d40b30de74f113c5",
+      "bytes": 760,
+      "rows": 8,
+      "month": "2024-07"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-07-21_5d_a55da91ce03202f0.csv",
+      "sha256": "a55da91ce03202f02435007a9a4081948df841b5093b561e59fbcee1d698276a",
+      "bytes": 918,
+      "rows": 10,
+      "month": "2024-07"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-07-26_5d_c172cb4c8e7f9a86.csv",
+      "sha256": "c172cb4c8e7f9a86975a51b2da13968c0393e5e7f3b4217f04348311117ce20c",
+      "bytes": 2636,
+      "rows": 32,
+      "month": "2024-07"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-07-31_1d_2fdc9417e5adfbe8.csv",
+      "sha256": "2fdc9417e5adfbe80c6e9d4e063241de7490e9e1526dcc4e04dfaf8a9ea0793d",
+      "bytes": 2014,
+      "rows": 24,
+      "month": "2024-07"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-08-01_5d_f8b884ee391cc068.csv",
+      "sha256": "f8b884ee391cc06858564477601fb8bce3a9573ff88d94aad447ed60e2a55228",
+      "bytes": 37588,
+      "rows": 478,
+      "month": "2024-08"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-08-06_5d_24d48db5abc70afb.csv",
+      "sha256": "24d48db5abc70afb9a5a9a24dda486bddff18b4b4a1c3c38335e656e466b29d1",
+      "bytes": 32726,
+      "rows": 416,
+      "month": "2024-08"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-08-11_5d_a291f0b4d314f318.csv",
+      "sha256": "a291f0b4d314f318c3bb4abf42732f6217928402e944a023ac05a1e9ca795550",
+      "bytes": 32925,
+      "rows": 418,
+      "month": "2024-08"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-08-13_5d_7e8f640e7ab7f82e.csv",
+      "sha256": "7e8f640e7ab7f82edac3955c55dc79edde621fa1def580fc34e8539d5bca7aca",
+      "bytes": 29697,
+      "rows": 377,
+      "month": "2024-08"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-08-16_5d_c9e06c855081bd11.csv",
+      "sha256": "c9e06c855081bd11e1d96368e571c6f1344f6857d97ec018f98ab36525fce242",
+      "bytes": 27114,
+      "rows": 344,
+      "month": "2024-08"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-08-21_5d_1495bd15ac94e6a3.csv",
+      "sha256": "1495bd15ac94e6a3cf08a37b720b076bfc18f700d9f63e62543ed529a39e5167",
+      "bytes": 23877,
+      "rows": 303,
+      "month": "2024-08"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-08-26_5d_ead0bf4b143afde7.csv",
+      "sha256": "ead0bf4b143afde77967eaf97372e3b8fc3dc113e41df6a81329b47657e0e20d",
+      "bytes": 14158,
+      "rows": 179,
+      "month": "2024-08"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-08-31_1d_b5483839d051ed8a.csv",
+      "sha256": "b5483839d051ed8a525f07e8f55a75112d5ef4bd60a23739e2b83cadbb26f5aa",
+      "bytes": 3197,
+      "rows": 39,
+      "month": "2024-08"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-09-01_5d_90eea801e364c068.csv",
+      "sha256": "90eea801e364c0688080e3e96228a4132e9cbab5f2fbd2ff9a93e1727845d964",
+      "bytes": 4981,
+      "rows": 62,
+      "month": "2024-09"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-09-06_5d_a1ea3226e6aa5224.csv",
+      "sha256": "a1ea3226e6aa5224471d01d23b5a6111d11398e1e415c5fc0bba6e5b14f9d8ae",
+      "bytes": 9602,
+      "rows": 121,
+      "month": "2024-09"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-09-11_5d_9f279d810c121bdd.csv",
+      "sha256": "9f279d810c121bddd8a80a39ae064bf8ad2b65be85dac3673b53acceeb67dd9d",
+      "bytes": 7281,
+      "rows": 91,
+      "month": "2024-09"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-09-13_5d_3de975fc52b6a191.csv",
+      "sha256": "3de975fc52b6a1913d52507c3cd049b08110dc176fb88a6928deb7368cd44bb7",
+      "bytes": 3892,
+      "rows": 48,
+      "month": "2024-09"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-09-16_5d_d88cf9d153f79aee.csv",
+      "sha256": "d88cf9d153f79aee6cc7295969763ce3cddfa028ac354cfefe7c6b6a9e814286",
+      "bytes": 1940,
+      "rows": 23,
+      "month": "2024-09"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-09-21_5d_dca1868757bdfac8.csv",
+      "sha256": "dca1868757bdfac8ed035d3330c123e5af4fa3570bc77649c6734d5a4ccdabb4",
+      "bytes": 3731,
+      "rows": 46,
+      "month": "2024-09"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-09-26_5d_935583cedc65d020.csv",
+      "sha256": "935583cedc65d02059886add93002789678f75194752c250faa2297d24e32fb4",
+      "bytes": 20695,
+      "rows": 263,
+      "month": "2024-09"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-10-01_5d_1a49f9f57ff3fb70.csv",
+      "sha256": "1a49f9f57ff3fb70408302b112d1fc1633e4dc38cf04739394f4ab990b1c8fc3",
+      "bytes": 9752,
+      "rows": 123,
+      "month": "2024-10"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-10-06_5d_d11d9beba922156a.csv",
+      "sha256": "d11d9beba922156a6632469b7942183a3c8c39f57d681f0103d2f0911d3c13b4",
+      "bytes": 5935,
+      "rows": 74,
+      "month": "2024-10"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-10-11_5d_f250f2a80777356a.csv",
+      "sha256": "f250f2a80777356a173520e868ccb992e54b1a497ed5db1be08eafafb8dabfcc",
+      "bytes": 7890,
+      "rows": 99,
+      "month": "2024-10"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-10-13_5d_64f7e807f1f8af1d.csv",
+      "sha256": "64f7e807f1f8af1de056dacd51436e7a5574012a4477011568d5b463832a9e82",
+      "bytes": 6250,
+      "rows": 78,
+      "month": "2024-10"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-10-16_5d_aa99007814836ff4.csv",
+      "sha256": "aa99007814836ff40d75fce0c543ec1529f7f16474ed7342ae0466fd5da38c1f",
+      "bytes": 11301,
+      "rows": 142,
+      "month": "2024-10"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-10-21_5d_f718bf35fca048bd.csv",
+      "sha256": "f718bf35fca048bd5672448d31fcb09df561103ace7b7eed8391624fc5f07bc7",
+      "bytes": 4146,
+      "rows": 51,
+      "month": "2024-10"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-10-26_5d_e275e0a6e948d5ee.csv",
+      "sha256": "e275e0a6e948d5eeef2e3d8bf86ae4ef4009384ca3710b2cf197efe24eff4197",
+      "bytes": 2404,
+      "rows": 29,
+      "month": "2024-10"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-10-31_1d_1310345200fad035.csv",
+      "sha256": "1310345200fad035fbed9495b208212da597706eafb312cc6854590589433950",
+      "bytes": 1384,
+      "rows": 16,
+      "month": "2024-10"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-11-01_5d_672bf220bf96d5d8.csv",
+      "sha256": "672bf220bf96d5d87edd200c12ae8857af06efb491331755e7a3c767e736104d",
+      "bytes": 3882,
+      "rows": 48,
+      "month": "2024-11"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-11-06_5d_0077ea9f9b9d076e.csv",
+      "sha256": "0077ea9f9b9d076ed538e39620b9bc8bee1b2645e7250c7aa3173754a364079b",
+      "bytes": 9404,
+      "rows": 118,
+      "month": "2024-11"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-11-11_5d_8999406000ebaa7e.csv",
+      "sha256": "8999406000ebaa7e64d83fd8d6468a72e0454288bb0ec0d55eab03341bff60cb",
+      "bytes": 16763,
+      "rows": 212,
+      "month": "2024-11"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-11-13_5d_dbdcf4bdb0e30e3e.csv",
+      "sha256": "dbdcf4bdb0e30e3e2a70d73478743eb54d0f0fb9fe91844ac33f23224cc507eb",
+      "bytes": 21395,
+      "rows": 271,
+      "month": "2024-11"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-11-16_5d_ae912b3339bb34cf.csv",
+      "sha256": "ae912b3339bb34cf5d20e171b9eb95b775bb714e334c96410927116e61cdd566",
+      "bytes": 26672,
+      "rows": 339,
+      "month": "2024-11"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-11-21_5d_5e49dc253e164e71.csv",
+      "sha256": "5e49dc253e164e71e13f1cd5759f080ae60f4c452d101f8cddf272b6a1c9686e",
+      "bytes": 9237,
+      "rows": 116,
+      "month": "2024-11"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-11-26_5d_cbb04d011a0357ec.csv",
+      "sha256": "cbb04d011a0357ec9efae165acdc8476fb6e61ee956068e84ee8e5a4329c9fd4",
+      "bytes": 12511,
+      "rows": 158,
+      "month": "2024-11"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-12-01_5d_19269aa9a5ea8104.csv",
+      "sha256": "19269aa9a5ea81047b1318eface3b8062ef6376ec7847490936951ff3e2b5bc5",
+      "bytes": 16911,
+      "rows": 214,
+      "month": "2024-12"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-12-06_5d_24cabf2434ac8802.csv",
+      "sha256": "24cabf2434ac8802cd59805c911579b30f978d25b75d5c5a686878104c44f962",
+      "bytes": 19052,
+      "rows": 241,
+      "month": "2024-12"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-12-11_5d_13009d3db9eacebf.csv",
+      "sha256": "13009d3db9eacebfca0ec30cde495068cc27d71bb4d1745a58deb96c7a3661dc",
+      "bytes": 3431,
+      "rows": 42,
+      "month": "2024-12"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-12-13_5d_08688fd1cbe09956.csv",
+      "sha256": "08688fd1cbe099564f8a81a430c79d09ba1875f1293f793d5f2c0d6039932bc8",
+      "bytes": 27994,
+      "rows": 355,
+      "month": "2024-12"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-12-16_5d_bb1dacd9aa7669a3.csv",
+      "sha256": "bb1dacd9aa7669a33f0c44b391889123ec3f894bdab0713de9f6d8d667ec9ae6",
+      "bytes": 97745,
+      "rows": 1245,
+      "month": "2024-12"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-12-21_5d_a97b3c4cf647ccb6.csv",
+      "sha256": "a97b3c4cf647ccb6e2b797dbbd885130b75996e6515e499f833eb5e71b4ab835",
+      "bytes": 50345,
+      "rows": 641,
+      "month": "2024-12"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-12-26_5d_e7ab4b7d5a412558.csv",
+      "sha256": "e7ab4b7d5a4125583596e325972ad2b41afeb8ec29a28e4bf3fc80864d99c201",
+      "bytes": 145369,
+      "rows": 1853,
+      "month": "2024-12"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2024-12-31_1d_84c8282853c8f07d.csv",
+      "sha256": "84c8282853c8f07d15c9b2415ed48bff4a92e295ff488916966b137c903bd493",
+      "bytes": 28273,
+      "rows": 359,
+      "month": "2024-12"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-01-01_5d_b222c200ada6c640.csv",
+      "sha256": "b222c200ada6c640658cad5659787ab230a6c03064cc6bb816382f76b6f67343",
+      "bytes": 249257,
+      "rows": 3179,
+      "month": "2025-01"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-01-06_5d_ac357f03bb73117e.csv",
+      "sha256": "ac357f03bb73117e19edc8690e6d4a5f2528a2ee665a9e703edea9f71c2e5fb1",
+      "bytes": 537855,
+      "rows": 6859,
+      "month": "2025-01"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-01-11_5d_80a0dfe1635e6d25.csv",
+      "sha256": "80a0dfe1635e6d25e0781a3a1e06f26bea5dbdf3f60838d71d84d028d7b3732d",
+      "bytes": 557947,
+      "rows": 7106,
+      "month": "2025-01"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-01-13_5d_88e20d5419002565.csv",
+      "sha256": "88e20d54190025650ca4813853901fa0a5b9a3ea87cb1421b93f4e5a2ea32520",
+      "bytes": 418268,
+      "rows": 5336,
+      "month": "2025-01"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-01-16_5d_753d4123b5739851.csv",
+      "sha256": "753d4123b573985179dea34de5bfddab752341f84c20dc3382b6892ff0320b29",
+      "bytes": 473193,
+      "rows": 6038,
+      "month": "2025-01"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-01-21_5d_b6ab9d9a2f02cb7b.csv",
+      "sha256": "b6ab9d9a2f02cb7b74a572dc4042b35e5b2ec5fdc31a617596c76327168a44c8",
+      "bytes": 370149,
+      "rows": 4725,
+      "month": "2025-01"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-01-26_5d_857962fc297d6a7d.csv",
+      "sha256": "857962fc297d6a7d774b2167736fb5ab66312c81fb725a25349a4fa9131e5451",
+      "bytes": 864591,
+      "rows": 11009,
+      "month": "2025-01"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-01-31_1d_144f4b0246cede61.csv",
+      "sha256": "144f4b0246cede618ec7e9c725325fba46b1050a2901d5f452182346c51d585f",
+      "bytes": 123002,
+      "rows": 1566,
+      "month": "2025-01"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-02-01_5d_9c4469bf8f23406d.csv",
+      "sha256": "9c4469bf8f23406dd01bd65c68d6ad9f9e2e31a2407b2bb1045bab323fd22629",
+      "bytes": 809813,
+      "rows": 10326,
+      "month": "2025-02"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-02-06_5d_1ecd68e4331ff6d6.csv",
+      "sha256": "1ecd68e4331ff6d6abc07678e33ba0bf270875d05737512ea5baa93ea00ed523",
+      "bytes": 793404,
+      "rows": 10114,
+      "month": "2025-02"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-02-11_5d_d21744b34fd74981.csv",
+      "sha256": "d21744b34fd74981c58d0a347093fc0c3f9ba7abadd82a559a710d6d4d7c1aa2",
+      "bytes": 491035,
+      "rows": 6256,
+      "month": "2025-02"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-02-13_5d_d881bead56646a2b.csv",
+      "sha256": "d881bead56646a2b6d9460e97bc6bccc4265eec9b5696f43d566297def5ff3a2",
+      "bytes": 549434,
+      "rows": 7002,
+      "month": "2025-02"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-02-16_5d_96acf473b31aaf70.csv",
+      "sha256": "96acf473b31aaf70dec9c929afbace11d3a55b7c273eae90e50867d41e88cd60",
+      "bytes": 723685,
+      "rows": 9217,
+      "month": "2025-02"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-02-21_5d_5638430d8e96a0d1.csv",
+      "sha256": "5638430d8e96a0d1eed49876ccdaad58d56aa39c23fb0119e354814de7555117",
+      "bytes": 241901,
+      "rows": 3082,
+      "month": "2025-02"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-02-26_5d_4358ea3c3c8f53ab.csv",
+      "sha256": "4358ea3c3c8f53ab86e289659009a045fab19c9e269b08f00a228a625d6c9e94",
+      "bytes": 531745,
+      "rows": 6772,
+      "month": "2025-02"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-03-01_5d_4d06ca27d11214a1.csv",
+      "sha256": "4d06ca27d11214a1f4e351480088819ee8c0a1d532b6f8a81c7f846d117ba2dd",
+      "bytes": 462634,
+      "rows": 5891,
+      "month": "2025-03"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-03-06_5d_54c77d0a8d292b90.csv",
+      "sha256": "54c77d0a8d292b909d3f51813b8f00b2f609785bfe6c865811f55f13041603d2",
+      "bytes": 250843,
+      "rows": 3195,
+      "month": "2025-03"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-03-11_5d_683019e9cc679687.csv",
+      "sha256": "683019e9cc6796875ce877bb0eb610d7ff234455720e07319afe060e2f5dd281",
+      "bytes": 272752,
+      "rows": 3476,
+      "month": "2025-03"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-03-13_5d_6950dca726c517e3.csv",
+      "sha256": "6950dca726c517e345977996effdb7c2a62e4d00eef969fdc142d03fbafbfe87",
+      "bytes": 266595,
+      "rows": 3397,
+      "month": "2025-03"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-03-16_5d_a1c504db273efc2d.csv",
+      "sha256": "a1c504db273efc2d04e2797266918c3df6066ad22c26cbbcd1779de798249d14",
+      "bytes": 287196,
+      "rows": 3659,
+      "month": "2025-03"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-03-21_5d_84373e3995a42469.csv",
+      "sha256": "84373e3995a424695695cfd5fe2a3a5561feee8e98a3f5c9eab649972495614e",
+      "bytes": 588641,
+      "rows": 7496,
+      "month": "2025-03"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-03-26_5d_35f56bba8ac17acb.csv",
+      "sha256": "35f56bba8ac17acb15617211bf96cdcd3a445b4b0b074ba5ec407df417f4b012",
+      "bytes": 363252,
+      "rows": 4625,
+      "month": "2025-03"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-03-31_1d_e63f0254e8b8c6c3.csv",
+      "sha256": "e63f0254e8b8c6c340f734194021094ff6968de8075cb7bad009bcaf19c15bb3",
+      "bytes": 32748,
+      "rows": 415,
+      "month": "2025-03"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-04-01_5d_ce1ecb542506fa2e.csv",
+      "sha256": "ce1ecb542506fa2ec2da6aa579ae78ef51330836c2518d9927505fc76f3c06c9",
+      "bytes": 330082,
+      "rows": 4203,
+      "month": "2025-04"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-04-06_5d_87f432ff3f860529.csv",
+      "sha256": "87f432ff3f86052984fafee46edde670a43f4d712e3d98f2e1f6aa966f46a813",
+      "bytes": 176084,
+      "rows": 2238,
+      "month": "2025-04"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-04-11_5d_9ab90c119adfa934.csv",
+      "sha256": "9ab90c119adfa93423f370ff06ac3f76abef566270f98c48e5ef26a4ff02aaac",
+      "bytes": 85198,
+      "rows": 1084,
+      "month": "2025-04"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-04-13_5d_4617985787dbf053.csv",
+      "sha256": "4617985787dbf05377a7d002975879d51034cd58959d46cec2def6a9d26bca6d",
+      "bytes": 68698,
+      "rows": 873,
+      "month": "2025-04"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-04-16_5d_c8734d32e301fdae.csv",
+      "sha256": "c8734d32e301fdaef2d367fc0f70d0305f4539f1f79ff4f8ad6ff1a89c9b5525",
+      "bytes": 102030,
+      "rows": 1298,
+      "month": "2025-04"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-04-21_5d_948de894aa6b5364.csv",
+      "sha256": "948de894aa6b536471642ef3d0b7712c9f93ca8a6d8b131e2c0ad5cb80b4b6e9",
+      "bytes": 174266,
+      "rows": 2218,
+      "month": "2025-04"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-04-26_5d_7ca38de8d47b0208.csv",
+      "sha256": "7ca38de8d47b0208b3a9bec4b6b45c64777bdbd2d61c92d4a407c2b60e399ff8",
+      "bytes": 118402,
+      "rows": 1508,
+      "month": "2025-04"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-05-01_5d_570966949d04c7ae.csv",
+      "sha256": "570966949d04c7ae00b2e616e40beb2af4cf43a666b88b032ff007fbfd061b07",
+      "bytes": 77223,
+      "rows": 983,
+      "month": "2025-05"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-05-06_5d_b5128a496695992f.csv",
+      "sha256": "b5128a496695992fb5558f5dada5d48ec52cb84356f919239e34f1f6870f306a",
+      "bytes": 65736,
+      "rows": 836,
+      "month": "2025-05"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-05-11_5d_fbf6a062da12be1a.csv",
+      "sha256": "fbf6a062da12be1a1abcdacf5b197a64d7556c7f6491e97c8bd446a65cd9a156",
+      "bytes": 18361,
+      "rows": 232,
+      "month": "2025-05"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-05-13_5d_6e08bfd1c5907588.csv",
+      "sha256": "6e08bfd1c5907588dd9bf05f9e47fe99d542f669db2348b049b22081f55176f4",
+      "bytes": 24292,
+      "rows": 308,
+      "month": "2025-05"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-05-16_5d_1b8c6b44919be78a.csv",
+      "sha256": "1b8c6b44919be78adda7d77cc2a8d7321298aa8bf24fdc5dcf714cee373a5b26",
+      "bytes": 34497,
+      "rows": 438,
+      "month": "2025-05"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-05-21_5d_021c46ef00e874b5.csv",
+      "sha256": "021c46ef00e874b5e45a304aaad77e93fd7c8076b1e500a0b014349abe621736",
+      "bytes": 14078,
+      "rows": 178,
+      "month": "2025-05"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-05-26_5d_bdd3e22b1de5007a.csv",
+      "sha256": "bdd3e22b1de5007adc2463d62275cc901afce6ee8f4b1dbc0be130ee54fb6418",
+      "bytes": 6254,
+      "rows": 78,
+      "month": "2025-05"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-05-31_1d_0383e7b45647c865.csv",
+      "sha256": "0383e7b45647c865b3006dcda55442aba306b3dc01f831c25ffb2c7d8e109d67",
+      "bytes": 1623,
+      "rows": 19,
+      "month": "2025-05"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-06-01_5d_a25aaf0373f1079d.csv",
+      "sha256": "a25aaf0373f1079d76aa3d4f866fbac25cdb48f05e26e0055673fb413e6f63a8",
+      "bytes": 13787,
+      "rows": 174,
+      "month": "2025-06"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-06-06_5d_5ae4e383e6c95e74.csv",
+      "sha256": "5ae4e383e6c95e74b2e69ce8297b57f5cfc3441749c0e697485c2b295ff7dc2c",
+      "bytes": 5857,
+      "rows": 73,
+      "month": "2025-06"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-06-11_5d_53113a2cf261370d.csv",
+      "sha256": "53113a2cf261370dfb3bca52e376ea4d5e0345856005b0a50006df860153b121",
+      "bytes": 2172,
+      "rows": 26,
+      "month": "2025-06"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-06-13_5d_c76b5deb7f35c876.csv",
+      "sha256": "c76b5deb7f35c876863502d23883d0fb57e89e9106a3d11b80a4f57671f35ac3",
+      "bytes": 20637,
+      "rows": 262,
+      "month": "2025-06"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-06-16_5d_1e09d82609eceea6.csv",
+      "sha256": "1e09d82609eceea6420d48175787f84e87c1c120752470f6f04555e1aceefecf",
+      "bytes": 28399,
+      "rows": 361,
+      "month": "2025-06"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-06-21_5d_a11fac84ec16cdd6.csv",
+      "sha256": "a11fac84ec16cdd6011cb14ae0f1fb49fa0fef818e20f44275d1ad4c9d6261f8",
+      "bytes": 14047,
+      "rows": 177,
+      "month": "2025-06"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-06-26_5d_2215f34361a49d26.csv",
+      "sha256": "2215f34361a49d26b8375505029912b482331df241b1ed9cb1110feda15b0972",
+      "bytes": 9793,
+      "rows": 123,
+      "month": "2025-06"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-07-01_5d_ff649361c56a740c.csv",
+      "sha256": "ff649361c56a740c4bbae34faecf4c517d2e49f62c0d342c8421f1a345f4f670",
+      "bytes": 7883,
+      "rows": 99,
+      "month": "2025-07"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-07-06_5d_df2623ffb9a01d23.csv",
+      "sha256": "df2623ffb9a01d23a4ecca617636266425cb3853e7a91a0200c2fd42bab00bb6",
+      "bytes": 13142,
+      "rows": 166,
+      "month": "2025-07"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-07-11_5d_c26482790e9eb72f.csv",
+      "sha256": "c26482790e9eb72f7ada0df535458cf1041460cb7468d4f56b4315578e63af22",
+      "bytes": 21850,
+      "rows": 277,
+      "month": "2025-07"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-07-13_5d_2aa5e1bbd06bff91.csv",
+      "sha256": "2aa5e1bbd06bff91241cfc03b5434b6de0f2083a21333539753946a0e1e9e6db",
+      "bytes": 18239,
+      "rows": 231,
+      "month": "2025-07"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-07-16_5d_0abd3015deeb2033.csv",
+      "sha256": "0abd3015deeb20337a374fafbb602b58a858ea5d84cd1646c27926503e72d783",
+      "bytes": 6466,
+      "rows": 81,
+      "month": "2025-07"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-07-21_5d_4ca107afaaefb0bc.csv",
+      "sha256": "4ca107afaaefb0bcd1dbf0bd44f0f85c9bc236b8927afee0573711b9a41136c5",
+      "bytes": 7059,
+      "rows": 88,
+      "month": "2025-07"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-07-26_5d_00ea75f6531c8c2a.csv",
+      "sha256": "00ea75f6531c8c2a608185eb702014772209fa1c591406f24a6fe1b7417f697e",
+      "bytes": 4838,
+      "rows": 60,
+      "month": "2025-07"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-07-31_1d_d8b939dffe95d223.csv",
+      "sha256": "d8b939dffe95d22319ad6b2198dbf858e19b3f525a187aaa8b648fc4c8f7e299",
+      "bytes": 4527,
+      "rows": 56,
+      "month": "2025-07"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-08-01_5d_8b6e970d69c2ce09.csv",
+      "sha256": "8b6e970d69c2ce09c49568fd624a96ea79bc55e7f2de9d0f3fe7fa9c2a37b48a",
+      "bytes": 28462,
+      "rows": 361,
+      "month": "2025-08"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-08-06_5d_f652ba4451cc58e0.csv",
+      "sha256": "f652ba4451cc58e0563422eb3977398be72051baa70c94d3fc3d73b845c9ce4f",
+      "bytes": 25654,
+      "rows": 325,
+      "month": "2025-08"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-08-11_5d_9b8e098af8486b9d.csv",
+      "sha256": "9b8e098af8486b9d16681590313b2f0d9c4a6c4d87e8ef75b00a0fec6aa1833c",
+      "bytes": 18303,
+      "rows": 232,
+      "month": "2025-08"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-08-13_5d_43d2a2eb864dede1.csv",
+      "sha256": "43d2a2eb864dede1379134f41362922ae7f55f89030ee96f78fa4744e400d8cf",
+      "bytes": 7760,
+      "rows": 97,
+      "month": "2025-08"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-08-16_5d_c3239132370eaee4.csv",
+      "sha256": "c3239132370eaee4081b5d046535d9b4e1970a71491b00750c574d4eda4d2689",
+      "bytes": 11519,
+      "rows": 145,
+      "month": "2025-08"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-08-21_5d_48b096e483045914.csv",
+      "sha256": "48b096e48304591454bb2ae86507ba6195fda27d1bdd80e8088e41af616957d5",
+      "bytes": 8185,
+      "rows": 103,
+      "month": "2025-08"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-08-26_5d_1d4518ffc40a0b6c.csv",
+      "sha256": "1d4518ffc40a0b6c59bc9092d12910ac668d9fefe9d3c68e814fbd0e6e3a8ad7",
+      "bytes": 5295,
+      "rows": 66,
+      "month": "2025-08"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-08-31_1d_2bd9187dc73e1f5f.csv",
+      "sha256": "2bd9187dc73e1f5f9ff36b1ea76a78ebfa10d792a2418abfdb6715f5f3440824",
+      "bytes": 2870,
+      "rows": 35,
+      "month": "2025-08"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-09-01_5d_883adf220e0c91e4.csv",
+      "sha256": "883adf220e0c91e4ae92f6333a278eaa081875365f793424af4ecb67efa10a64",
+      "bytes": 10742,
+      "rows": 135,
+      "month": "2025-09"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-09-06_5d_66d3bd20e3f4c5bf.csv",
+      "sha256": "66d3bd20e3f4c5bf814ef0eb3d8e9810048423839b033087748da2739951e32f",
+      "bytes": 8984,
+      "rows": 113,
+      "month": "2025-09"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-09-11_5d_676831458bd67923.csv",
+      "sha256": "676831458bd6792311c4250afe6a6c4dae444772cacf4f8c382b471cda7a92eb",
+      "bytes": 13868,
+      "rows": 175,
+      "month": "2025-09"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-09-13_5d_2bf52a5935799643.csv",
+      "sha256": "2bf52a5935799643d5cade4f7cc291300d6abceb97fd65b4798b90ef9e909077",
+      "bytes": 8532,
+      "rows": 107,
+      "month": "2025-09"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-09-16_5d_d2437f8dc8906c73.csv",
+      "sha256": "d2437f8dc8906c7336c6c175af10f7b58fab3cb53170e6d47ac91220a6937aec",
+      "bytes": 5326,
+      "rows": 66,
+      "month": "2025-09"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-09-21_5d_536d25e6ae416339.csv",
+      "sha256": "536d25e6ae416339b3cc43c6cc4ce912d76fab003836849b00a6a3f9149e189e",
+      "bytes": 4607,
+      "rows": 57,
+      "month": "2025-09"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-09-26_5d_15a1a17442320785.csv",
+      "sha256": "15a1a17442320785375de0517e92a5a51cc0f87de6d9a63f32640e4118ec5cb2",
+      "bytes": 1540,
+      "rows": 18,
+      "month": "2025-09"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-10-01_5d_27d84c70f0372f55.csv",
+      "sha256": "27d84c70f0372f55216dfee4175afde2eca7faa91200aae9c890326d73364726",
+      "bytes": 23945,
+      "rows": 304,
+      "month": "2025-10"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-10-06_5d_a045a4f47181668d.csv",
+      "sha256": "a045a4f47181668d53e4a7685aed20ef049954c548e2a62398e6b53b131e10e8",
+      "bytes": 8665,
+      "rows": 109,
+      "month": "2025-10"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-10-11_5d_5d0da9fb49bedbcf.csv",
+      "sha256": "5d0da9fb49bedbcf406efbeb4e2daaa4b1b496c74763a1596e1dfc7a6d1253d8",
+      "bytes": 7279,
+      "rows": 91,
+      "month": "2025-10"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-10-13_5d_6064b78664fa858b.csv",
+      "sha256": "6064b78664fa858bcbde8c2da708e7686ab4c7533e01837dc9e83c426f6b147f",
+      "bytes": 6651,
+      "rows": 83,
+      "month": "2025-10"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-10-16_5d_6004ac2ef0805bc1.csv",
+      "sha256": "6004ac2ef0805bc1c54ce41b968e4e59e969253059b39346a721c23c3b0389b5",
+      "bytes": 3278,
+      "rows": 40,
+      "month": "2025-10"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-10-21_5d_1b0ef3444ba348d0.csv",
+      "sha256": "1b0ef3444ba348d01729dbb042ae351e8f1d461fb959c727450dd7eb7596f4ee",
+      "bytes": 2959,
+      "rows": 36,
+      "month": "2025-10"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-10-26_5d_915add9eefbee3ff.csv",
+      "sha256": "915add9eefbee3fff7ff7d7b7c2425d2fa89eb55decfb2a98d2cbebda09c3f12",
+      "bytes": 917,
+      "rows": 10,
+      "month": "2025-10"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-10-31_1d_e053a4d89684e330.csv",
+      "sha256": "e053a4d89684e33043aab8c6f5bbcfcab79030294a1fd2c39b9e421a45a629d6",
+      "bytes": 597,
+      "rows": 6,
+      "month": "2025-10"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-11-01_5d_8f09696637ea6144.csv",
+      "sha256": "8f09696637ea6144551d58e7077cb3ffb8165ebcea8e8dbd8bb9c5bb2e278ce8",
+      "bytes": 1944,
+      "rows": 23,
+      "month": "2025-11"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-11-06_5d_9d7beaa10704ff08.csv",
+      "sha256": "9d7beaa10704ff0846f28244f4d6b17a38cc6510b0e1929a863167dba66cdbe0",
+      "bytes": 2565,
+      "rows": 31,
+      "month": "2025-11"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-11-11_2d_2bd4756547732c5a.csv",
+      "sha256": "2bd4756547732c5aa60115eb98d058d01f048773a3af52a754ffa903a205e832",
+      "bytes": 520,
+      "rows": 5,
+      "month": "2025-11"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-11-13_5d_3659e81b0f6e4cd9.csv",
+      "sha256": "3659e81b0f6e4cd942d4cb5130ff8cd7237000dfcb941a723c72314808fad8dd",
+      "bytes": 8597,
+      "rows": 108,
+      "month": "2025-11"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-11-18_5d_436cdc6a43817c46.csv",
+      "sha256": "436cdc6a43817c4621b8df3f40cebdd54acbe354f4a9621483059ecb06f4d1aa",
+      "bytes": 3576,
+      "rows": 44,
+      "month": "2025-11"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-11-23_5d_99b022aed957b4e6.csv",
+      "sha256": "99b022aed957b4e66a4895db7842b0c4e4efa7cabe5a2608269176d4467d0381",
+      "bytes": 19768,
+      "rows": 250,
+      "month": "2025-11"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-11-28_3d_0bb0ea6c39243f39.csv",
+      "sha256": "0bb0ea6c39243f3939e882e9522ea086915116a9b87a17abe2b9dcda86509f7f",
+      "bytes": 14303,
+      "rows": 181,
+      "month": "2025-11"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-12-01_5d_f3a6a97028b4ecc6.csv",
+      "sha256": "f3a6a97028b4ecc68339786f9fe0972f670300cce3ff45cff0b962d7c21564e0",
+      "bytes": 19510,
+      "rows": 247,
+      "month": "2025-12"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-12-06_5d_f0f08f93a773bb8f.csv",
+      "sha256": "f0f08f93a773bb8f304422c7e92fc65b7e4d2ca2ff892501e2f0d719e424b703",
+      "bytes": 34684,
+      "rows": 440,
+      "month": "2025-12"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-12-11_2d_2b6b066ed3fbd4d0.csv",
+      "sha256": "2b6b066ed3fbd4d0c5c9140f92bf07e88aa04f6e7a1ea0624510e9584309c624",
+      "bytes": 7592,
+      "rows": 95,
+      "month": "2025-12"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-12-13_5d_b30ef65dcbe87d32.csv",
+      "sha256": "b30ef65dcbe87d32b9e6298c77890958d44679b4347e54048ae2103c13c9714e",
+      "bytes": 24155,
+      "rows": 306,
+      "month": "2025-12"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-12-18_5d_9809ae21bb3e7773.csv",
+      "sha256": "9809ae21bb3e77731eb76efee77e015ba4b81317b021a201cf4f156b2ed56ca0",
+      "bytes": 48444,
+      "rows": 615,
+      "month": "2025-12"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-12-23_5d_2544d51cdffddae2.csv",
+      "sha256": "2544d51cdffddae26ee3de5cb50233f828243c496c9dc99ae5b32cf75b87f666",
+      "bytes": 58767,
+      "rows": 748,
+      "month": "2025-12"
+    },
+    {
+      "name": "vietnam_VIIRS_SNPP_SP_2025-12-28_4d_3ef6be8f400ccc44.csv",
+      "sha256": "3ef6be8f400ccc442d2b4d29fe91642f87d1d8c0d6814066b2d51aea5f1ed4cc",
+      "bytes": 93920,
+      "rows": 1196,
+      "month": "2025-12"
+    }
+  ]
+}

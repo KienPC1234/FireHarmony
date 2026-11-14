@@ -141,7 +141,7 @@ function ModeToggle() {
 export function Layout() {
   const { t } = useLang();
   const location = useLocation();
-  const { dataFeed } = useResearchContext();
+  const { dataFeed, mode, setMode } = useResearchContext();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -237,7 +237,7 @@ export function Layout() {
             {primaryNav.map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}
-                to={to}
+                to={`${to}${location.search}`}
                 className={({ isActive }) =>
                   cn(
                     "flex items-center gap-1.5 rounded-lg px-2 lg:px-2.5 py-1 text-xs font-semibold transition-all shrink-0 min-h-[28px]",
@@ -347,24 +347,32 @@ export function Layout() {
                   <button
                     type="button"
                     onClick={() => {
-                      const params = new URLSearchParams(window.location.search);
-                      params.set("mode", "explore");
-                      window.history.replaceState(null, "", `?${params.toString()}`);
+                      setMode("explore");
                       setMobileMenuOpen(false);
                     }}
-                    className="rounded-lg border border-cyan-500/40 bg-cyan-950/40 p-2 text-xs font-bold text-cyan-300 text-center min-h-[44px]"
+                    aria-pressed={mode === "explore"}
+                    className={cn(
+                      "rounded-lg border p-2 text-xs font-bold text-center min-h-[44px]",
+                      mode === "explore"
+                        ? "border-cyan-500/60 bg-cyan-950/60 text-cyan-200"
+                        : "border-slate-700 bg-slate-900/60 text-slate-300",
+                    )}
                   >
                     {t("nav.mode_explore")}
                   </button>
                   <button
                     type="button"
                     onClick={() => {
-                      const params = new URLSearchParams(window.location.search);
-                      params.set("mode", "research");
-                      window.history.replaceState(null, "", `?${params.toString()}`);
+                      setMode("research");
                       setMobileMenuOpen(false);
                     }}
-                    className="rounded-lg border border-purple-500/40 bg-purple-950/40 p-2 text-xs font-bold text-purple-300 text-center min-h-[44px]"
+                    aria-pressed={mode === "research"}
+                    className={cn(
+                      "rounded-lg border p-2 text-xs font-bold text-center min-h-[44px]",
+                      mode === "research"
+                        ? "border-purple-500/60 bg-purple-950/60 text-purple-200"
+                        : "border-slate-700 bg-slate-900/60 text-slate-300",
+                    )}
                   >
                     {t("nav.mode_research")}
                   </button>
@@ -379,7 +387,7 @@ export function Layout() {
                   {mobileNav.map(({ to, label, hint, icon: Icon, end }) => (
                     <NavLink
                       key={to}
-                      to={to}
+                      to={`${to}${location.search}`}
                       end={end}
                       className={({ isActive }) =>
                         cn(

@@ -75,9 +75,9 @@ export function GlobalContextBar({
 
         <span className="text-slate-700 hidden sm:inline">|</span>
 
-        {/* Time period */}
-        <div className="text-slate-300 font-mono hidden md:inline">
-          <span>2001 - 2026</span>
+        {/* Time period: the served range is on every calendar/evidence card. */}
+        <div className="text-slate-400 font-mono hidden md:inline">
+          <span>{t("common.recorded_range")}</span>
         </div>
 
         <span className="text-slate-700 hidden md:inline">|</span>
@@ -119,19 +119,21 @@ export function GlobalContextBar({
             >
               B2 Anchor
             </button>
-            <button
-              type="button"
-              onClick={() => setMethod("sensorformer_lite")}
-              title={t("calendar.sf_tooltip")}
-              className={cn(
-                "px-2 py-0.5 rounded text-[11px] font-semibold transition min-h-[26px]",
-                method === "sensorformer_lite"
-                  ? "bg-purple-500/25 text-purple-300 border border-purple-500/40 font-bold"
-                  : "text-slate-400 hover:text-white"
-              )}
-            >
-              SensorFormer
-            </button>
+            {isRaw && (
+              <button
+                type="button"
+                onClick={() => setMethod("stan")}
+                title={t("calendar.stan_tooltip")}
+                className={cn(
+                  "px-2 py-0.5 rounded text-[11px] font-semibold transition min-h-[26px]",
+                  method === "stan"
+                    ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 font-bold"
+                    : "text-slate-400 hover:text-white"
+                )}
+              >
+                STAN
+              </button>
+            )}
             {isRaw && (
               <button
                 type="button"

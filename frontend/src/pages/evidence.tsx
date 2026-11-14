@@ -47,6 +47,7 @@ export function EvidencePage() {
   const month = parseInt(monthStr, 10) || 3;
 
   const [spots, setSpots] = useState<BlindSpotResponse | null>(null);
+  const [coverage, setCoverage] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
   const [selectedDay, setSelectedDay] = useState<{
@@ -68,9 +69,10 @@ export function EvidencePage() {
         return null;
       }),
       api.coverage(aoi, data).catch(() => null),
-    ]).then(([spotRes]) => {
+    ]).then(([spotRes, covRes]) => {
       if (!active) return;
       if (spotRes) setSpots(spotRes);
+      setCoverage(covRes as Record<string, unknown> | null);
       setLoading(false);
     });
 
@@ -150,6 +152,20 @@ export function EvidencePage() {
 
       {/* 2. Global Context Bar */}
       <GlobalContextBar />
+
+      {/* P0-07/P1-13: request coverage is not dataset readiness. */}
+      {coverage && coverage.request_coverage === true && coverage.dataset_ready === false && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-4 py-3 text-sm text-amber-100">
+          <p className="font-semibold">
+            {vi ? "Sổ yêu cầu có, dữ liệu không có" : "Request ledger present, dataset absent"}
+          </p>
+          <p className="text-xs text-amber-200/90">
+            {vi
+              ? "Các tháng bên dưới là lịch sử yêu cầu tải, không phải dữ liệu NASA đang có trên máy chủ. dataset_ready=false; observation coverage vẫn chưa xác minh."
+              : "The months below are a download-request ledger, not NASA data present on this server. dataset_ready=false; observation coverage remains unverified."}
+          </p>
+        </div>
+      )}
 
       {/* 3. Primary Verdict Banner */}
       <div className="rounded-2xl border border-slate-800 bg-[#0B1220]/95 p-5 shadow-sm space-y-3">

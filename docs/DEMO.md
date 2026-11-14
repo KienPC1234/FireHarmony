@@ -3,6 +3,17 @@
 Server: `make demo` → http://127.0.0.1:8000 (API + SPA). No external network is
 needed for the data; map tiles need OSM.
 
+If you start from the submission ZIP (no full raw pull), install the verified
+24-month demo pack first:
+
+```bash
+make demo-verify
+make demo-install
+```
+
+That gives `data=raw` real NASA months 2024-01..2025-12; months outside the
+pack stay absent, never zero.
+
 ## 0:00–0:25 — The problem, with the defects we found
 
 MODIS 1 km vs VIIRS 375 m: VIIRS sees ~3–5× more hotspots, so adding raw counts
@@ -56,7 +67,9 @@ significantly different, and HGB abstains.
 
 ## 2:15–2:45 — Use it
 
-Calendar → method `stat` (default), draw an AOI, download CSV and the brief.
+Calendar → STAN on raw (default; HTS fallback before 2024), draw a polygon and
+confirm only in-polygon cells remain, pick a date range, then download the
+harmonized cell-day CSV, the original-detection CSV or the brief.
 Switch to `method: ml` and show the badge:
 `ABSTAINS → serves b2_seasonal_ratio`. Switch to `ts` and show
 `months_scored` / `months_missing_context`. The badge is the point: the app
@@ -72,7 +85,7 @@ Open **/lab** (mission-control layout with KPI tiles and charts):
    total and turns cells into estimates; this is what the sensor upgrade added,
    not a forecast of fires.
 2. **Blind Spots** — the day × sensor heatmap distinguishes `not_requested`,
-   `observed_empty` and `detected`. Say out loud that unknown is not zero fire.
+   `requested_no_hotspot_record` and `detected`. Say out loud that unknown is not zero fire.
 3. **Spatial Check** — show the Pearson/Spearman/Jaccard bars and read the
    “not a spatial holdout” caveat.
 4. **Investigator** — ask “why is this month anomalous?”; show the tool chips,

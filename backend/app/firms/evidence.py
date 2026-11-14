@@ -48,7 +48,9 @@ def build_evidence(cal_out: dict, daily: list[dict], aoi: str, data: str,
                     "days_in_month": comp.get("days_in_month"),
                     "missing_days": comp.get("missing_days", [])}
     method_id = cal_out.get("method_id")
-    effective = (cal_out.get("effective_method") or method_id)
+    cell_effective = next((c.get("effective_method") for c in cells
+                           if c.get("effective_method")), None)
+    effective = cell_effective or cal_out.get("effective_method") or method_id
     notes = [
         "Units are hotspot detections / sensor-adjusted activity index, not confirmed fires.",
         "VIIRS is authoritative where it recorded a detection; MODIS-only cells are estimates.",
@@ -60,6 +62,9 @@ def build_evidence(cal_out: dict, daily: list[dict], aoi: str, data: str,
         notes.append(f"Coverage is partial: {coverage.get('paired_days')} paired "
                      f"MODIS/VIIRS days of {coverage.get('days_in_month')}; "
                      f"missing {coverage.get('missing_days')}.")
+    if method == "stan" and effective == "hts_anchor_v1":
+        notes.append("This month predates 2024 and uses the HTS fallback; "
+                     "STAN monthly targets start in 2024.")
     if platforms and len(platforms) > 1:
         notes.append("Multiple satellite platforms contributed; a platform change "
                      "is not the same as a fire change.")

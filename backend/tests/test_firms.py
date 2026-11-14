@@ -1269,11 +1269,15 @@ def test_T52_stan_series_is_the_served_main_target():
     assert abs(mae - 2128.4) < 5.0
 
 
-def test_T53_stan_method_serves_raw_and_rejects_sample():
+def test_T53_stan_rejects_the_synthetic_sample():
     r = client.get("/api/firms/evidence",
                    params={"aoi": "vietnam", "data": "sample", "method": "stan",
                            "year": 2025, "month": 1})
     assert r.status_code == 409
+
+
+@_NEEDS_RAW
+def test_T54_stan_method_serves_raw():
     ev = client.get("/api/firms/evidence",
                     params={"aoi": "vietnam", "data": "raw", "method": "stan",
                             "year": 2025, "month": 1}).json()
@@ -1388,3 +1392,182 @@ def test_T31_data_gap_ledger_is_explicit():
     assert "not zero fire" in g["note"]
     r = client.get("/api/firms/coverage", params={"aoi": "amazon"}).json()
     assert "gaps" in r and r["gaps"]["missing_months"] >= g["missing_months"]
+
+
+# --------------------------------------------------------------------------
+# Audit P0 contracts (UI/UX + data truth)
+# --------------------------------------------------------------------------
+def _cal(**kw):
+    params = {"data": "sample", "aoi": "vietnam", "method": "stat"}
+    params.update(kw)
+    r = client.get("/api/firms/calendar", params=params)
+    assert r.status_code == 200, r.text[:300]
+    return r.json()
+
+
+def test_UX05_summary_is_invariant_to_limit():
+    """The KPI must come from the full set, not the capped daily slice."""
+    a = _cal(limit=10)["summary"]
+    b = _cal(limit=100)["summary"]
+    c = _cal(limit=5000)["summary"]
+    for k in ("modis_detections", "viirs_detections",
+              "sensor_detections_total", "paired_cells", "estimated_index",
+              "n_daily_cells_total", "filter_hash"):
+        assert a[k] == b[k] == c[k], k
+    assert a["n_daily_cells_returned"] == 10
+    assert b["n_daily_cells_returned"] == 100
+    assert c["n_daily_cells_returned"] == 5000
+    assert a["source_scope"] == "synthetic_demo_not_observed"
+    assert "not fire counts" in a["note"]
+
+
+def test_UX04_polygon_filters_beyond_bbox():
+    poly = {"type": "Polygon",
+            "coordinates": [[[104, 10], [109, 10], [106.5, 16], [104, 10]]]}
+    base = _cal(limit=5000, bbox="104,10,109,16")
+    tri = _cal(limit=5000, bbox="104,10,109,16", geometry=__import__("json").dumps(poly))
+    assert tri["summary"]["n_daily_cells_total"] < base["summary"]["n_daily_cells_total"]
+    assert tri["summary"]["filter_hash"] != base["summary"]["filter_hash"]
+    assert tri["geometry_hash"] == base["geometry_hash"] == "none" or tri["geometry_hash"] != "none"
+
+
+def test_UX04_map_cells_respect_polygon():
+    import json as _json
+    poly = {"type": "Polygon",
+            "coordinates": [[[104, 10], [109, 10], [106.5, 16], [104, 10]]]}
+    r = client.get("/api/firms/map-cells", params={
+        "data": "sample", "aoi": "vietnam", "ym": "2015-03",
+        "geometry": _json.dumps(poly), "max_cells": 200000})
+    assert r.status_code == 200, r.text[:300]
+    d = r.json()
+    assert d["returned"] == d["total"] or d["preview"] is True
+    assert d["returned"] <= d["total"]
+    assert d["aggregation_level"].startswith("0.05deg")
+
+    def inside(lon, lat):
+        ring = poly["coordinates"][0]
+        ins = False
+        j = len(ring) - 1
+        for i in range(len(ring)):
+            xi, yi = ring[i]
+            xj, yj = ring[j]
+            if (yi > lat) != (yj > lat) and lon < (xj - xi) * (lat - yi) / (yj - yi) + xi:
+                ins = not ins
+            j = i
+        return ins
+    assert all(inside(c["lon"], c["lat"]) for c in d["cells"])
+    assert {c["date"] if "date" in c else "2015-03" for c in d["cells"]} == {"2015-03"}
+
+
+def test_UX09_date_range_is_inclusive_and_month_safe():
+    d = _cal(limit=5000, from_date="2019-01-01", to_date="2019-03-31")
+    dates = [str(c["date"])[:10] for c in d["daily"]]
+    assert dates and min(dates) >= "2019-01-01" and max(dates) <= "2019-03-31"
+    assert d["summary"]["period"]["from"] == "2019-01"
+    assert d["summary"]["period"]["to"] == "2019-03"
+    # Leap February: 2020-02 must not spill into March.
+    leap = _cal(limit=5000, from_date="2020-02-01", to_date="2020-02-29")
+    assert all(str(c["date"]).startswith("2020-02") for c in leap["daily"])
+    bad = client.get("/api/firms/calendar", params={
+        "data": "sample", "from_date": "2020-03-01", "to_date": "2020-01-01"})
+    assert bad.status_code == 400
+
+
+def test_UX03_map_cells_has_explicit_scope_metadata():
+    r = client.get("/api/firms/map-cells", params={
+        "data": "sample", "aoi": "amazon", "ym": "2019-08", "max_cells": 50})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["total"] >= d["returned"] >= 1
+    assert d["preview"] is (d["returned"] < d["total"])
+    assert d["capped_at"] == 50
+    assert d["filter_hash"]
+    assert d["source_scope"] == "synthetic_demo_not_observed"
+
+
+def test_UX01_raw_404_is_explicit_and_never_silently_served(monkeypatch):
+    monkeypatch.setattr(_store, "raw_ready", lambda aoi: False)
+    r = client.get("/api/firms/calendar", params={"data": "raw", "aoi": "vietnam"})
+    assert r.status_code == 404
+    body = r.json()["detail"]
+    assert body["error_code"] == "no_raw_data"
+    assert body["aoi"] == "vietnam"
+
+
+def test_UX07_request_coverage_is_not_dataset_ready(monkeypatch):
+    monkeypatch.setattr(_store, "raw_ready", lambda aoi: False)
+    r = client.get("/api/firms/coverage", params={"aoi": "vietnam"})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["coverage_kind"] == "request_ledger_not_observation"
+    assert d["observation_coverage"] == "unknown"
+    assert d["dataset_ready"] is False
+    if d["request_coverage"]:
+        assert d["months"] > 0  # ledger exists, data does not
+
+
+def test_UX14_empty_result_is_not_zero_fires():
+    poly = {"type": "Polygon",
+            "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 0]]]}
+    import json as _json
+    d = _cal(limit=100, bbox="104,10,109,16", geometry=_json.dumps(poly))
+    assert d["summary"]["n_daily_cells_total"] == 0
+    assert d["summary"]["sensor_detections_total"] == 0
+    assert d["summary"]["estimated_index"] is None
+    assert d["latest"] is None
+
+
+def test_UX06_export_respects_the_same_filter_and_date_range():
+    import csv as _csv
+    import io as _io
+    params = {"data": "sample", "aoi": "vietnam", "method": "stat",
+              "from_date": "2019-01-01", "to_date": "2019-03-31",
+              "bbox": "104,10,109,16", "limit": 2000000}
+    r = client.get("/api/firms/export", params=params)
+    assert r.status_code == 200
+    rows = list(_csv.DictReader(_io.StringIO(r.text)))
+    assert rows
+    dates = [row["date"] for row in rows]
+    assert min(dates) >= "2019-01-01" and max(dates) <= "2019-03-31"
+    assert r.headers["X-Filter-Hash"]
+    assert r.headers["X-From-Date"] == "2019-01-01"
+    summary = _cal(limit=5000, from_date="2019-01-01",
+                   to_date="2019-03-31", bbox="104,10,109,16")["summary"]
+    assert len(rows) == summary["n_daily_cells_total"]
+    assert r.headers["X-Filter-Hash"] == summary["filter_hash"]
+
+
+def test_P1_09_export_original_detections_is_row_level():
+    import csv as _csv
+    import io as _io
+    r = client.get("/api/firms/export-detections", params={
+        "data": "sample", "aoi": "vietnam", "limit": 50,
+        "from_date": "2019-01-01", "to_date": "2019-03-31"})
+    assert r.status_code == 200
+    assert r.headers["X-Row-Kind"] == "original_detection"
+    rows = list(_csv.DictReader(_io.StringIO(r.text)))
+    assert 0 < len(rows) <= 50
+    assert {"latitude", "longitude", "acq_date", "instrument"} <= set(rows[0])
+    assert all("2019-01-01" <= row["acq_date"] <= "2019-03-31" for row in rows)
+
+
+def test_P0_03_geometry_is_stat_only_for_models():
+    import json as _json
+    poly = _json.dumps({"type": "Polygon",
+                        "coordinates": [[[104, 10], [109, 10], [106.5, 16], [104, 10]]]})
+    r = client.get("/api/firms/calendar", params={
+        "data": "sample", "aoi": "vietnam", "method": "stan", "geometry": poly})
+    assert r.status_code == 409
+    assert r.json()["detail"]["error_code"] == "geometry_requires_stat_method"
+
+
+def test_UX09_map_cells_respects_custom_day_range():
+    full = client.get("/api/firms/map-cells", params={
+        "data": "sample", "aoi": "vietnam", "ym": "2019-03"}).json()
+    part = client.get("/api/firms/map-cells", params={
+        "data": "sample", "aoi": "vietnam", "ym": "2019-03",
+        "from_date": "2019-03-01", "to_date": "2019-03-10"}).json()
+    assert part["total"] <= full["total"]
+    assert part["from_date"] == "2019-03-01"
+    assert part["to_date"] == "2019-03-10"
+    assert max((c["days"] for c in part["cells"]), default=0) <= 10

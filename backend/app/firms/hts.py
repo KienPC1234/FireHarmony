@@ -55,7 +55,8 @@ def apply_monthly(daily_stat: list[dict], targets_by_month: dict[str, float],
                   method_id: str = "hts_anchor_v1",
                   requested: str = "hts",
                   candidate: bool = True,
-                  gate_passed: bool = False) -> tuple[list[dict], dict]:
+                  gate_passed: bool = False,
+                  method_by_month: dict[str, str] | None = None) -> tuple[list[dict], dict]:
     """Rescale MODIS-only cells so each month totals the HTS target.
 
     VIIRS-observed cells are never changed; only the estimated part is
@@ -90,8 +91,9 @@ def apply_monthly(daily_stat: list[dict], targets_by_month: dict[str, float],
         if c.get("estimate_type") == "modis_upscaled_estimated" and ym in factors:
             c["harmonized_count"] = round(c["harmonized_count"] * factors[ym], 3)
             c["estimate_type"] = "hts_predicted"
-            c["method"] = method_id
-            c["effective_method"] = method_id
+            mid = (method_by_month or {}).get(ym, method_id)
+            c["method"] = mid
+            c["effective_method"] = mid
             c["coverage_status"] = "unknown"
         else:
             c["effective_method"] = "stat:seasonal_ratio_v1"
@@ -113,4 +115,6 @@ def apply_monthly(daily_stat: list[dict], targets_by_month: dict[str, float],
         "months_without_modis_only_cells": len(below),
         "months_corrected": len(factors),
         "conservation_max_abs_error": round(max(conservation), 4) if conservation else 0.0,
+        "month_effective_method": {ym: (method_by_month or {}).get(ym, method_id)
+                                   for ym in factors},
     }

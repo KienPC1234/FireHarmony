@@ -27,7 +27,7 @@ confirmed fires. VIIRS is a sensor reference, not fire ground truth.
 ```bash
 make install
 make sample          # deterministic synthetic sample (offline demo)
-make test-backend    # 90 tests, no network needed
+make test-backend    # 103 tests (97 fast + 6 raw/SPA)
 make dev             # API :8000 + Vite :5173
 make demo            # build frontend and serve API+SPA on :8000
 ```
@@ -40,6 +40,21 @@ cd backend
 ../.venv/bin/python -m scripts.firms.fetch_full_month \
   --aoi vietnam --bbox 104,10,109,16 --start-year 2012 --end-year 2025 --workers 4
 ```
+
+### Real NASA data without the 820 MB pull
+
+The submission ZIP ships a **24-month Vietnam demo pack** (2024-01..2025-12,
+362 FIRMS CSVs, 459,832 rows) under `backend/data/firms/demo_pack/`. It is a
+real NASA subset, not the synthetic sample, and it is checksum-pinned:
+
+```bash
+make demo-verify     # re-hash every file against demo_pack/manifest.json
+make demo-install    # copy it into data/firms/raw -> dataset_ready=true
+```
+
+After that, `GET /api/firms/calendar?data=raw&method=stan` serves 24 real
+months end to end. Months outside the pack stay absent, not zero. The pack's
+`manifest.json` also states that request coverage is **not** inferred from it.
 
 `fetch_full_month` stitches 5-day windows covering **every** day of each month
 (including the 31st and leap Februaries) and writes a request ledger.
@@ -128,8 +143,9 @@ and never trains on a public request.
 | `POST /api/firms/cross-validate` | correlate a user-supplied burned-area series |
 | `POST /api/firms/explain-month` | LLM/rule explanation grounded on that evidence card |
 | `POST /api/firms/investigate` | tool-backed scientific investigator |
-| `GET /api/firms/calendar?data=raw&method=stat` | calendar (404 `no_raw_data` if absent); filters `qa_min=all|nominal|high`, `platform_set=all|snpp` |
-| `GET /api/firms/export` | full CSV (no silent row cap) |
+| `GET /api/firms/calendar` | calendar + server-side `summary`; filters `qa_min`, `platform_set`, `from_date`, `to_date`, GeoJSON `geometry` (stat only); 404 `no_raw_data` when raw is absent |
+| `GET /api/firms/map-cells` | one month of 0.05° cells with `returned`/`total`/`preview`; independent from the calendar daily cap |
+| `GET /api/firms/export` | full CSV with `X-Filter-Hash`, `X-From-Date`, `X-To-Date`, `X-Geometry-Hash`; no silent row cap |
 | `GET /api/firms/brief` | one-page Markdown brief for the same method/data |
 | `GET /api/firms/backtest` | frozen unified evaluation (503 until built) |
 | `GET /api/firms/xray` | MODIS vs VIIRS vs adjusted, same split |

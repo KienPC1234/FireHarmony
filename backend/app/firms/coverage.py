@@ -234,7 +234,11 @@ def coverage_summary(aoi: str, manifest: list[dict] | None = None) -> dict:
         "verified": bool(cover),
         "threshold": PARTIAL_THRESHOLD,
         "coverage_metric": "paired_request_coverage",
+        "coverage_kind": "request_ledger_not_observation",
+        "request_coverage": bool(cover),
+        "dataset_ready": bool(store.raw_ready(aoi)),
         "observation_footprint": "unknown",
+        "observation_coverage": "unknown",
         "definition": ("paired_days / days_in_month; a month is usable when both "
                        "MODIS and VIIRS were requested on >=90% of days, complete "
                        "only at 100%. This measures successful requests, NOT "

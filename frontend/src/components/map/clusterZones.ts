@@ -6,7 +6,14 @@ export interface HotspotCell {
   estimate_type?: string;
 }
 
-export interface FireZone {
+/**
+ * A convex hull drawn around nearby hotspot cells.
+ *
+ * This is NOT a fire perimeter, burned area, or a certified risk zone. The
+ * hull is a display aid that groups detections; the polygon's area is not
+ * measured or reported and no severity grade is assigned (audit P0-02).
+ */
+export interface HotspotCluster {
   id: string;
   name: string;
   coordinates: [number, number][]; // [lat, lon] polygon ring
@@ -14,8 +21,6 @@ export interface FireZone {
   cellCount: number;
   totalDetections: number;
   peakDate: string;
-  areaKm2: number;
-  severity: "extreme" | "high" | "moderate" | "low";
 }
 
 /** Compute 2D convex hull via Monotone Chain algorithm (Graham scan variant). */
@@ -52,7 +57,7 @@ function computeConvexHull(points: [number, number][]): [number, number][] {
   return lower.concat(upper);
 }
 
-/** Expand a hull slightly so point clusters have visible perimeter padding. */
+/** Expand a hull slightly so point clusters have visible padding. */
 function expandHull(hull: [number, number][], paddingDeg = 0.04): [number, number][] {
   if (hull.length === 1) {
     const [lat, lon] = hull[0];
@@ -88,29 +93,10 @@ function expandHull(hull: [number, number][], paddingDeg = 0.04): [number, numbe
   });
 }
 
-/** Approximate polygon area in km² using planar projection at mean latitude. */
-function calculatePolygonAreaKm2(polygon: [number, number][]): number {
-  if (polygon.length < 3) return 5.0; // Minimal cell footprint
-  const meanLat = (polygon.reduce((acc, p) => acc + p[0], 0) / polygon.length) * (Math.PI / 180);
-  const kx = 111.32 * Math.cos(meanLat);
-  const ky = 110.574;
-
-  let area = 0;
-  for (let i = 0; i < polygon.length; i++) {
-    const j = (i + 1) % polygon.length;
-    const xi = polygon[i][1] * kx;
-    const yi = polygon[i][0] * ky;
-    const xj = polygon[j][1] * kx;
-    const yj = polygon[j][0] * ky;
-    area += xi * yj - xj * yi;
-  }
-  return Math.max(2.5, Math.round(Math.abs(area) / 2));
-}
-
 const ZONE_GREEK = ["Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta", "Iota", "Kappa"];
 
-/** Group nearby cells into cohesive spatial fire zones / regional polygons. */
-export function buildFireZones(cells: HotspotCell[], clusterRadiusDeg = 0.28, maxZones = 12): FireZone[] {
+/** Group nearby cells into observed hotspot clusters (display only). */
+export function buildHotspotClusters(cells: HotspotCell[], clusterRadiusDeg = 0.28, maxZones = 12): HotspotCluster[] {
   if (!cells || cells.length === 0) return [];
 
   // Sort cells by harmonized activity count descending
@@ -147,24 +133,15 @@ export function buildFireZones(cells: HotspotCell[], clusterRadiusDeg = 0.28, ma
     const centerLon = cluster.reduce((sum, c) => sum + c.lon, 0) / cluster.length;
     const totalDetections = Math.round(cluster.reduce((sum, c) => sum + c.harmonized_count, 0));
     const peakDate = cluster.reduce((peak, c) => c.harmonized_count > peak.harmonized_count ? c : peak, cluster[0]).date;
-    const areaKm2 = calculatePolygonAreaKm2(coordinates);
 
-    let severity: FireZone["severity"] = "low";
-    if (totalDetections > 300 || areaKm2 > 500) severity = "extreme";
-    else if (totalDetections > 100 || areaKm2 > 200) severity = "high";
-    else if (totalDetections > 30 || areaKm2 > 60) severity = "moderate";
-
-    const greekName = ZONE_GREEK[idx % ZONE_GREEK.length];
     return {
-      id: `zone-${idx + 1}`,
-      name: `Fire Sector ${greekName}`,
+      id: `cluster-${idx + 1}`,
+      name: `Observed hotspot cluster ${ZONE_GREEK[idx % ZONE_GREEK.length]}`,
       coordinates,
       center: [centerLat, centerLon],
       cellCount: cluster.length,
       totalDetections,
       peakDate,
-      areaKm2,
-      severity,
     };
   });
 }

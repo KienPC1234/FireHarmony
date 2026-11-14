@@ -29,7 +29,7 @@ export function BlindSpotsTab({ spots }: BlindSpotsTabProps) {
   }
 
   const detectedDays = spots.days.filter((d) => d.status === "detected").length;
-  const emptyDays = spots.days.filter((d) => d.status === "observed_empty").length;
+  const emptyDays = spots.days.filter((d) => d.status === "requested_no_hotspot_record").length;
   const unknownDays = spots.days.filter(
     (d) => d.status === "not_requested" || d.status === "unknown_coverage",
   ).length;
@@ -116,11 +116,11 @@ export function BlindSpotsTab({ spots }: BlindSpotsTabProps) {
                         ? "not_requested"
                         : det > 0
                         ? "detected"
-                        : "observed_empty";
+                        : "requested_no_hotspot_record";
                     const cls =
                       status === "detected"
                         ? "bg-orange-500 shadow-[0_0_6px_rgba(249,115,22,0.6)]"
-                        : status === "observed_empty"
+                        : status === "requested_no_hotspot_record"
                         ? "bg-sky-600/40"
                         : status === "not_requested"
                         ? "bg-slate-800"

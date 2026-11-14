@@ -333,6 +333,207 @@ def _in_bbox(r: dict, b: tuple[float, float, float, float] | None) -> bool:
         return False
 
 
+def _parse_geometry(raw: str | None) -> dict | None:
+    """Parse a GeoJSON Polygon/MultiPolygon geometry (P0-03)."""
+    if not raw:
+        return None
+    try:
+        g = json.loads(raw) if isinstance(raw, str) else raw
+    except (TypeError, ValueError):
+        raise HTTPException(400, "geometry must be GeoJSON Polygon/MultiPolygon JSON")
+    if not isinstance(g, dict):
+        raise HTTPException(400, "geometry must be a GeoJSON object")
+    if g.get("type") == "Feature":
+        g = g.get("geometry") or {}
+    if g.get("type") == "Polygon":
+        rings = [g.get("coordinates") or []]
+    elif g.get("type") == "MultiPolygon":
+        rings = g.get("coordinates") or []
+    else:
+        raise HTTPException(400, "geometry type must be Polygon or MultiPolygon")
+    out = []
+    for poly in rings:
+        if not poly or not isinstance(poly[0], list):
+            raise HTTPException(400, "geometry has no rings")
+        norm = []
+        for ring in poly:
+            pts = []
+            for pt in ring:
+                try:
+                    lon, lat = float(pt[0]), float(pt[1])
+                except (TypeError, ValueError, IndexError):
+                    raise HTTPException(400, "geometry coordinates must be [lon, lat]")
+                pts.append((lon, lat))
+            if len(pts) < 3:
+                raise HTTPException(400, "geometry ring needs at least 3 vertices")
+            norm.append(pts)
+        out.append(norm)
+    if not out:
+        raise HTTPException(400, "geometry is empty")
+    return {"type": "MultiPolygon", "coordinates": out}
+
+
+def _geometry_bbox(geom: dict) -> tuple[float, float, float, float]:
+    xs = [pt[0] for poly in geom["coordinates"] for ring in poly for pt in ring]
+    ys = [pt[1] for poly in geom["coordinates"] for ring in poly for pt in ring]
+    return (min(xs), min(ys), max(xs), max(ys))
+
+
+def _point_in_ring(lon: float, lat: float, ring: list[tuple[float, float]]) -> bool:
+    inside = False
+    n = len(ring)
+    j = n - 1
+    for i in range(n):
+        xi, yi = ring[i]
+        xj, yj = ring[j]
+        if (yi > lat) != (yj > lat):
+            xint = (xj - xi) * (lat - yi) / (yj - yi) + xi
+            if lon < xint:
+                inside = not inside
+        j = i
+    return inside
+
+
+def _point_in_geometry(lon: float, lat: float, geom: dict | None) -> bool:
+    """Point-in-polygon with holes; bbox prefilter happens upstream."""
+    if geom is None:
+        return True
+    for poly in geom["coordinates"]:
+        if not poly or not _point_in_ring(lon, lat, poly[0]):
+            continue
+        if any(_point_in_ring(lon, lat, hole) for hole in poly[1:]):
+            continue
+        return True
+    return False
+
+
+def _geometry_hash(geom: dict | None) -> str:
+    if not geom:
+        return "none"
+    blob = json.dumps(geom, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(blob).hexdigest()[:16]
+
+
+def _parse_date_range(from_date: str | None,
+                      to_date: str | None) -> tuple[str | None, str | None]:
+    """Validate ISO dates (YYYY-MM-DD) and return the inclusive day bounds."""
+    out = []
+    for raw in (from_date, to_date):
+        if raw is None or raw == "":
+            out.append(None)
+            continue
+        try:
+            d = datetime.strptime(raw, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(400, "from_date/to_date must be YYYY-MM-DD")
+        out.append(d.isoformat())
+    if out[0] and out[1] and out[0] > out[1]:
+        raise HTTPException(400, "from_date must be <= to_date")
+    return out[0], out[1]
+
+
+def _in_dates(r: dict, lo: str | None, hi: str | None) -> bool:
+    if not lo and not hi:
+        return True
+    d = str(r.get("acq_date", ""))[:10]
+    if not d:
+        return False
+    if lo and d < lo:
+        return False
+    if hi and d > hi:
+        return False
+    return True
+
+
+def _empty_month_slot() -> dict:
+    return {"modis": 0.0, "viirs": 0.0, "harmonized": 0.0, "cells": 0,
+            "paired_cells": 0, "modis_only_cells": 0, "viirs_only_cells": 0,
+            "estimated_cells": 0}
+
+
+def _slot_add(slot: dict, modis: float, viirs: float, harmonized: float,
+              estimated: bool) -> None:
+    slot["modis"] += float(modis or 0)
+    slot["viirs"] += float(viirs or 0)
+    slot["harmonized"] += round(float(harmonized or 0), 3)
+    slot["cells"] += 1
+    if modis and viirs:
+        slot["paired_cells"] += 1
+    elif modis:
+        slot["modis_only_cells"] += 1
+    elif viirs:
+        slot["viirs_only_cells"] += 1
+    if estimated:
+        slot["estimated_cells"] += 1
+
+
+def _activity_summary(out: dict, *, data: str, method: str, aoi: str,
+                      bbox: str | None, qa_min: str, platform_set: str,
+                      dataset: str | None, geom_hash: str = "none",
+                      from_date: str | None = None,
+                      to_date: str | None = None) -> dict:
+    """P0-01: server-side totals over the FULL filtered set.
+
+    Sensor detections are hotspot records, not fires. MODIS and VIIRS are
+    reported separately; `sensor_detections_total` is their sum and must not be
+    presented as a fire count.
+    """
+    monthly = out.get("monthly") or {}
+    modis = viirs = harmonized = 0.0
+    cells = paired = modis_only = viirs_only = estimated = 0
+    for slot in monthly.values():
+        modis += float(slot.get("modis", 0) or 0)
+        viirs += float(slot.get("viirs", 0) or 0)
+        harmonized += float(slot.get("harmonized", 0) or 0)
+        cells += int(slot.get("cells", 0) or 0)
+        paired += int(slot.get("paired_cells", 0) or 0)
+        modis_only += int(slot.get("modis_only_cells", 0) or 0)
+        viirs_only += int(slot.get("viirs_only_cells", 0) or 0)
+        estimated += int(slot.get("estimated_cells", 0) or 0)
+    months = sorted(monthly)
+    if not months and out.get("calendar"):
+        cyears = out["calendar"].get("years") or []
+        if cyears:
+            months = [f"{cyears[0]}-01", f"{cyears[-1]}-12"]
+    n_total = int(out.get("daily_cells") or cells)
+    n_returned = len(out.get("daily") or [])
+    scope = ("nasa_firms_observed" if (data == "raw" and not dataset)
+             else "user_upload_unverified" if dataset
+             else "synthetic_demo_not_observed")
+    filters = {"aoi": aoi, "bbox": bbox or "all", "data": data,
+               "method": method, "qa_min": qa_min,
+               "platform_set": platform_set, "dataset": dataset or "none",
+               "geometry_hash": geom_hash,
+               "from_date": from_date or "all", "to_date": to_date or "all"}
+    return {
+        "modis_detections": round(modis, 3),
+        "viirs_detections": round(viirs, 3),
+        "sensor_detections_total": round(modis + viirs, 3),
+        "harmonized_total": round(harmonized, 3),
+        "paired_cells": paired,
+        "modis_only_cells": modis_only,
+        "viirs_only_cells": viirs_only,
+        "estimated_cells": estimated,
+        "estimated_index": round(estimated / cells, 4) if cells else None,
+        "n_daily_cells_total": n_total,
+        "n_daily_cells_returned": n_returned,
+        "period": {"from": months[0] if months else None,
+                   "to": months[-1] if months else None},
+        "source_scope": scope,
+        "data_source": _data_source_label(data, dataset),
+        "method": method,
+        "method_id": out.get("method_id"),
+        "effective_method": out.get("effective_method"),
+        "filter_hash": hashlib.sha256(
+            json.dumps(filters, sort_keys=True).encode()).hexdigest()[:16],
+        "filters": filters,
+        "note": ("Sensor detections are hotspot records, not fire counts. "
+                 "MODIS and VIIRS are reported separately and are not additive "
+                 "as real fires. estimated_index = share of grid cell-days "
+                 "whose value is model-estimated (no same-day VIIRS detection)."),
+    }
+
+
 def _harmonize_daily_ml(agg: dict, model, meta: dict | None,
                         clean: list[dict] | None = None,
                         ctx: dict | None = None) -> tuple[list[dict], dict]:
@@ -578,7 +779,7 @@ def _latest_summary(calen: dict, daily: list[dict],
 
 def _raw_agg(aoi: str, bbox=None, qa_min: str = "all",
              platform_set: str = "all", year: int | None = None,
-             ym: str | None = None):
+             ym: str | None = None, geom: dict | None = None):
     """Aggregate raw rows for one AOI without materialising cell-day dicts."""
     b = _parse_bbox(bbox) if isinstance(bbox, str) else bbox
 
@@ -586,6 +787,13 @@ def _raw_agg(aoi: str, bbox=None, qa_min: str = "all",
         for r in store.iter_raw_rows(aoi, limit=None, year=year, ym=ym):
             if b is not None and not _in_bbox(r, b):
                 continue
+            if geom is not None:
+                try:
+                    if not _point_in_geometry(float(r["longitude"]),
+                                              float(r["latitude"]), geom):
+                        continue
+                except (KeyError, TypeError, ValueError):
+                    continue
             yield r
 
     return harmonize.aggregate_iter(rows(), qa_min=qa_min,
@@ -598,7 +806,10 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
                       focus_ym: str | None = None,
                       simulate_year: int | None = None,
                       simulate_configs: list[dict] | None = None,
-                      cache_result: bool = True) -> dict:
+                      cache_result: bool = True,
+                      geom: dict | None = None,
+                      from_date: str | None = None,
+                      to_date: str | None = None) -> dict:
     """Memory-bounded pipeline for large raw pulls (1.4M+ rows).
 
     Validates, dedups and aggregates while streaming from disk; only the
@@ -628,16 +839,29 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
     sim_key = (hashlib.sha256(json.dumps(simulate_configs or [],
                                           sort_keys=True).encode()).hexdigest()[:8]
                if simulate_configs else "nosim")
+    geom_key = _geometry_hash(geom)
     ckey = (f"cal_{aoi}_{method}_{fp}_{bbox or 'all'}_{cache_cap}_"
             f"{qa_min}_{platform_set}_{focus_ym or 'all'}_{simulate_year or 'nosim'}_"
-            f"{model_key}_{manifest_key}_{sim_key}_"
+            f"{model_key}_{manifest_key}_{sim_key}_{geom_key}_"
+            f"{from_date or 'all'}_{to_date or 'all'}_sum-v1_"
             f"{harmonize.ALGORITHM_VERSION}_{ml_v4.ALGORITHM_VERSION}_"
-            f"{tst.ALGORITHM_VERSION}")
+            f"{tst.ALGORITHM_VERSION}_{stan.ALGORITHM_VERSION}")
+
+    def _finish(d: dict) -> dict:
+        cap = int(daily_cap or 0)
+        if cap == 0:
+            d = {**d, "daily": []}
+        elif len(d.get("daily") or []) > cap:
+            d = {**d, "daily": d["daily"][:cap]}
+        d = {**d, "summary": _activity_summary(
+            d, data=data, method=method, aoi=aoi, bbox=bbox,
+            qa_min=qa_min, platform_set=platform_set, dataset=None,
+            geom_hash=geom_key, from_date=from_date, to_date=to_date)}
+        return d
+
     hit = store.cache_get(ckey) if cache_result else None
     if hit is not None:
-        if len(hit.get("daily") or []) > daily_cap:
-            return {**hit, "daily": hit["daily"][:daily_cap]}
-        return hit
+        return _finish(hit)
     ctx_builder = ml_cal.ModisCtxBuilder() if method in ("ts", "ml") else None
     if ctx_builder is not None:
         def keep(d):
@@ -648,6 +872,13 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
         for r in store.iter_raw_rows(aoi, limit=None, year=simulate_year, ym=focus_ym):
             if b is not None and not _in_bbox(r, b):
                 continue
+            if geom is not None:
+                try:
+                    if not _point_in_geometry(float(r["longitude"]),
+                                              float(r["latitude"]), geom):
+                        continue
+                except (KeyError, TypeError, ValueError):
+                    continue
             yield r
     agg, stats = harmonize.aggregate_iter(rows(), keep_clean=keep,
                                           qa_min=qa_min,
@@ -680,15 +911,16 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
 
     def _accumulate(c: dict) -> None:
         nonlocal n_cells
-        n_cells += 1
         day = str(c["date"])[:10]
+        if not _in_dates({"acq_date": day}, from_date, to_date):
+            return
+        n_cells += 1
         ym = day[:7]
-        slot = monthly.setdefault(ym, {"modis": 0.0, "viirs": 0.0,
-                                       "harmonized": 0.0, "cells": 0})
-        slot["modis"] += float(c.get("modis_count", 0) or 0)
-        slot["viirs"] += float(c.get("viirs_count", 0) or 0)
-        slot["harmonized"] += round(float(c.get("harmonized_count", 0) or 0), 3)
-        slot["cells"] += 1
+        slot = monthly.setdefault(ym, _empty_month_slot())
+        _slot_add(slot, float(c.get("modis_count", 0) or 0),
+                  float(c.get("viirs_count", 0) or 0),
+                  float(c.get("harmonized_count", 0) or 0),
+                  c.get("estimate_type") != "viirs_observed")
         month_days.setdefault(ym, []).append(day)
         try:
             y = int(day[:4])
@@ -745,7 +977,8 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
         cell_days, ml_meta = hts.apply_monthly(
             harmonize.harmonize_daily(agg, ratios), targets,
             method_id="stan_safe_v1", requested="stan",
-            candidate=False, gate_passed=True)
+            candidate=False, gate_passed=True,
+            method_by_month=stan.sources(aoi))
         for c in cell_days:
             _accumulate(c)
             if _retain(str(c["date"])[:10]):
@@ -756,17 +989,16 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
         fallback = ratios["_fallback"]
         provenance = harmonize._provenance(ratios)
         for cell, day, per in harmonize.iter_cell_days(agg):
+            if not _in_dates({"acq_date": day}, from_date, to_date):
+                continue
             k = ratios.get(day[:7], fallback)
             mo, vi, h_count, h_frp, h_low, h_high, est, sensors = \
                 harmonize.fuse_cell_day(per, k, rel_iqr, calibrated)
             n_cells += 1
             ym = day[:7]
-            slot = monthly.setdefault(ym, {"modis": 0.0, "viirs": 0.0,
-                                           "harmonized": 0.0, "cells": 0})
-            slot["modis"] += float(mo.count)
-            slot["viirs"] += float(vi.count)
-            slot["harmonized"] += round(float(h_count), 3)
-            slot["cells"] += 1
+            slot = monthly.setdefault(ym, _empty_month_slot())
+            _slot_add(slot, float(mo.count), float(vi.count), float(h_count),
+                      est != "viirs_observed")
             month_days.setdefault(ym, []).append(day)
             try:
                 y = int(day[:4])
@@ -858,9 +1090,7 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
                      if focus_ym else (daily[:cache_cap] if cache_cap else []))}
     if cache_result:
         store.cache_put(ckey, out)
-    if len(out.get("daily") or []) > daily_cap:
-        return {**out, "daily": out["daily"][:daily_cap]}
-    return out
+    return _finish(out)
 
 
 def _harmonize_from_records(records: list[dict], daily_cap: int = 2000,
@@ -868,7 +1098,11 @@ def _harmonize_from_records(records: list[dict], daily_cap: int = 2000,
                               method: str = "stat",
                               dataset: str | None = None,
                               qa_min: str = "all",
-                              platform_set: str = "all") -> dict:
+                              platform_set: str = "all",
+                              geom: dict | None = None,
+                              from_date: str | None = None,
+                              to_date: str | None = None,
+                              bbox: str | None = None) -> dict:
     """Validate -> QA -> dedup -> harmonize. Single path for sample/raw/upload (P0-07)."""
     _block_raw_ml_ts(method, data, aoi)
     if method in ("hts", "stan"):
@@ -915,6 +1149,14 @@ def _harmonize_from_records(records: list[dict], daily_cap: int = 2000,
             clean, harmonize.harmonize_daily(agg, ratios), aoi, data)
     else:
         daily = harmonize.harmonize_daily(agg, ratios)
+    if from_date or to_date:
+        daily = [c for c in daily
+                 if _in_dates({"acq_date": str(c.get("date", ""))},
+                              from_date, to_date)]
+    if geom is not None:
+        daily = [c for c in daily
+                 if _point_in_geometry(float(c.get("lon", 0) or 0),
+                                       float(c.get("lat", 0) or 0), geom)]
     # Coverage is only verified for manifest-backed raw pulls. Sample/upload
     # months carry coverage_status=unknown rather than a fake "partial" flag
     # derived from detection days (audit P0-06).
@@ -927,7 +1169,18 @@ def _harmonize_from_records(records: list[dict], daily_cap: int = 2000,
         "_calibration_min_months", "_clipped_months", "_clipped_fraction",
         "_mode", "_calibration_window", "_train_end", "_sensor_set",
         "_data_version", "_excluded_months")}
-    return {"daily_cells": len(daily), "ratios": ratios,
+    monthly: dict[str, dict] = {}
+    for c in daily:
+        day = str(c.get("date", ""))[:10]
+        if not day:
+            continue
+        slot = monthly.setdefault(day[:7], _empty_month_slot())
+        _slot_add(slot, float(c.get("modis_count", 0) or 0),
+                  float(c.get("viirs_count", 0) or 0),
+                  float(c.get("harmonized_count", 0) or 0),
+                  c.get("estimate_type") != "viirs_observed")
+    out = {"daily_cells": len(daily), "ratios": ratios,
+           "monthly": monthly,
             "calendar": calen, "critical_periods": crit[:24],
             "latest": latest,
             "forecast": _forecast(calen, latest["date"] if latest else None),
@@ -950,6 +1203,11 @@ def _harmonize_from_records(records: list[dict], daily_cap: int = 2000,
                    "filtered_platform": filtered_plat,
                    "qa_counts": qa_counts},
             "daily": daily[:daily_cap] if daily_cap else []}
+    out["summary"] = _activity_summary(
+        out, data=data, method=method, aoi=aoi, bbox=bbox,
+        qa_min=qa_min, platform_set=platform_set, dataset=dataset,
+        geom_hash=_geometry_hash(geom), from_date=from_date, to_date=to_date)
+    return out
 
 
 @app.post("/api/firms/harmonize")
@@ -997,8 +1255,20 @@ def firms_calendar(limit: int = Query(2000, ge=1, le=2000000),
                    method: str = Query("stat", pattern="^(stat|ml|ts|hts|stan)$"),
                    qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
                    platform_set: str = Query("all", pattern="^(all|snpp)$"),
-                   dataset: str | None = Query(None, description="session upload id (upload:<hex>)")):
+                   dataset: str | None = Query(None, description="session upload id (upload:<hex>)"),
+                   geometry: str | None = Query(None, description="GeoJSON Polygon/MultiPolygon"),
+                   from_date: str | None = Query(None, description="inclusive YYYY-MM-DD"),
+                   to_date: str | None = Query(None, description="inclusive YYYY-MM-DD")):
     # P0-06: aggregate the FULL filtered set, slice only the daily response.
+    geom = _parse_geometry(geometry)
+    from_date, to_date = _parse_date_range(from_date, to_date)
+    if geom is not None and method in ("ml", "ts", "hts", "stan"):
+        raise HTTPException(409, detail={
+            "error_code": "geometry_requires_stat_method",
+            "message": "Custom geometry uses method=stat: model targets are "
+                       "AOI-level monthly totals and cannot be reallocated to an "
+                       "arbitrary polygon without inventing numbers.",
+            "method": method})
     _block_raw_ml_ts(method, data, aoi)
     if data == "raw" and not dataset and not store.raw_ready(aoi):
         raise HTTPException(404, detail={
@@ -1008,7 +1278,8 @@ def firms_calendar(limit: int = Query(2000, ge=1, le=2000000),
             "aoi": aoi})
     if data == "raw" and not dataset:
         out = _harmonize_stream(aoi, data, bbox, method, daily_cap=min(limit, 5000),
-                                qa_min=qa_min, platform_set=platform_set)
+                                qa_min=qa_min, platform_set=platform_set,
+                                geom=geom, from_date=from_date, to_date=to_date)
     else:
         records = [r for r in _resolve_records(aoi, data, 2000000, dataset)
                    if _in_bbox(r, _parse_bbox(bbox))]
@@ -1017,14 +1288,117 @@ def firms_calendar(limit: int = Query(2000, ge=1, le=2000000),
         out = _harmonize_from_records(records, daily_cap=min(limit, 5000),
                                       data=data, aoi=aoi, method=method,
                                       dataset=dataset, qa_min=qa_min,
-                                      platform_set=platform_set)
+                                      platform_set=platform_set, geom=geom,
+                                      from_date=from_date, to_date=to_date,
+                                      bbox=bbox)
     out["bbox"] = bbox
     out["aoi"] = aoi
     out["data"] = data
+    out["from_date"] = from_date
+    out["to_date"] = to_date
+    out["geometry_hash"] = _geometry_hash(geom)
+    if geom is not None:
+        out["geometry"] = geom
     if dataset:
         out["dataset"] = dataset
         out["data_source"] = _data_source_label(data, dataset)
     return JSONResponse(out)
+
+
+@app.get("/api/firms/map-cells")
+def firms_map_cells(ym: str = Query(..., description="YYYY-MM"),
+                    bbox: str | None = Query(None, description="minLon,minLat,maxLon,maxLat"),
+                    aoi: str = Query("vietnam"),
+                    data: str = Query("sample", pattern="^(sample|raw)$"),
+                    method: str = Query("stat", pattern="^(stat|ml|ts|hts|stan)$"),
+                    qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
+                    platform_set: str = Query("all", pattern="^(all|snpp)$"),
+                    dataset: str | None = Query(None),
+                    geometry: str | None = Query(None),
+                    from_date: str | None = Query(None),
+                    to_date: str | None = Query(None),
+                    zoom: int = Query(6, ge=1, le=18),
+                    max_cells: int = Query(20000, ge=1, le=200000)):
+    """P0-06: cells for one month, independent from the /calendar daily cap.
+
+    Returns `returned` and `total` plus an explicit aggregation level, so the
+    UI can say "preview N of M cells" instead of implying a complete map.
+    """
+    try:
+        datetime.strptime(ym, "%Y-%m")
+    except ValueError:
+        raise HTTPException(400, "ym must be YYYY-MM")
+    geom = _parse_geometry(geometry)
+    from_date, to_date = _parse_date_range(from_date, to_date)
+    if geom is not None and method in ("ml", "ts", "hts", "stan"):
+        raise HTTPException(409, detail={
+            "error_code": "geometry_requires_stat_method",
+            "message": "Custom geometry map cells only support method=stat.",
+            "method": method})
+    _block_raw_ml_ts(method, data, aoi)
+    if data == "raw" and not dataset and not store.raw_ready(aoi):
+        raise HTTPException(404, detail={"error_code": "no_raw_data",
+                                         "message": "No raw FIRMS data on this server.",
+                                         "aoi": aoi})
+    if data == "raw" and not dataset:
+        out = _harmonize_stream(aoi, data, bbox, method, daily_cap=1000000,
+                                qa_min=qa_min, platform_set=platform_set,
+                                focus_ym=ym, cache_result=False, geom=geom,
+                                from_date=from_date, to_date=to_date)
+    else:
+        records = [r for r in _resolve_records(aoi, data, 2000000, dataset)
+                   if _in_bbox(r, _parse_bbox(bbox))]
+        if not records:
+            raise HTTPException(404, f"No {data} data in this AOI")
+        out = _harmonize_from_records(records, daily_cap=2000000,
+                                      data=data, aoi=aoi, method=method,
+                                      dataset=dataset, qa_min=qa_min,
+                                      platform_set=platform_set, geom=geom,
+                                      from_date=from_date, to_date=to_date)
+    agg_cells: dict[str, dict] = {}
+    for c in out.get("daily") or []:
+        if str(c.get("date", ""))[:7] != ym:
+            continue
+        key = str(c.get("cell_id") or f"{c.get('lat')}_{c.get('lon')}")
+        slot = agg_cells.setdefault(key, {
+            "cell_id": key, "lat": float(c.get("lat") or 0),
+            "lon": float(c.get("lon") or 0),
+            "modis_count": 0, "viirs_count": 0,
+            "harmonized_count": 0.0, "days": 0,
+            "estimate_types": set()})
+        slot["modis_count"] += int(c.get("modis_count", 0) or 0)
+        slot["viirs_count"] += int(c.get("viirs_count", 0) or 0)
+        slot["harmonized_count"] += float(c.get("harmonized_count", 0) or 0)
+        slot["days"] += 1
+        slot["estimate_types"].add(str(c.get("estimate_type") or "unknown"))
+    all_cells = sorted(agg_cells.values(),
+                       key=lambda d: d["harmonized_count"], reverse=True)
+    total = len(all_cells)
+    capped = all_cells[:min(max_cells, 20000)]
+    cells = [{**{k: v for k, v in c.items() if k != "estimate_types"},
+              "harmonized_count": round(c["harmonized_count"], 3),
+              "estimate_type": ("viirs_observed"
+                                if c["estimate_types"] == {"viirs_observed"}
+                                else sorted(c["estimate_types"])[0])}
+             for c in capped]
+    summary = out.get("summary") or {}
+    return JSONResponse({
+        "aoi": aoi, "data": data, "ym": ym, "zoom": zoom,
+        "bbox": bbox, "geometry_hash": _geometry_hash(geom),
+        "from_date": from_date, "to_date": to_date,
+        "method_id": out.get("method_id"),
+        "effective_method": out.get("effective_method"),
+        "cells": cells,
+        "returned": len(cells),
+        "total": total,
+        "preview": len(cells) < total,
+        "aggregation_level": "0.05deg cell-month",
+        "aggregation_note": ("One point per 0.05-degree grid cell, summed over "
+                             "the month; detections are hotspot records, not fires."),
+        "capped_at": min(max_cells, 20000),
+        "filter_hash": summary.get("filter_hash"),
+        "source_scope": summary.get("source_scope"),
+    })
 
 
 @app.get("/api/firms/export")
@@ -1035,25 +1409,43 @@ def firms_export(limit: int = Query(2000000, ge=100, le=2000000),
                  method: str = Query("stat", pattern="^(stat|ml|ts|hts|stan)$"),
                  qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
                  platform_set: str = Query("all", pattern="^(all|snpp)$"),
-                 dataset: str | None = Query(None, description="session upload id")):
+                 dataset: str | None = Query(None, description="session upload id"),
+                 geometry: str | None = Query(None, description="GeoJSON Polygon/MultiPolygon"),
+                 from_date: str | None = Query(None),
+                 to_date: str | None = Query(None)):
     # P0-06: export the FULL filtered set through the same harmonize path
     # as the dashboard so the CSV matches /calendar (P1-07: no silent cap).
     _block_raw_ml_ts(method, data, aoi)
+    geom = _parse_geometry(geometry)
+    from_date, to_date = _parse_date_range(from_date, to_date)
+    if geom is not None and method in ("ml", "ts", "hts", "stan"):
+        raise HTTPException(409, detail={
+            "error_code": "geometry_requires_stat_method",
+            "message": "Custom geometry exports only support method=stat.",
+            "method": method})
+    if data == "raw" and not dataset and not store.raw_ready(aoi):
+        raise HTTPException(404, detail={"error_code": "no_raw_data",
+                                         "message": "No raw FIRMS data on this server.",
+                                         "aoi": aoi})
     stream_cells = None
     n_rows = 0
     if data == "raw" and not dataset and method == "stat":
         # Stream the CSV straight from the aggregate: retaining 1.4M cell dicts
         # only to write them out was the peak-memory path of the whole API.
-        agg, _stats = _raw_agg(aoi, bbox, qa_min, platform_set)
+        agg, _stats = _raw_agg(aoi, bbox, qa_min, platform_set, geom=geom)
         if not agg:
             raise HTTPException(404, f"No raw data in this AOI")
         ratios = harmonize.estimate_efficiency_ratio(agg)
-        n_rows = sum(1 for _ in harmonize.iter_cell_days(agg))
-        stream_cells = harmonize.iter_daily(agg, ratios)
+        n_rows = sum(1 for _cell, day, _per in harmonize.iter_cell_days(agg)
+                     if _in_dates({"acq_date": day}, from_date, to_date))
+        stream_cells = (row for row in harmonize.iter_daily(agg, ratios)
+                        if _in_dates({"acq_date": row.get("date", "")},
+                                     from_date, to_date))
     elif data == "raw" and not dataset:
         full_daily = _harmonize_stream(aoi, data, bbox, method, daily_cap=2000000,
                                        qa_min=qa_min, platform_set=platform_set,
-                                       cache_result=False)["daily"]
+                                       cache_result=False, geom=geom,
+                                       from_date=from_date, to_date=to_date)["daily"]
         n_rows = len(full_daily)
         stream_cells = iter(full_daily)
     else:
@@ -1064,7 +1456,9 @@ def firms_export(limit: int = Query(2000000, ge=100, le=2000000),
         full_daily = _harmonize_from_records(records, daily_cap=2000000,
                                              data=data, aoi=aoi, method=method,
                                              dataset=dataset, qa_min=qa_min,
-                                             platform_set=platform_set)["daily"]
+                                             platform_set=platform_set, geom=geom,
+                                             from_date=from_date, to_date=to_date,
+                                             bbox=bbox)["daily"]
         n_rows = len(full_daily)
         stream_cells = iter(full_daily)
     fields = ["cell_id", "date", "lat", "lon",
@@ -1095,11 +1489,102 @@ def firms_export(limit: int = Query(2000000, ge=100, le=2000000),
             yield buf.getvalue()
 
     dtag = dataset.replace(":", "_") if dataset else f"{data}_{method}"
+    filters = {"aoi": aoi, "bbox": bbox or "all", "data": data,
+               "method": method, "qa_min": qa_min,
+               "platform_set": platform_set, "dataset": dataset or "none",
+               "geometry_hash": _geometry_hash(geom),
+               "from_date": from_date or "all", "to_date": to_date or "all"}
+    fhash = hashlib.sha256(json.dumps(filters, sort_keys=True).encode()).hexdigest()[:16]
     return StreamingResponse(
         _rows(), media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="harmonized_hotspots_{aoi}_{dtag}.csv"',
                  "X-Row-Count": str(n_rows),
+                 "X-Filter-Hash": fhash,
+                 "X-From-Date": from_date or "",
+                 "X-To-Date": to_date or "",
+                 "X-Geometry-Hash": _geometry_hash(geom),
                  "X-Data-Source": _data_source_label(data).replace("\u2014", "-")})
+
+
+@app.get("/api/firms/export-detections")
+def firms_export_detections(bbox: str | None = Query(None),
+                            aoi: str = Query("vietnam"),
+                            data: str = Query("sample", pattern="^(sample|raw)$"),
+                            dataset: str | None = Query(None),
+                            qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
+                            platform_set: str = Query("all", pattern="^(all|snpp)$"),
+                            geometry: str | None = Query(None),
+                            from_date: str | None = Query(None),
+                            to_date: str | None = Query(None),
+                            limit: int = Query(2000000, ge=1, le=2000000)):
+    """P1-09: original per-detection FIRMS rows, not the aggregated grid.
+
+    This is the row-level view NASA distributes (one hotspot record per line).
+    It is intentionally separate from /export, which serves the harmonized
+    cell-day activity grid.
+    """
+    geom = _parse_geometry(geometry)
+    from_date, to_date = _parse_date_range(from_date, to_date)
+    b = _parse_bbox(bbox)
+    if data == "raw" and not dataset and not store.raw_ready(aoi):
+        raise HTTPException(404, detail={"error_code": "no_raw_data",
+                                         "message": "No raw FIRMS data on this server.",
+                                         "aoi": aoi})
+    fields = ["latitude", "longitude", "brightness", "scan", "track",
+              "acq_date", "acq_time", "satellite", "instrument", "confidence",
+              "version", "bright_t31", "frp", "daynight", "type"]
+    # Load every candidate row, then cap the CSV at `limit` after filtering:
+    # a date/bbox filter must not be starved by the first N source rows.
+    source = (_resolve_records(aoi, data, 2000000, dataset)
+              if (dataset or data == "sample")
+              else store.iter_raw_rows(aoi, limit=None))
+
+    def _keep(r: dict) -> bool:
+        if not _in_bbox(r, b) or not _in_dates(r, from_date, to_date):
+            return False
+        if geom is not None:
+            try:
+                if not _point_in_geometry(float(r["longitude"]),
+                                          float(r["latitude"]), geom):
+                    return False
+            except (KeyError, TypeError, ValueError):
+                return False
+        conf = str(r.get("confidence", "")).lower()
+        if qa_min in ("nominal", "high") and conf == "l":
+            return False
+        if qa_min == "high" and conf not in ("h", "n"):
+            return False
+        if (platform_set == "snpp" and str(r.get("instrument", "")).upper() == "VIIRS"
+                and str(r.get("satellite", "")).upper() not in ("NPP", "SNPP")):
+            return False
+        return True
+
+    def _rows():
+        buf = io.StringIO()
+        w = csv.DictWriter(buf, fieldnames=fields, extrasaction="ignore")
+        w.writeheader()
+        yield buf.getvalue()
+        n = 0
+        for r in source:
+            if n >= limit:
+                break
+            if not _keep(r):
+                continue
+            buf.seek(0); buf.truncate(0)
+            w.writerow({k: r.get(k, "") for k in fields})
+            n += 1
+            yield buf.getvalue()
+
+    dtag = dataset.replace(":", "_") if dataset else data
+    return StreamingResponse(
+        _rows(), media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition":
+                 f'attachment; filename="firms_detections_{aoi}_{dtag}.csv"',
+                 "X-Data-Source": _data_source_label(data).replace("\u2014", "-"),
+                 "X-Geometry-Hash": _geometry_hash(geom),
+                 "X-From-Date": from_date or "",
+                 "X-To-Date": to_date or "",
+                 "X-Row-Kind": "original_detection"})
 
 
 @app.get("/api/firms/dl-info")
@@ -1911,11 +2396,12 @@ def firms_blind_spots(aoi: str = Query("vietnam"),
         elif got["MODIS"] or got["VIIRS"]:
             status = "detected"
         else:
-            status = "observed_empty"
+            status = "requested_no_hotspot_record"
         rows.append({"day": d, "date": f"{year}-{month:02d}-{d:02d}",
                      "modis_requested": modis_req, "viirs_requested": viirs_req,
                      "modis_detections": got["MODIS"],
                      "viirs_detections": got["VIIRS"],
+                     "clear_sky_verified": False,
                      "status": status})
     status_counts: dict[str, int] = {}
     for r in rows:

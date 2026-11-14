@@ -40,7 +40,7 @@ except Exception:  # pragma: no cover
     _HAS_TORCH = False
 
 METHOD_ID = "stan_v1"
-ALGORITHM_VERSION = "stan-v1.0"
+ALGORITHM_VERSION = "stan-v1.1"
 WIN = 12
 D_MODEL = 96
 NHEAD = 4
@@ -323,6 +323,15 @@ def build_series() -> dict:
     (MODEL_DIR / "stan_series_raw.json").write_text(
         json.dumps(state, separators=(",", ":")) + "\n", encoding="utf-8")
     return {k: state[k] for k in ("method_id", "role", "months", "cutoff_rule")}
+
+
+def sources(aoi: str) -> dict[str, str]:
+    p = MODEL_DIR / "stan_series_raw.json"
+    if not p.exists():
+        return {}
+    data = json.loads(p.read_text(encoding="utf-8"))
+    return {ym: ("stan_safe_v1" if v.get("source") == "stan" else "hts_anchor_v1")
+            for ym, v in (data.get("series", {}).get(aoi) or {}).items()}
 
 
 def targets(aoi: str) -> dict[str, float]:

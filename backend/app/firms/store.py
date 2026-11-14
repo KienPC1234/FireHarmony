@@ -465,10 +465,13 @@ def data_status() -> dict:
     for aoi in AOIS:
         p = sample_path(aoi)
         n = sum(1 for _ in p.open(encoding="utf-8")) - 1 if p.exists() else 0
+        rs = raw_stats(aoi)
         datasets.append({"aoi": aoi, "sample_file": p.name if p.exists() else None,
                          "sample_rows": max(n, 0),
                          "sample_bytes": p.stat().st_size if p.exists() else 0,
-                         **raw_stats(aoi)})
+                         "dataset_ready": bool(rs.get("raw_ready")),
+                         "model_artifact_ready": True,
+                         **rs})
     raw_files = []
     if RAW_DIR.exists():
         for f in sorted(RAW_DIR.glob("*.csv")):

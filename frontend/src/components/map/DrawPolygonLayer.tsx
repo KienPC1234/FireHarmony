@@ -3,7 +3,7 @@ import { Polygon, Rectangle, useMapEvents } from "react-leaflet";
 
 interface DrawPolygonLayerProps {
   mode: "none" | "box" | "polygon";
-  onDone: (bbox: string) => void;
+  onDone: (bbox: string, polygon?: [number, number][]) => void;
   onPolygonCreated?: (points: [number, number][]) => void;
 }
 
@@ -78,7 +78,7 @@ export function DrawPolygonLayer({ mode, onDone, onPolygonCreated }: DrawPolygon
     onPolygonCreated?.(pts);
     setVertices([]);
     setMousePos(null);
-    onDone(bbox);
+    onDone(bbox, pts);
   };
 
   if (mode === "box" && start && cur) {

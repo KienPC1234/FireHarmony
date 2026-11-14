@@ -26,18 +26,27 @@ export function HomePage() {
 
   const [dataStats, setDataStats] = useState<{
     raw_count: number;
-    datasets: Array<{ aoi: string; sample_rows: number; sample_bytes: number }>;
+    datasets: Array<{ aoi: string; sample_rows: number; sample_bytes: number; raw_ready?: boolean; dataset_ready?: boolean }>;
   } | null>(null);
+  const [sampleRange, setSampleRange] = useState<string>("—");
   const [error, setError] = useState<unknown>(null);
   const [interactiveMode, setInteractiveMode] = useState<"naive" | "harmonized">("naive");
 
   useEffect(() => {
     api.dataStatus().then(setDataStats).catch(setError);
+    // P1-04: the range badge comes from the served series, not a hardcode.
+    api.calendar(1, undefined, "vietnam", "sample", "stat")
+      .then((d) => {
+        const p = d.summary?.period;
+        if (p?.from && p?.to) setSampleRange(`${p.from.slice(0, 4)} – ${p.to.slice(0, 4)}`);
+      })
+      .catch(() => {});
   }, []);
 
   if (error) return <ErrorState error={error} />;
 
-  const hasRawData = (dataStats?.raw_count ?? 0) > 0;
+  const readyCount = (dataStats?.datasets ?? []).filter((d) => d.dataset_ready ?? d.raw_ready).length;
+  const hasRawData = readyCount > 0 || (dataStats?.raw_count ?? 0) > 0;
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 max-w-6xl mx-auto w-full space-y-12 pb-24">
@@ -91,7 +100,7 @@ export function HomePage() {
         <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4.5 space-y-1">
           <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono font-bold uppercase">
             <CalendarDays className="h-4 w-4" />
-            <span>2000 - 2025</span>
+            <span>{sampleRange}</span>
           </div>
           <div className="text-xl font-extrabold text-white">{t("home.kpi_years_label")}</div>
           <p className="text-xs text-slate-400 leading-snug">{t("home.kpi_years_sub")}</p>
@@ -100,7 +109,7 @@ export function HomePage() {
         <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4.5 space-y-1">
           <div className="flex items-center gap-2 text-orange-400 text-xs font-mono font-bold uppercase">
             <Globe2 className="h-4 w-4" />
-            <span>3 TARGET AOIS</span>
+            <span>3 SAMPLE AOIs · RAW {readyCount}/3</span>
           </div>
           <div className="text-xl font-extrabold text-white">{t("home.kpi_biomes_label")}</div>
           <p className="text-xs text-slate-400 leading-snug">{t("home.kpi_biomes_sub")}</p>
@@ -109,7 +118,7 @@ export function HomePage() {
         <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4.5 space-y-1">
           <div className="flex items-center gap-2 text-purple-400 text-xs font-mono font-bold uppercase">
             <Layers className="h-4 w-4" />
-            <span>5 SATELLITES</span>
+            <span>MODIS + VIIRS</span>
           </div>
           <div className="text-xl font-extrabold text-white">{t("home.kpi_satellites_label")}</div>
           <p className="text-xs text-slate-400 leading-snug">{t("home.kpi_satellites_sub")}</p>
@@ -118,7 +127,7 @@ export function HomePage() {
         <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4.5 space-y-1">
           <div className="flex items-center gap-2 text-emerald-400 text-xs font-mono font-bold uppercase">
             <Sparkles className="h-4 w-4" />
-            <span>ZERO HALLUCINATION</span>
+            <span>EVIDENCE-LINKED</span>
           </div>
           <div className="text-xl font-extrabold text-white">{t("home.kpi_grounding_label")}</div>
           <p className="text-xs text-slate-400 leading-snug">{t("home.kpi_grounding_sub")}</p>

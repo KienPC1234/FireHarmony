@@ -17,6 +17,7 @@ interface SeasonComparisonCardProps {
   years: number[];
   matrix: (number | null)[][];
   months: number[];
+  eligibleMask?: boolean[][];
   aoi?: string;
   onSelectPeriod?: (period: string) => void;
 }
@@ -25,6 +26,7 @@ export function SeasonComparisonCard({
   years,
   matrix,
   months,
+  eligibleMask,
   aoi,
   onSelectPeriod,
 }: SeasonComparisonCardProps) {
@@ -37,21 +39,23 @@ export function SeasonComparisonCard({
   const [yearA, setYearA] = useState<number>(defaultYearA);
   const [yearB, setYearB] = useState<number>(defaultYearB);
 
-  // Compute 20-year climatological baseline mean for each month
-  const monthlyBaseline = useMemo(() => {
+  // P1-05: baseline uses only eligible months (same rule as the backend
+  // anomaly mask). An ineligible or missing month is null, never zero.
+  const monthlyBaseline = useMemo<(number | null)[]>(() => {
     return months.map((_, mi) => {
       let sum = 0;
       let count = 0;
       years.forEach((_, yi) => {
         const val = matrix[yi]?.[mi];
-        if (val !== undefined && val !== null && !isNaN(val)) {
+        const eligible = eligibleMask?.[yi]?.[mi] ?? true;
+        if (eligible && val !== undefined && val !== null && !isNaN(val)) {
           sum += val;
           count += 1;
         }
       });
-      return count > 0 ? Math.round(sum / count) : 0;
+      return count > 0 ? Math.round(sum / count) : null;
     });
-  }, [years, matrix, months]);
+  }, [years, matrix, months, eligibleMask]);
 
   // Extract monthly values for year A and year B
   const indexA = years.indexOf(yearA);
@@ -64,37 +68,31 @@ export function SeasonComparisonCard({
     () => (indexB >= 0 ? matrix[indexB] ?? [] : []),
     [indexB, matrix]);
 
-  const totalA = seriesA.reduce<number>((sum, v) => sum + (v ?? 0), 0);
-  const totalB = seriesB.reduce<number>((sum, v) => sum + (v ?? 0), 0);
+  const sumKnown = (series: (number | null)[]) => {
+    const vals = series.filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+    return vals.length ? vals.reduce((sum, v) => sum + v, 0) : null;
+  };
+  const totalA = sumKnown(seriesA);
+  const totalB = sumKnown(seriesB);
+  const deltaTotal = totalA !== null && totalB !== null && totalA > 0
+    ? ((totalB - totalA) / totalA) * 100
+    : null;
 
-  const deltaTotal = totalA > 0 ? ((totalB - totalA) / totalA) * 100 : 0;
-
-  // Find peak months
-  const peakA = useMemo(() => {
+  // Find peak months (null = no data, never treated as 0)
+  const peakOf = (series: (number | null)[]) => {
     let maxVal = -1;
-    let maxMonth = 1;
-    seriesA.forEach((v, i) => {
-      const val = v ?? 0;
-      if (val > maxVal) {
-        maxVal = val;
+    let maxMonth: number | null = null;
+    series.forEach((v, i) => {
+      if (v === null || v === undefined || isNaN(v)) return;
+      if (v > maxVal) {
+        maxVal = v;
         maxMonth = months[i] ?? i + 1;
       }
     });
-    return { month: maxMonth, val: maxVal };
-  }, [seriesA, months]);
-
-  const peakB = useMemo(() => {
-    let maxVal = -1;
-    let maxMonth = 1;
-    seriesB.forEach((v, i) => {
-      const val = v ?? 0;
-      if (val > maxVal) {
-        maxVal = val;
-        maxMonth = months[i] ?? i + 1;
-      }
-    });
-    return { month: maxMonth, val: maxVal };
-  }, [seriesB, months]);
+    return { month: maxMonth, val: maxMonth === null ? null : maxVal };
+  };
+  const peakA = peakOf(seriesA);
+  const peakB = peakOf(seriesB);
 
   // Chart data
   const chartData = useMemo(() => {
@@ -103,9 +101,9 @@ export function SeasonComparisonCard({
       monthNum: m,
       periodA: `${yearA}-${String(m).padStart(2, "0")}`,
       periodB: `${yearB}-${String(m).padStart(2, "0")}`,
-      [yearA]: seriesA[i] ?? 0,
-      [yearB]: seriesB[i] ?? 0,
-      baseline: monthlyBaseline[i] ?? 0,
+      [yearA]: seriesA[i] ?? null,
+      [yearB]: seriesB[i] ?? null,
+      baseline: monthlyBaseline[i] ?? null,
     }));
   }, [months, yearA, yearB, seriesA, seriesB, monthlyBaseline, t]);
 
@@ -194,10 +192,12 @@ export function SeasonComparisonCard({
             <span>{t("calendar.year_prefix", { year: yearA })}</span>
           </span>
           <div className="text-lg font-bold font-mono text-white">
-            {compact(Math.round(totalA))}
+            {totalA === null ? "–" : compact(Math.round(totalA))}
           </div>
           <span className="text-[11px] text-slate-400 block font-mono">
-            {t("calendar.peak_label", { month: peakA.month, val: compact(Math.round(peakA.val)) })}
+            {peakA.month === null || peakA.val === null
+              ? t("common.no_data")
+              : t("calendar.peak_label", { month: peakA.month, val: compact(Math.round(peakA.val)) })}
           </span>
         </div>
 
@@ -208,10 +208,12 @@ export function SeasonComparisonCard({
             <span>{t("calendar.year_prefix", { year: yearB })}</span>
           </span>
           <div className="text-lg font-bold font-mono text-white">
-            {compact(Math.round(totalB))}
+            {totalB === null ? "–" : compact(Math.round(totalB))}
           </div>
           <span className="text-[11px] text-slate-400 block font-mono">
-            {t("calendar.peak_label", { month: peakB.month, val: compact(Math.round(peakB.val)) })}
+            {peakB.month === null || peakB.val === null
+              ? t("common.no_data")
+              : t("calendar.peak_label", { month: peakB.month, val: compact(Math.round(peakB.val)) })}
           </span>
         </div>
 
@@ -220,16 +222,18 @@ export function SeasonComparisonCard({
           <span className="text-[11px] font-semibold text-slate-400 block">
             {t("calendar.yoy_delta")}
           </span>
-          <div className={cn("text-lg font-bold font-mono flex items-center gap-1", deltaTotal >= 0 ? "text-rose-400" : "text-emerald-400")}>
-            {deltaTotal >= 0 ? (
-              <TrendingUp className="h-4 w-4" />
+          <div className={cn("text-lg font-bold font-mono flex items-center gap-1", deltaTotal === null ? "text-slate-400" : deltaTotal >= 0 ? "text-rose-400" : "text-emerald-400")}>
+            {deltaTotal === null ? (
+              <span>–</span>
             ) : (
-              <TrendingDown className="h-4 w-4" />
+              <>
+                {deltaTotal >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                <span>{deltaTotal >= 0 ? `+${deltaTotal.toFixed(1)}%` : `${deltaTotal.toFixed(1)}%`}</span>
+              </>
             )}
-            <span>{deltaTotal >= 0 ? `+${deltaTotal.toFixed(1)}%` : `${deltaTotal.toFixed(1)}%`}</span>
           </div>
           <span className="text-[11px] text-slate-400 block font-mono">
-            {deltaTotal >= 0 ? t("calendar.activity_increased") : t("calendar.activity_decreased")}
+            {deltaTotal === null ? t("common.no_data") : deltaTotal >= 0 ? t("calendar.activity_increased") : t("calendar.activity_decreased")}
           </span>
         </div>
 
@@ -239,12 +243,16 @@ export function SeasonComparisonCard({
             {t("calendar.peak_season_shift")}
           </span>
           <div className="text-lg font-bold font-mono text-slate-200">
-            {peakA.month === peakB.month
+            {peakA.month === null || peakB.month === null
+              ? t("common.no_data")
+              : peakA.month === peakB.month
               ? t("calendar.same_peak", { month: peakA.month })
               : t("calendar.peak_shift_months", { a: peakA.month, b: peakB.month })}
           </div>
           <span className="text-[11px] text-slate-400 block font-mono">
-            {peakB.month > peakA.month
+            {peakA.month === null || peakB.month === null
+              ? t("common.no_data")
+              : peakB.month > peakA.month
               ? t("calendar.later_by_months", { count: peakB.month - peakA.month })
               : peakB.month < peakA.month
               ? t("calendar.earlier_by_months", { count: peakA.month - peakB.month })
@@ -294,15 +302,15 @@ export function SeasonComparisonCard({
                     </span>
                     <div className="flex items-center justify-between gap-4 text-cyan-300">
                       <span>{yearA}:</span>
-                      <span className="font-bold">{Number(d[yearA]).toLocaleString()}</span>
+                      <span className="font-bold">{d[yearA] == null ? "–" : Number(d[yearA]).toLocaleString()}</span>
                     </div>
                     <div className="flex items-center justify-between gap-4 text-amber-300">
                       <span>{yearB}:</span>
-                      <span className="font-bold">{Number(d[yearB]).toLocaleString()}</span>
+                      <span className="font-bold">{d[yearB] == null ? "–" : Number(d[yearB]).toLocaleString()}</span>
                     </div>
                     <div className="flex items-center justify-between gap-4 text-slate-400 pt-1 border-t border-slate-800">
                       <span>{t("calendar.baseline_mean")}</span>
-                      <span>{Number(d.baseline).toLocaleString()}</span>
+                      <span>{d.baseline == null ? "–" : Number(d.baseline).toLocaleString()}</span>
                     </div>
                     {onSelectPeriod && (
                       <div className="pt-1.5 text-[10px] text-cyan-400 font-sans">
@@ -328,6 +336,7 @@ export function SeasonComparisonCard({
               strokeDasharray="4 4"
               fill="transparent"
               strokeWidth={1.5}
+              connectNulls={false}
             />
             {/* Year A */}
             <Area
@@ -338,6 +347,7 @@ export function SeasonComparisonCard({
               strokeWidth={2.5}
               fillOpacity={1}
               fill="url(#colorYearA)"
+              connectNulls={false}
               activeDot={{ r: 6 }}
             />
             {/* Year B */}
@@ -349,6 +359,7 @@ export function SeasonComparisonCard({
               strokeWidth={2.5}
               fillOpacity={1}
               fill="url(#colorYearB)"
+              connectNulls={false}
               activeDot={{ r: 6 }}
             />
           </AreaChart>

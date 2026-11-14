@@ -5,7 +5,7 @@ import "leaflet/dist/leaflet.css";
 import { Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/lib/i18n";
-import { buildFireZones, FireZone, HotspotCell } from "./map/clusterZones";
+import { buildHotspotClusters, HotspotCluster, HotspotCell } from "./map/clusterZones";
 import { DrawPolygonLayer } from "./map/DrawPolygonLayer";
 import { BasemapKey, DrawMode, LayerMode, MapToolbar } from "./map/MapToolbar";
 
@@ -49,13 +49,8 @@ function MapResizer() {
   return null;
 }
 
-const createClusterCentroidIcon = (count: number, severity: FireZone["severity"], isSelected: boolean) => {
-  const bg =
-    severity === "extreme"
-      ? "bg-rose-600/90 text-white border-rose-400"
-      : severity === "high"
-      ? "bg-orange-600/90 text-white border-orange-300"
-      : "bg-amber-500/90 text-slate-950 border-amber-200";
+const createClusterCentroidIcon = (count: number, isSelected: boolean) => {
+  const bg = "bg-amber-500/90 text-slate-950 border-amber-200";
   const ring = isSelected ? "ring-2 ring-cyan-300 scale-125 z-50 shadow-cyan-500/50" : "hover:scale-110";
 
   return L.divIcon({
@@ -76,7 +71,9 @@ export function AoiMap({
   center,
   zoom,
   bbox,
+  geometry = null,
   cells,
+  preview = null,
   onSelect,
   onClearBbox,
   fullBleed = false,
@@ -89,25 +86,27 @@ export function AoiMap({
   center: [number, number];
   zoom: number;
   bbox: string | null;
+  geometry?: string | null;
   cells: HotspotCell[];
-  onSelect: (bbox: string) => void;
+  preview?: { returned: number; total: number; preview: boolean; level?: string } | null;
+  onSelect: (bbox: string, geometry?: string | null) => void;
   onClearBbox?: () => void;
   fullBleed?: boolean;
   height?: string | number;
   hideToolbar?: boolean;
   hideLegend?: boolean;
   activeZoneId?: string;
-  onSelectZone?: (z: FireZone | null) => void;
+  onSelectZone?: (z: HotspotCluster | null) => void;
 }) {
   const { lang } = useLang();
   const vi = lang === "vi";
 
-  const [basemap, setBasemap] = useState<BasemapKey>("satellite");
+  const [basemap, setBasemap] = useState<BasemapKey>("dark");
   const [layerMode, setLayerMode] = useState<LayerMode>("all");
   const [drawMode, setDrawMode] = useState<DrawMode>("none");
-  const [selectedZone, setSelectedZone] = useState<FireZone | null>(null);
+  const [selectedZone, setSelectedZone] = useState<HotspotCluster | null>(null);
 
-  const fireZones = useMemo(() => buildFireZones(cells, 0.45), [cells]);
+  const fireZones = useMemo(() => buildHotspotClusters(cells, 0.45), [cells]);
 
   const { primaryCells, ambientDots } = useMemo(() => {
     const sorted = [...cells].sort((a, b) => b.harmonized_count - a.harmonized_count);
@@ -116,6 +115,18 @@ export function AoiMap({
       ambientDots: sorted.slice(160, 1000),
     };
   }, [cells]);
+
+  const drawnRing: [number, number][] | null = useMemo(() => {
+    if (!geometry) return null;
+    try {
+      const g = JSON.parse(geometry) as { coordinates?: number[][][] };
+      const ring = g.coordinates?.[0];
+      if (!ring) return null;
+      return ring.map(([lon, lat]) => [lat, lon] as [number, number]);
+    } catch {
+      return null;
+    }
+  }, [geometry]);
 
   const rect: [[number, number], [number, number]] | null = useMemo(() => {
     if (!bbox) return null;
@@ -128,19 +139,6 @@ export function AoiMap({
   }, [bbox]);
 
   const currentMap = BASEMAPS[basemap];
-
-  const getZoneColor = (severity: FireZone["severity"]) => {
-    switch (severity) {
-      case "extreme":
-        return { stroke: "#ef4444", fill: "#dc2626" };
-      case "high":
-        return { stroke: "#f97316", fill: "#ea580c" };
-      case "moderate":
-        return { stroke: "#eab308", fill: "#ca8a04" };
-      default:
-        return { stroke: "#38bdf8", fill: "#0284c7" };
-    }
-  };
 
   const effectiveSelectedZone = activeZoneId
     ? fireZones.find((z) => z.id === activeZoneId) ?? selectedZone
@@ -200,11 +198,24 @@ export function AoiMap({
 
             <DrawPolygonLayer
               mode={drawMode}
-              onDone={(b) => {
+              onDone={(b, pts) => {
                 setDrawMode("none");
-                onSelect(b);
+                if (!pts) {
+                  onSelect(b, null);
+                  return;
+                }
+                const coords = pts.map(([lat, lon]) => [Number(lon.toFixed(4)), Number(lat.toFixed(4))]);
+                coords.push(coords[0]);
+                onSelect(b, JSON.stringify({ type: "Polygon", coordinates: [coords] }));
               }}
             />
+
+            {drawnRing && (
+              <Polygon
+                positions={drawnRing}
+                pathOptions={{ color: "#38bdf8", weight: 2, dashArray: "5 4", fillColor: "#0284c7", fillOpacity: 0.08 }}
+              />
+            )}
 
             {/* Active Bounding Rectangle if set */}
             {rect && (
@@ -220,10 +231,9 @@ export function AoiMap({
               />
             )}
 
-            {/* 1. REGIONAL FIRE PERIMETER POLYGONS */}
+            {/* 1. OBSERVED HOTSPOT CLUSTERS (convex hull, not a fire perimeter) */}
             {(layerMode === "all" || layerMode === "zones") &&
               fireZones.map((zone) => {
-                const colors = getZoneColor(zone.severity);
                 const isSelected = effectiveSelectedZone?.id === zone.id;
 
                 return (
@@ -231,11 +241,11 @@ export function AoiMap({
                     key={zone.id}
                     positions={zone.coordinates}
                     pathOptions={{
-                      color: isSelected ? "#38bdf8" : colors.stroke,
+                      color: isSelected ? "#38bdf8" : "#f59e0b",
                       weight: isSelected ? 3 : 2,
-                      dashArray: isSelected ? undefined : "5 5",
-                      fillColor: colors.fill,
-                      fillOpacity: isSelected ? 0.38 : 0.2,
+                      dashArray: "5 5",
+                      fillColor: "#f59e0b",
+                      fillOpacity: isSelected ? 0.22 : 0.08,
                     }}
                     eventHandlers={{
                       click: () => {
@@ -251,15 +261,16 @@ export function AoiMap({
                           <Flame className="h-3.5 w-3.5 text-orange-400" />
                           <span>{zone.name}</span>
                         </div>
-                        <div className="text-slate-200">
-                          {vi ? "Diện tích ước lượng:" : "Area Footprint:"}{" "}
-                          <span className="font-semibold text-white">{zone.areaKm2} km²</span>
-                        </div>
                         <div className="text-orange-400 font-semibold">
                           {zone.totalDetections} {vi ? "điểm nhiệt trên" : "detections across"} {zone.cellCount} {vi ? "ô" : "cells"}
                         </div>
                         <div className="text-xs text-slate-400">
-                          {vi ? "Đỉnh điểm:" : "Peak Date:"} {zone.peakDate} · {vi ? "Mức độ:" : "Severity:"} {zone.severity.toUpperCase()}
+                          {vi ? "Đỉnh điểm:" : "Peak date:"} {zone.peakDate}
+                        </div>
+                        <div className="max-w-[220px] text-[11px] leading-snug text-amber-200/90">
+                          {vi
+                            ? "Bao hình học quanh các ô phát hiện — KHÔNG phải đường viền cháy, diện tích cháy hay mức nguy cơ."
+                            : "Convex hull around detected cells — NOT a fire perimeter, burned area, or risk grade."}
                         </div>
                       </div>
                     </Tooltip>
@@ -275,7 +286,7 @@ export function AoiMap({
                   <Marker
                     key={`marker-${zone.id}`}
                     position={zone.center}
-                    icon={createClusterCentroidIcon(zone.cellCount, zone.severity, isSelected)}
+                    icon={createClusterCentroidIcon(zone.cellCount, isSelected)}
                     eventHandlers={{
                       click: () => {
                         const next = isSelected ? null : zone;
@@ -290,7 +301,10 @@ export function AoiMap({
                           <span>{zone.name}</span>
                         </div>
                         <div className="text-white">
-                          {zone.areaKm2} km² · {zone.totalDetections} {vi ? "điểm phát hiện" : "hotspots"}
+                          {zone.totalDetections} {vi ? "điểm phát hiện" : "hotspots"} · {zone.cellCount} {vi ? "ô" : "cells"}
+                        </div>
+                        <div className="max-w-[200px] text-[11px] text-amber-200/90">
+                          {vi ? "Cụm quan sát, không phải ranh giới cháy" : "Observed cluster, not a fire perimeter"}
                         </div>
                       </div>
                     </Tooltip>
@@ -368,9 +382,20 @@ export function AoiMap({
                 {vi ? "MODIS chuỗi nền (1 km)" : "MODIS baseline (1 km)"}
               </span>
               <span className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-sm border border-orange-300 bg-orange-500/60" />
-                {vi ? "Vùng tập trung điểm nóng" : "Hotspot cluster zone"}
+                <span className="h-2.5 w-2.5 rounded-sm border border-dashed border-amber-300 bg-amber-500/20" />
+                {vi ? "Cụm điểm nóng (bao lồi, không phải ranh giới cháy)" : "Hotspot cluster (convex hull, not a fire perimeter)"}
               </span>
+              {preview && (
+                <span className="mt-1 border-t border-white/10 pt-1.5 text-[11px] text-slate-300">
+                  {preview.preview
+                    ? (vi
+                        ? `Xem trước ${preview.returned.toLocaleString()} / ${preview.total.toLocaleString()} ô (${preview.level ?? "ô-tháng"})`
+                        : `Preview ${preview.returned.toLocaleString()} of ${preview.total.toLocaleString()} cells (${preview.level ?? "cell-month"})`)
+                    : (vi
+                        ? `${preview.returned.toLocaleString()} ô đã trả về (${preview.level ?? "ô-tháng"})`
+                        : `${preview.returned.toLocaleString()} cells returned (${preview.level ?? "cell-month"})`)}
+                </span>
+              )}
             </div>
           </div>
         )}

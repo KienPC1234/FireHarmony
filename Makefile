@@ -3,7 +3,7 @@ PY      := .venv/bin/python
 BACKEND := backend
 PORT    ?= 8000
 
-.PHONY: help install sample fetch fetch-missing ingest test-backend test-clean test-full test check-fast check-release e2e dev demo build pm2-start clean
+.PHONY: help install sample fetch fetch-missing ingest test-backend test-clean test-full test check-fast check-release e2e dev demo build pm2-start clean demo-pack demo-verify demo-install
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -28,6 +28,16 @@ ingest:  ## ingest a FIRMS CSV server-side (vars: FILE AOI=custom SOURCE=file)
 
 sample:  ## generate the deterministic FIRMS sample CSV
 	$(PY) backend/scripts/firms/make_sample.py
+
+demo-pack:  ## build a small real FIRMS demo pack from the local raw pull (vars: AOI FROM TO)
+	cd $(BACKEND) && ../$(PY) -m scripts.firms.demo_pack build --aoi "$${AOI:-vietnam}" --from "$${FROM:-2024-01}" --to "$${TO:-2025-12}" --force
+	cd $(BACKEND) && ../$(PY) -m scripts.firms.demo_pack verify
+
+demo-verify:  ## verify the demo pack checksums/row counts
+	cd $(BACKEND) && ../$(PY) -m scripts.firms.demo_pack verify
+
+demo-install:  ## copy the verified demo pack into data/firms/raw (real NASA subset)
+	cd $(BACKEND) && ../$(PY) -m scripts.firms.demo_pack install
 
 test-backend:  ## firms tests only (no network/GPU)
 	cd $(BACKEND) && ../$(PY) -m pytest tests/test_firms.py -q

@@ -71,6 +71,7 @@ export interface CalendarResponse {
     row_totals: number[];
     col_medians: Array<number | null>;
     coverage?: number[][];
+    eligible_mask?: boolean[][];
     z_unit?: string;
     completeness?: Record<string, {
       days: number;
@@ -106,7 +107,58 @@ export interface CalendarResponse {
   qa?: { clean: number; rejected: number; qa_counts: Record<string, number> };
   bbox?: string | null;
   daily: Array<Record<string, number | string | null>>;
+  from_date?: string | null;
+  to_date?: string | null;
+  geometry_hash?: string;
+  summary?: CalendarSummary;
   ms?: number;
+}
+
+export interface CalendarSummary {
+  modis_detections: number;
+  viirs_detections: number;
+  sensor_detections_total: number;
+  harmonized_total: number;
+  paired_cells: number;
+  modis_only_cells: number;
+  viirs_only_cells: number;
+  estimated_cells: number;
+  estimated_index: number | null;
+  n_daily_cells_total: number;
+  n_daily_cells_returned: number;
+  period: { from: string | null; to: string | null };
+  source_scope: "nasa_firms_observed" | "synthetic_demo_not_observed" | "user_upload_unverified";
+  data_source: string;
+  method: string;
+  method_id?: string;
+  effective_method?: string;
+  filter_hash: string;
+  filters: Record<string, string>;
+  note: string;
+}
+
+export interface MapCellsResponse {
+  aoi: string;
+  data: string;
+  ym: string;
+  zoom: number;
+  bbox: string | null;
+  geometry_hash: string;
+  method_id?: string;
+  effective_method?: string;
+  cells: Array<{
+    cell_id: string; lat: number; lon: number;
+    modis_count: number; viirs_count: number;
+    harmonized_count: number; days: number; estimate_type: string;
+  }>;
+  returned: number;
+  total: number;
+  preview: boolean;
+  aggregation_level: string;
+  aggregation_note: string;
+  capped_at: number;
+  filter_hash?: string;
+  source_scope?: string;
 }
 
 export interface SimRow {
@@ -315,12 +367,22 @@ export const api = {
   schema: () => get<{ fields: string[] }>("/api/firms/schema"),
   sample: (limit = 200, aoi = "vietnam") => get<{ count: number; records: Record<string, unknown>[] }>(`/api/firms/sample?limit=${limit}&aoi=${aoi}`),
   aois: () => get<{ aois: Aoi[] }>("/api/firms/aois"),
-  dataStatus: () => get<{ datasets: Array<{ aoi: string; sample_rows: number; sample_bytes: number }>; raw_count: number; raw_files: Array<{ file: string; bytes: number }> }>("/api/firms/data-status"),
+  dataStatus: () => get<{ datasets: Array<{ aoi: string; sample_rows: number; sample_bytes: number; raw_ready?: boolean; dataset_ready?: boolean; raw_files?: number }>; raw_count: number; raw_files: Array<{ file: string; bytes: number }> }>("/api/firms/data-status"),
   htsStatus: () => get<{ trained: boolean; candidate?: boolean; served?: boolean; n_test?: number; hts_mae?: number; b2_mae?: number; mean_gain_vs_b2?: number; per_aoi?: Record<string, MetricRow>; comparisons?: Record<string, ComparisonRow>; gate?: { rule: string; passed: boolean }; series?: Record<string, unknown> }>("/api/firms/hts-status"),
   stanStatus: () => get<{ trained: boolean; candidate?: boolean; served?: boolean; safe?: Record<string, unknown>; retrospective?: Record<string, unknown> }>("/api/firms/stan-status"),
   spatialStatus: () => get<{ trained: boolean; candidate?: boolean; served?: boolean; retrospective?: boolean; requires_neighbour_viirs?: boolean; headline?: MetricRow; b2_headline?: MetricRow; hts_headline?: MetricRow; safe_headline?: MetricRow; per_aoi?: Record<string, Record<string, MetricRow>>; comparisons?: Record<string, ComparisonRow>; spatial_holdout?: { held_tiles: number; spatial_mae: number; hts_mae: number } }>("/api/firms/spatial-status"),
-  calendar: (limit = 25000, bbox?: string, aoi = "vietnam", data = "sample", method = "stat", dataset?: string, qa_min = "all", platform_set = "all") =>
-    get<CalendarResponse>(`/api/firms/calendar?limit=${limit}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}`, dataTimeout(data)),
+  calendar: (
+    limit = 25000, bbox?: string, aoi = "vietnam", data = "sample",
+    method = "stat", dataset?: string, qa_min = "all", platform_set = "all",
+    geometry?: string, from_date?: string, to_date?: string,
+  ) =>
+    get<CalendarResponse>(`/api/firms/calendar?limit=${limit}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}`, dataTimeout(data)),
+  mapCells: (
+    ym: string, bbox?: string, aoi = "vietnam", data = "sample",
+    method = "stat", dataset?: string, qa_min = "all", platform_set = "all",
+    geometry?: string, zoom = 6, from_date?: string, to_date?: string,
+  ) =>
+    get<MapCellsResponse>(`/api/firms/map-cells?ym=${ym}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}&zoom=${zoom}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}`, dataTimeout(data)),
   harmonize: (records: Record<string, unknown>[]) =>
     post<CalendarResponse>("/api/firms/harmonize", { records }),
   validate: (records: Record<string, unknown>[]) =>
@@ -431,7 +493,16 @@ export const api = {
   briefUrl: (bbox?: string, aoi = "vietnam", data = "sample", method = "stat", dataset?: string, qa_min = "all", platform_set = "all") =>
     `${BASE}/api/firms/brief?aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}`,
   dlInfo: () => get<{ has_torch: boolean; models: Array<Record<string, string>> }>("/api/firms/dl-info"),
-  exportUrl: (limit = 25000, bbox?: string, aoi = "vietnam", data = "sample", method = "stat", dataset?: string, qa_min = "all", platform_set = "all") => `${BASE}/api/firms/export?limit=${limit}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}`,
+  exportDetectionsUrl: (
+    bbox?: string, aoi = "vietnam", data = "sample", dataset?: string,
+    qa_min = "all", platform_set = "all", geometry?: string,
+    from_date?: string, to_date?: string,
+  ) => `${BASE}/api/firms/export-detections?aoi=${aoi}&data=${data}&qa_min=${qa_min}&platform_set=${platform_set}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}`,
+  exportUrl: (
+    limit = 25000, bbox?: string, aoi = "vietnam", data = "sample",
+    method = "stat", dataset?: string, qa_min = "all", platform_set = "all",
+    geometry?: string, from_date?: string, to_date?: string,
+  ) => `${BASE}/api/firms/export?limit=${limit}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}`,
   uploadDataset: async (file: File): Promise<UploadDatasetResponse> => {
     const form = new FormData();
     form.append("file", file);
