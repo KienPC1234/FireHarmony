@@ -6,6 +6,7 @@ import io
 import json
 import sys
 import urllib.error
+from datetime import date as RealDate
 from pathlib import Path
 from unittest.mock import patch
 
@@ -69,6 +70,14 @@ def _isolate_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
 def test_fetch_live_firms_area_merges_and_serves_calendar(tmp_path, monkeypatch):
     _isolate_store(tmp_path, monkeypatch)
+    # Fixture rows are dated 2026-11-10/11. Freeze the request clock so the
+    # sliding NRT window cannot drop them as CI time moves past those dates.
+    class FixtureDate(RealDate):
+        @classmethod
+        def today(cls):
+            return cls(2026, 11, 14)
+
+    monkeypatch.setattr(firms_live, "date", FixtureDate)
     monkeypatch.setenv("FIRMS_MAP_KEY", "secret_test_key_123")
     seen_urls: list[str] = []
 
