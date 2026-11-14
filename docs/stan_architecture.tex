@@ -2,7 +2,7 @@
 % Style modelled on HDML_Model/.../architecture_tikz.tex (card + dashed lane style).
 % Build: xelatex stan_architecture.tex && pdftocairo -svg / -png
 \documentclass[border={24pt 18pt 20pt 18pt}, multi, tikz]{standalone}
-\usepackage{amsmath,amssymb}
+\usepackage{amsmath}
 \usepackage{xcolor}
 \usepackage{fontspec}
 \IfFontExistsTF{Times New Roman}{
@@ -14,6 +14,9 @@
     \setmainfont{Liberation Serif}
   }
 }
+% math font matched to the serif text (Times -> TeX Gyre Termes Math)
+\usepackage{unicode-math}
+\setmathfont{TeX Gyre Termes Math}
 \usetikzlibrary{positioning, fit, backgrounds, calc, arrows.meta, shadows, shapes.geometric}
 
 % ---------------------------------------------------------------- palette

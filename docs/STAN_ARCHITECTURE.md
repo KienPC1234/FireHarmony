@@ -24,6 +24,19 @@ The figure is drawn as three converging streams instead of one long column:
 The right-hand panels carry the tensor flow and the parameter budget, so the
 diagram itself only shows what changes the dataflow.
 
+## Slide version
+
+![STAN slide diagram](stan_architecture_slide.svg)
+
+Six cards, no formulas, no parameter tables — for a slide or a poster column:
+`MODIS window → Encode + FiLM → 3× causal TCN → Target attention → Concat + head
+→ Anchor + NB2`, with the three side inputs drawn as dashed badges (`month`,
+`forecast-safe context`, `HTS anchor`). Source:
+[`stan_architecture_slide.tex`](stan_architecture_slide.tex); PNG:
+[`stan_architecture_slide.png`](stan_architecture_slide.png).
+
+## Source
+
 - Source (TikZ, Times New Roman via XeLaTeX): [`stan_architecture.tex`](stan_architecture.tex)
 - Rebuild SVG + PNG: `docs/render_stan_figure.sh`
 - Full auto-generated TorchView graph: [`stan_torchview.dot`](stan_torchview.dot)
