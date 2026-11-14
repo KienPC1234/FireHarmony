@@ -27,24 +27,28 @@
  "n_test": 24,
  "metrics": {
   "ml": {
-   "mae": 844.1615932817193,
-   "wape": 0.061404176596446244,
-   "bias": -132.3573937458734
+   "mae": 844.1616,
+   "wape": 0.061404,
+   "bias": -132.3574,
+   "n": 24
   },
   "b0_raw_modis": {
    "mae": 11112.125,
-   "wape": 0.8082941599003465,
-   "bias": -11112.125
+   "wape": 0.808294,
+   "bias": -11112.125,
+   "n": 24
   },
   "b1_global_ratio": {
-   "mae": 3492.971888075939,
-   "wape": 0.2540782053682683,
-   "bias": -3135.3712122785055
+   "mae": 3493.2241,
+   "wape": 0.254097,
+   "bias": -3132.3446,
+   "n": 24
   },
   "b2_seasonal_ratio": {
-   "mae": 844.187259805667,
-   "wape": 0.061406043575211504,
-   "bias": -135.49874893739025
+   "mae": 844.1616,
+   "wape": 0.061404,
+   "bias": -132.3574,
+   "n": 24
   }
  },
  "features": [
@@ -57,7 +61,7 @@
   "month_cos"
  ],
  "sklearn_version": "1.9.1",
- "created_at": "2026-11-10T16:07:52.360252+00:00",
+ "created_at": "2026-11-13T01:18:38.638317+00:00",
  "b1_ratio": 4.026656720820146,
  "b2_ratios": {
   "1": 4.500935079959874,
@@ -178,63 +182,63 @@
   "folds": [
    {
     "test_year": 2015,
-    "b1_mae": 5426.5,
-    "b2_mae": 2466.09,
+    "b1_mae": 5425.98,
+    "b2_mae": 2465.55,
     "residual_mae": 2930.99
    },
    {
     "test_year": 2016,
-    "b1_mae": 7811.86,
-    "b2_mae": 4731.46,
+    "b1_mae": 7811.34,
+    "b2_mae": 4731.14,
     "residual_mae": 4831.95
    },
    {
     "test_year": 2017,
-    "b1_mae": 3496.16,
-    "b2_mae": 1115.02,
+    "b1_mae": 3497.21,
+    "b2_mae": 1115.56,
     "residual_mae": 1282.03
    },
    {
     "test_year": 2018,
-    "b1_mae": 3765.74,
-    "b2_mae": 547.55,
+    "b1_mae": 3766.75,
+    "b2_mae": 548.23,
     "residual_mae": 971.72
    },
    {
     "test_year": 2019,
-    "b1_mae": 4972.09,
-    "b2_mae": 1768.35,
+    "b1_mae": 4972.59,
+    "b2_mae": 1769.03,
     "residual_mae": 1737.8
    },
    {
     "test_year": 2020,
-    "b1_mae": 6756.34,
-    "b2_mae": 2430.08,
+    "b1_mae": 6755.35,
+    "b2_mae": 2428.42,
     "residual_mae": 2443.56
    },
    {
     "test_year": 2021,
     "b1_mae": 4115.81,
-    "b2_mae": 1311.58,
+    "b2_mae": 1312.81,
     "residual_mae": 1632.17
    },
    {
     "test_year": 2022,
-    "b1_mae": 2856.38,
-    "b2_mae": 1902.84,
+    "b1_mae": 2856.89,
+    "b2_mae": 1903.06,
     "residual_mae": 2165.56
    },
    {
     "test_year": 2023,
-    "b1_mae": 3754.8,
-    "b2_mae": 865.28,
+    "b1_mae": 3754.3,
+    "b2_mae": 865.32,
     "residual_mae": 696.74
    }
   ],
-  "cv_b1_mae": 4772.852757793415,
-  "cv_b2_mae": 1904.2508960284513,
+  "cv_b1_mae": 4772.913930937392,
+  "cv_b2_mae": 1904.3466194845007,
   "cv_residual_mae": 2076.9472418446676,
-  "cv_best_baseline_mae": 1904.2508960284513,
+  "cv_best_baseline_mae": 1904.3466194845007,
   "fold_wins": 2,
   "n_folds": 9,
   "fallback_baseline": "b2_seasonal_ratio",
@@ -247,9 +251,9 @@
  "algorithm_version": "ml_b2res_v4.1",
  "data_fingerprint": "b8094e02936c0ae7",
  "unified_eval": {
-  "evaluation_version": "eval-v2",
-  "dataset_sha256": "b359387bc92e7e1c",
-  "pair_table_hash": "b359387bc92e7e1c",
+  "evaluation_version": "eval-v3",
+  "dataset_sha256": "7ba6b1ac91043aeb",
+  "pair_table_hash": "7ba6b1ac91043aeb",
   "candidate_holdout_years": [
    2024,
    2025
@@ -287,41 +291,77 @@
     "n": 24
    },
    "ts_logratio_pool_v2": {
-    "mae": 1329.6198,
-    "wape": 0.096716,
-    "bias": -520.2266,
+    "mae": 1264.4335,
+    "wape": 0.091975,
+    "bias": -577.0564,
+    "n": 24
+   },
+   "stan_safe_v1": {
+    "mae": 694.2243,
+    "wape": 0.050498,
+    "bias": 430.6627,
+    "n": 24
+   },
+   "hts_anchor_v1": {
+    "mae": 783.9016,
+    "wape": 0.057021,
+    "bias": 3.5425,
+    "n": 24
+   },
+   "spatial_hgb_v1": {
+    "mae": 633.4785,
+    "wape": 0.046079,
+    "bias": 96.2008,
     "n": 24
    }
   },
   "pooled_metrics": {
    "b0_raw_modis": {
-    "mae": 18220.6389,
-    "wape": 0.76442,
-    "bias": -18220.6389,
+    "mae": 38119.8472,
+    "wape": 0.774485,
+    "bias": -38119.8472,
     "n": 72
    },
    "b1_global_ratio": {
-    "mae": 4095.4971,
-    "wape": 0.171821,
-    "bias": -2163.0004,
+    "mae": 6386.5596,
+    "wape": 0.129756,
+    "bias": -682.6304,
     "n": 72
    },
    "b2_seasonal_ratio": {
-    "mae": 2386.9135,
-    "wape": 0.100139,
-    "bias": 89.9583,
+    "mae": 4411.8391,
+    "wape": 0.089636,
+    "bias": 1281.2545,
     "n": 72
    },
    "hgb_b2res_v4": {
-    "mae": 2396.4148,
-    "wape": 0.100538,
-    "bias": 167.4313,
+    "mae": 4687.4773,
+    "wape": 0.095236,
+    "bias": 1647.8014,
     "n": 72
    },
    "ts_logratio_pool_v2": {
-    "mae": 2573.8506,
-    "wape": 0.107982,
-    "bias": -196.5519,
+    "mae": 5322.8846,
+    "wape": 0.108146,
+    "bias": 1574.2014,
+    "n": 72
+   },
+   "stan_safe_v1": {
+    "mae": 3765.8416,
+    "wape": 0.076511,
+    "bias": 1421.3016,
+    "n": 72
+   },
+   "hts_anchor_v1": {
+    "mae": 4154.4198,
+    "wape": 0.084406,
+    "bias": 646.0759,
+    "n": 72
+   },
+   "spatial_hgb_v1": {
+    "mae": 3076.3893,
+    "wape": 0.062503,
+    "bias": -1356.9896,
     "n": 72
    }
   },
@@ -329,79 +369,99 @@
    "scope": "full-month AOIs only",
    "aois": [
     "vietnam",
-    "amazon"
+    "amazon",
+    "australia"
    ],
-   "n_eval": 48,
+   "n_eval": 72,
    "metrics": {
     "b0_raw_modis": {
-     "mae": 21623.375,
-     "wape": 0.758115,
-     "bias": -21623.375,
-     "n": 48
+     "mae": 38119.8472,
+     "wape": 0.774485,
+     "bias": -38119.8472,
+     "n": 72
     },
     "b1_global_ratio": {
-     "mae": 5294.5761,
-     "wape": 0.185628,
-     "bias": -3718.5278,
-     "n": 48
+     "mae": 6386.5596,
+     "wape": 0.129756,
+     "bias": -682.6304,
+     "n": 72
     },
     "b2_seasonal_ratio": {
-     "mae": 2745.9527,
-     "wape": 0.096273,
-     "bias": -222.8802,
-     "n": 48
+     "mae": 4411.8391,
+     "wape": 0.089636,
+     "bias": 1281.2545,
+     "n": 72
     },
     "hgb_b2res_v4": {
-     "mae": 2745.9527,
-     "wape": 0.096273,
-     "bias": -222.8802,
-     "n": 48
+     "mae": 4687.4773,
+     "wape": 0.095236,
+     "bias": 1647.8014,
+     "n": 72
     },
     "ts_logratio_pool_v2": {
-     "mae": 2934.3661,
-     "wape": 0.102879,
-     "bias": -845.7721,
-     "n": 48
+     "mae": 5322.8846,
+     "wape": 0.108146,
+     "bias": 1574.2014,
+     "n": 72
+    },
+    "stan_safe_v1": {
+     "mae": 3765.8416,
+     "wape": 0.076511,
+     "bias": 1421.3016,
+     "n": 72
+    },
+    "hts_anchor_v1": {
+     "mae": 4154.4198,
+     "wape": 0.084406,
+     "bias": 646.0759,
+     "n": 72
+    },
+    "spatial_hgb_v1": {
+     "mae": 3076.3893,
+     "wape": 0.062503,
+     "bias": -1356.9896,
+     "n": 72
     }
    },
-   "why": "Australia has 0/85 months with >=90% paired MODIS/VIIRS days; it is a sparse stress test, not a comparable monthly series."
+   "why": "All scored AOIs meet the full-month coverage rule (>=80% of months with >=90% paired MODIS/VIIRS days)."
   },
   "pooled_full_month": {
    "aois": [
     "vietnam",
-    "amazon"
+    "amazon",
+    "australia"
    ],
-   "n_eval": 48,
+   "n_eval": 72,
    "metrics": {
     "b0_raw_modis": {
-     "mae": 21623.375,
-     "wape": 0.758115,
-     "bias": -21623.375,
-     "n": 48
+     "mae": 38119.8472,
+     "wape": 0.774485,
+     "bias": -38119.8472,
+     "n": 72
     },
     "b1_global_ratio": {
-     "mae": 5294.5761,
-     "wape": 0.185628,
-     "bias": -3718.5278,
-     "n": 48
+     "mae": 6386.5596,
+     "wape": 0.129756,
+     "bias": -682.6304,
+     "n": 72
     },
     "b2_seasonal_ratio": {
-     "mae": 2745.9527,
-     "wape": 0.096273,
-     "bias": -222.8802,
-     "n": 48
+     "mae": 4411.8391,
+     "wape": 0.089636,
+     "bias": 1281.2545,
+     "n": 72
     },
     "hgb_b2res_v4": {
-     "mae": 2745.9527,
-     "wape": 0.096273,
-     "bias": -222.8802,
-     "n": 48
+     "mae": 4687.4773,
+     "wape": 0.095236,
+     "bias": 1647.8014,
+     "n": 72
     },
     "ts_logratio_pool_v2": {
-     "mae": 2934.3661,
-     "wape": 0.102879,
-     "bias": -845.7721,
-     "n": 48
+     "mae": 5322.8846,
+     "wape": 0.108146,
+     "bias": 1574.2014,
+     "n": 72
     }
    }
   },
@@ -409,12 +469,12 @@
    "hgb_vs_b2": {
     "method_a": "hgb_b2res_v4",
     "method_b": "b2_seasonal_ratio",
-    "delta_mae": 9.5013,
+    "delta_mae": 275.6382,
     "ci95": [
-     -59.4014,
-     89.0343
+     -154.6796,
+     717.1522
     ],
-    "prob_a_better": 0.3795,
+    "prob_a_better": 0.1125,
     "n": 72,
     "n_boot": 2000,
     "unit": "AOI-month row bootstrap (not independent hotspots)"
@@ -435,12 +495,12 @@
    "ts_vs_b2": {
     "method_a": "ts_logratio_pool_v2",
     "method_b": "b2_seasonal_ratio",
-    "delta_mae": 186.9372,
+    "delta_mae": 911.0455,
     "ci95": [
-     -258.2861,
-     620.8908
+     91.4375,
+     1758.4455
     ],
-    "prob_a_better": 0.188,
+    "prob_a_better": 0.0185,
     "n": 72,
     "n_boot": 2000,
     "unit": "AOI-month row bootstrap (not independent hotspots)"
@@ -448,18 +508,82 @@
    "ts_vs_b1": {
     "method_a": "ts_logratio_pool_v2",
     "method_b": "b1_global_ratio",
-    "delta_mae": -1521.6464,
+    "delta_mae": -1063.675,
     "ci95": [
-     -2964.6826,
-     -379.6207
+     -2465.4593,
+     121.4529
     ],
-    "prob_a_better": 0.9965,
+    "prob_a_better": 0.9625,
+    "n": 72,
+    "n_boot": 2000,
+    "unit": "AOI-month row bootstrap (not independent hotspots)"
+   },
+   "stan_vs_b2": {
+    "method_a": "stan_safe_v1",
+    "method_b": "b2_seasonal_ratio",
+    "delta_mae": -645.9976,
+    "ci95": [
+     -1452.9229,
+     81.7885
+    ],
+    "prob_a_better": 0.958,
+    "n": 72,
+    "n_boot": 2000,
+    "unit": "AOI-month row bootstrap (not independent hotspots)"
+   },
+   "stan_vs_hts": {
+    "method_a": "stan_safe_v1",
+    "method_b": "hts_anchor_v1",
+    "delta_mae": -388.5783,
+    "ci95": [
+     -938.951,
+     50.6513
+    ],
+    "prob_a_better": 0.954,
+    "n": 72,
+    "n_boot": 2000,
+    "unit": "AOI-month row bootstrap (not independent hotspots)"
+   },
+   "hts_vs_b2": {
+    "method_a": "hts_anchor_v1",
+    "method_b": "b2_seasonal_ratio",
+    "delta_mae": -257.4193,
+    "ci95": [
+     -777.1027,
+     266.2206
+    ],
+    "prob_a_better": 0.833,
+    "n": 72,
+    "n_boot": 2000,
+    "unit": "AOI-month row bootstrap (not independent hotspots)"
+   },
+   "spatial_vs_b2": {
+    "method_a": "spatial_hgb_v1",
+    "method_b": "b2_seasonal_ratio",
+    "delta_mae": -1335.4499,
+    "ci95": [
+     -2740.4225,
+     -162.2599
+    ],
+    "prob_a_better": 0.989,
     "n": 72,
     "n_boot": 2000,
     "unit": "AOI-month row bootstrap (not independent hotspots)"
    }
   },
   "rank": [
+   {
+    "method": "spatial_hgb_v1",
+    "mae": 633.4785
+   },
+   {
+    "method": "stan_safe_v1",
+    "mae": 694.2243
+   },
+   {
+    "method": "hts_anchor_v1",
+    "mae": 783.9016
+   },
    {
     "method": "b2_seasonal_ratio",
     "mae": 844.1616
@@ -470,7 +594,7 @@
    },
    {
     "method": "ts_logratio_pool_v2",
-    "mae": 1329.6198
+    "mae": 1264.4335
    },
    {
     "method": "b1_global_ratio",
@@ -481,7 +605,7 @@
     "mae": 11112.125
    }
   ],
-  "best_method": "b2_seasonal_ratio",
+  "best_method": "spatial_hgb_v1",
   "coverage_class": "full_month",
   "coverage": {
    "months": 169,
@@ -518,11 +642,11 @@
    "verified": true
   },
   "ts_unified_seed_mae_range": [
-   2547.58,
-   2975.76
+   5496.93,
+   5888.57
   ],
   "note": "Every method in `pooled`/`per_aoi` is scored on the exact same sample IDs. `hgb_full_test` covers all monthly test pairs and is reported separately because the Transformer lacks a 12-month context for some of them."
  },
- "eval_manifest_id": "eval-v2:b359387bc92e7e1c",
+ "eval_manifest_id": "eval-v3:7ba6b1ac91043aeb",
  "metrics_scope": "training_split; use unified_eval for the published table"
 }

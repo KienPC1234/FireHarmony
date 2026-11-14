@@ -23,8 +23,8 @@
   "australia": {
    "fixture": "real_mini_australia.csv",
    "fixture_rows": 1500,
-   "full_rows": 1700959,
-   "fixture_sha256": "850594f5c8058724624535d9190bf06278c19122f679c5680620b4609981daaa",
+   "full_rows": 9615760,
+   "fixture_sha256": "d43e7c430fb7b16185de4ecf4f508dd33b3e3ae0320331fb80273d02f37ffa29",
    "date_range": [
     "2019-01-01",
     "2026-11-09"
@@ -42,13 +42,13 @@
  "expected_pairs": {
   "file": "expected_pairs.csv",
   "rows": 339,
-  "sha256": "6be34d6c54104888949c0424df6acbc8e496e7b27fb23dd27cd2aa47c8ea7879"
+  "sha256": "5d8e1c44bf092bcdc1508c2dea9210e34b879eda39f8d3f2a6944e0acd042592"
  },
  "training_pairs": {
   "raw": {
    "file": "training_pairs_raw.csv",
-   "rows": 337,
-   "sha256": "5bd1591e96bf585131052bc2a4666ee13d7a2f649d91dac3f12ba54ba11eec41"
+   "rows": 336,
+   "sha256": "7e05e98aca0987bcb457826a2af67f691a73512a16ffd52e16d4ec9607c8d71d"
   },
   "sample": {
    "file": "training_pairs_sample.csv",
@@ -60,42 +60,60 @@
   "raw": {
    "file": "evaluation_samples_raw.csv",
    "rows": 72,
-   "sha256": "ee874c148b87df64d63ff2aaca015018f7567c14ef456150ba374a3f3a67018a",
-   "evaluation_version": "eval-v2",
+   "sha256": "d2ac622c592d9091b7a62540655dc55258955650c40a87a5e5e2c98a87d012b0",
+   "evaluation_version": "eval-v3",
    "test_years": [
     2024,
     2025
    ],
-   "dataset_sha256": "b359387bc92e7e1c",
+   "dataset_sha256": "7ba6b1ac91043aeb",
    "pooled": {
     "b0_raw_modis": {
-     "mae": 18220.6389,
-     "wape": 0.76442,
-     "bias": -18220.6389,
+     "mae": 38119.8472,
+     "wape": 0.774485,
+     "bias": -38119.8472,
      "n": 72
     },
     "b1_global_ratio": {
-     "mae": 4095.4971,
-     "wape": 0.171821,
-     "bias": -2163.0004,
+     "mae": 6386.5596,
+     "wape": 0.129756,
+     "bias": -682.6304,
      "n": 72
     },
     "b2_seasonal_ratio": {
-     "mae": 2386.9135,
-     "wape": 0.100139,
-     "bias": 89.9583,
+     "mae": 4411.8391,
+     "wape": 0.089636,
+     "bias": 1281.2545,
      "n": 72
     },
     "hgb_b2res_v4": {
-     "mae": 2396.4148,
-     "wape": 0.100538,
-     "bias": 167.4313,
+     "mae": 4687.4773,
+     "wape": 0.095236,
+     "bias": 1647.8014,
      "n": 72
     },
     "ts_logratio_pool_v2": {
-     "mae": 2573.8506,
-     "wape": 0.107982,
-     "bias": -196.5519,
+     "mae": 5322.8846,
+     "wape": 0.108146,
+     "bias": 1574.2014,
+     "n": 72
+    },
+    "stan_safe_v1": {
+     "mae": 3765.8416,
+     "wape": 0.076511,
+     "bias": 1421.3016,
+     "n": 72
+    },
+    "hts_anchor_v1": {
+     "mae": 4154.4198,
+     "wape": 0.084406,
+     "bias": 646.0759,
+     "n": 72
+    },
+    "spatial_hgb_v1": {
+     "mae": 3076.3893,
+     "wape": 0.062503,
+     "bias": -1356.9896,
      "n": 72
     }
    },
@@ -126,9 +144,27 @@
       "n": 24
      },
      "ts_logratio_pool_v2": {
-      "mae": 1329.6198,
-      "wape": 0.096716,
-      "bias": -520.2266,
+      "mae": 1264.4335,
+      "wape": 0.091975,
+      "bias": -577.0564,
+      "n": 24
+     },
+     "stan_safe_v1": {
+      "mae": 694.2243,
+      "wape": 0.050498,
+      "bias": 430.6627,
+      "n": 24
+     },
+     "hts_anchor_v1": {
+      "mae": 783.9016,
+      "wape": 0.057021,
+      "bias": 3.5425,
+      "n": 24
+     },
+     "spatial_hgb_v1": {
+      "mae": 633.4785,
+      "wape": 0.046079,
+      "bias": 96.2008,
       "n": 24
      }
     },
@@ -142,7 +178,7 @@
      "b1_global_ratio": {
       "mae": 7095.928,
       "wape": 0.163888,
-      "bias": -4304.7111,
+      "bias": -4304.711,
       "n": 24
      },
      "b2_seasonal_ratio": {
@@ -158,41 +194,77 @@
       "n": 24
      },
      "ts_logratio_pool_v2": {
-      "mae": 4539.1123,
-      "wape": 0.104835,
-      "bias": -1171.3176,
+      "mae": 4769.705,
+      "wape": 0.110161,
+      "bias": -1095.0802,
+      "n": 24
+     },
+     "stan_safe_v1": {
+      "mae": 3391.3739,
+      "wape": 0.078327,
+      "bias": 1278.5174,
+      "n": 24
+     },
+     "hts_anchor_v1": {
+      "mae": 4250.1056,
+      "wape": 0.098161,
+      "bias": 264.5697,
+      "n": 24
+     },
+     "spatial_hgb_v1": {
+      "mae": 2870.4254,
+      "wape": 0.066295,
+      "bias": -1670.2393,
       "n": 24
      }
     },
     "australia": {
      "b0_raw_modis": {
-      "mae": 11415.1667,
-      "wape": 0.789292,
-      "bias": -11415.1667,
+      "mae": 71112.7917,
+      "wape": 0.78479,
+      "bias": -71112.7917,
       "n": 24
      },
      "b1_global_ratio": {
-      "mae": 1697.339,
-      "wape": 0.117361,
-      "bias": 948.0543,
+      "mae": 8570.5267,
+      "wape": 0.094583,
+      "bias": 5389.1645,
       "n": 24
      },
      "b2_seasonal_ratio": {
-      "mae": 1668.835,
-      "wape": 0.11539,
-      "bias": 715.6354,
+      "mae": 7743.6121,
+      "wape": 0.085457,
+      "bias": 4289.524,
       "n": 24
      },
      "hgb_b2res_v4": {
-      "mae": 1697.339,
-      "wape": 0.117361,
-      "bias": 948.0543,
+      "mae": 8570.5267,
+      "wape": 0.094583,
+      "bias": 5389.1645,
       "n": 24
      },
      "ts_logratio_pool_v2": {
-      "mae": 1852.8198,
-      "wape": 0.128112,
-      "bias": 1101.8886,
+      "mae": 9934.5152,
+      "wape": 0.109636,
+      "bias": 6394.7409,
+      "n": 24
+     },
+     "stan_safe_v1": {
+      "mae": 7211.9265,
+      "wape": 0.07959,
+      "bias": 2554.7248,
+      "n": 24
+     },
+     "hts_anchor_v1": {
+      "mae": 7429.2523,
+      "wape": 0.081988,
+      "bias": 1670.1155,
+      "n": 24
+     },
+     "spatial_hgb_v1": {
+      "mae": 5725.2639,
+      "wape": 0.063183,
+      "bias": -2496.9303,
       "n": 24
      }
     }
