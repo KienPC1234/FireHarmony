@@ -8,12 +8,14 @@
 - [ ] Thử walkthrough `docs/DEMO.md` dưới 3:00.
 - [ ] Điền portal Space Apps: tóm tắt, link demo/video, ảnh calendar + map.
 - [ ] Ghi rõ giới hạn: coverage theo request ledger (day-31 gap là thật),
-      australia chỉ có cửa sổ 5 ngày, pre-2012 upscale là ước lượng,
-      bias giờ bay/mây chưa khử hết, outlook là khí hậu học.
-- [ ] Báo cáo kết quả trung thực: STAN giảm sai số -10.8% MAE trên holdout 72 tháng;
+      Australia đã backfill đủ 84/85 tháng (trước đây từng chỉ có cửa sổ 5 ngày),
+      pre-2012 upscale là ước lượng, bias giờ bay/mây chưa khử hết, outlook là khí hậu học,
+      chỉ mới đánh giá trên 3 AOI (chưa chứng minh transfer sang vùng mới).
+- [ ] Báo cáo kết quả trung thực: STAN đạt MAE 3,765.8 vs B2 4,411.8 (-14.6% MAE,
+      win rate 95.8%, cải thiện cả 3 AOI; 95% CI [-1,452.9, +81.8] chứa 0) trên holdout 72 tháng;
       B2/HTS đóng vai trò mỏ neo chuẩn vững chắc.
 - [ ] Key/data: sample offline trong repo; dữ liệu thật cần FIRMS_MAP_KEY
-      (miễn phí): không commit key; raw ~820 MB không nằm trong zip.
+      (miễn phí): không commit key; raw ~1.4 GB không nằm trong zip.
 - [ ] Demo thật trong zip: `make demo-verify && make demo-install` nạp pack
       Việt Nam 24 tháng (2024-01..2025-12, 362 CSV, 459.832 dòng) đã pin
       SHA-256; sau đó `/calendar?data=raw&method=stan` chạy end-to-end.

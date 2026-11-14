@@ -88,18 +88,6 @@ def test_calendar_matrix_and_anomaly():
     assert any(p["year"] == 2019 and p["month"] == 3 for p in crit)
 
 
-def test_model_rejects_a_bbox_or_date_subset():
-    """AOI-level model totals must not be applied to a filtered subset."""
-    r = client.get("/api/firms/calendar", params={
-        "aoi": "vietnam", "method": "ts", "bbox": "104,10,109,16"})
-    assert r.status_code == 409
-    assert r.json()["detail"]["error_code"] == "model_requires_full_aoi"
-    r2 = client.get("/api/firms/calendar", params={
-        "aoi": "vietnam", "method": "ts",
-        "from_date": "2019-01-01", "to_date": "2019-03-31"})
-    assert r2.status_code == 409
-
-
 def test_models_endpoint_declares_one_primary():
     r = client.get("/api/firms/models")
     assert r.status_code == 200
@@ -132,13 +120,12 @@ def test_dl_describe_names_one_primary_model():
     assert info["active_served_model"].startswith("STAN")
     served = [m for m in info["models"] if m["used_in_pipeline"]]
     assert len(served) == 1 and served[0]["method_id"] == "stan_safe_v1"
-    assert {m["method_id"] for m in info["archived"]} >= {
-        "hgb_b2res_v4", "ts_logratio_pool_v2", "tileformer_v1"}
+    assert info["archived"] == []
+    assert {m["method_id"] for m in info["models"]} == {
+        "stan_safe_v1", "b2_seasonal_ratio", "hts_anchor_v1"}
     # The deleted torch prototypes must not silently come back.
     assert not hasattr(dl, "CrossSensorCalibrator")
     assert not hasattr(dl, "FireSeasonAE")
-    # A thin-data call still refuses to train (compat shim, not a served model).
-    assert dl.train_calibrator([], epochs=2)["trained"] is False
 
 
 def test_api_bbox_filters_and_latest():
@@ -423,27 +410,13 @@ def test_ask_llm_grounded_or_fallback():
     assert s["provider"] == "ollama" and "model" in s
 
 
-@_NEEDS_TORCH
-def test_ts_status_and_calendar_ts():
-    s = client.get("/api/firms/ts-status", params={"aoi": "vietnam"}).json()
-    assert s["trained"] is True and s["method_id"] == "ts_logratio_pool_v2"
-    assert s["params"] > 1000
-    r = client.get("/api/firms/calendar", params={"aoi": "vietnam", "method": "ts"}).json()
-    assert r["method_id"] == "ts_logratio_pool_v2"
-    assert any(d.get("estimate_type") == "ts_predicted" for d in r["daily"])
-    bad = client.get("/api/firms/calendar", params={"aoi": "vietnam", "method": "nope"})
-    assert bad.status_code == 422
-
-
 @pytest.mark.skipif(not _DIST_INDEX.exists(), reason="no SPA build")
-def test_backtest_has_transformer_and_spa_fallback():
+def test_backtest_has_baselines_and_spa_fallback():
     b = client.get("/api/firms/backtest", params={"aoi": "vietnam", "data": "sample"}).json()
     metrics = b["metrics"]
-    assert "ts_logratio_pool_v2" in metrics
     assert "b2_seasonal_ratio" in metrics
     assert b["eval_unit"].startswith("aoi-month")
-    assert b["months"] and "ts_pred" in b["months"][0]
-    assert b["months"][0]["ml_pred"] is not None
+    assert b["months"] and "b2_pred" in b["months"][0]
     assert client.get("/calendar").status_code == 200
     assert client.get("/logo.svg").headers["content-type"].startswith("image/svg")
     assert client.get("/api/does-not-exist").status_code == 404
@@ -474,30 +447,6 @@ def _modis_rows(acq_dates: list[str], lat0: float = 12.0) -> list[dict]:
             for i, d in enumerate(acq_dates)]
 
 
-def test_ml_monthly_conservation():
-    """P0-01: ML month total == sum of its daily cells == model prediction."""
-    from pathlib import Path as _P
-
-    from app.firms import ml_cal as _mlc
-    model, _meta = _mlc.load_artifact(
-        "vietnam", _P(__file__).resolve().parents[1] / "data" / "firms" / "models")
-    assert model is not None, "ML artifact missing; train first"
-    rows = _modis_rows([f"2019-03-{d:02d}" for d in range(1, 21)])
-    h = client.post("/api/firms/harmonize",
-                    json={"records": rows, "method": "ml", "aoi": "vietnam"}).json()
-    assert h["method_id"].startswith(("hgb_b2res", "hgb-"))
-    assert any(d.get("estimate_type") == "ml_predicted" for d in h["daily"])
-    yi = h["calendar"]["years"].index(2019)
-    month_total = h["calendar"]["matrix"][yi][2]
-    cell_sum = round(sum(d["harmonized_count"] for d in h["daily"]
-                         if str(d["date"])[:7] == "2019-03"), 2)
-    assert abs(month_total - cell_sum) < 0.05
-    ctx = _mlc.monthly_modis_ctx(rows)["2019-03"]
-    pred = round(float(_mlc.predict_viirs(model, ctx["modis"], 3, ctx["day_frac"],
-                                          ctx["terra_frac"], ctx["prev_modis"])), 2)
-    assert abs(month_total - pred) < 0.05
-
-
 def test_xray_matches_calendar():
     """P0-02: xray adjusted_calendar == calendar month total (stat, same aoi/data)."""
     x = client.get("/api/firms/xray", params={"aoi": "vietnam", "data": "sample"}).json()
@@ -509,38 +458,6 @@ def test_xray_matches_calendar():
            for yi, y in enumerate(c["calendar"]["years"]) for mi in range(12)}
     for mo in x["months"]:
         assert abs(mo["adjusted_calendar"] - mat[(mo["year"], mo["month"])]) < 0.02
-
-
-@_NEEDS_RAW
-def test_raw_ml_blocked():
-    """P0-03: synthetic-trained ML/TS artifacts are never served for raw observed data."""
-    r = client.get("/api/firms/calendar",
-                   params={"aoi": "vietnam", "data": "raw", "method": "ml"})
-    assert r.status_code == 200
-    assert r.json()["ml_meta"]["training_source"] == "nasa-firms-raw"
-    r2 = client.get("/api/firms/calendar",
-                    params={"aoi": "vietnam", "data": "raw", "method": "ts"})
-    assert r2.status_code == 200
-    assert r2.json()["ml_meta"]["training_source"] == "nasa-firms-raw"
-    r4 = client.get("/api/firms/calendar",
-                    params={"aoi": "australia", "data": "raw", "method": "ts"})
-    assert r4.status_code == 200  # australia now has a raw-trained TS artifact
-    assert r4.json()["ml_meta"]["training_source"] == "nasa-firms-raw"
-
-
-def test_raw_gate_without_artifact_422(tmp_path, monkeypatch):
-    """P0-03 gate: synthetic-only MODEL_DIR must refuse ml/ts on raw data."""
-    import app.main as _m
-    monkeypatch.setattr(_m, "MODEL_DIR", tmp_path)
-    r = client.get("/api/firms/calendar",
-                   params={"aoi": "vietnam", "data": "raw", "method": "ml"})
-    assert r.status_code == 422
-    r2 = client.get("/api/firms/calendar",
-                    params={"aoi": "vietnam", "data": "raw", "method": "ts"})
-    assert r2.status_code == 422
-    r3 = client.get("/api/firms/calendar",
-                    params={"aoi": "amazon", "data": "raw", "method": "ml"})
-    assert r3.status_code == 422  # empty MODEL_DIR: no artifacts at all
 
 
 def test_completeness_partial():
@@ -591,18 +508,20 @@ def test_platform_mismatch_quarantined():
     assert h["daily"] == []
 
 
-@_NEEDS_TORCH
 def test_export_method_param():
-    """P0-06: export honors method= and matches the dashboard; raw+ml -> 422."""
-    r = client.get("/api/firms/export", params={"aoi": "vietnam", "method": "ts"})
+    """P0-06: export honors method= and matches the dashboard; archived -> 422."""
+    r = client.get("/api/firms/export", params={"aoi": "vietnam", "method": "stat"})
     assert r.status_code == 200
     assert "X-Data-Source" in r.headers
     assert "cell_id" in r.text.splitlines()[0]
     if _RAW_AVAILABLE:
-        bad = client.get("/api/firms/export",
-                         params={"aoi": "vietnam", "data": "raw", "method": "ml"})
-        assert bad.status_code == 200  # vietnam raw ml artifact exists
-        assert "cell_km2" in bad.text.splitlines()[0]
+        good = client.get("/api/firms/export",
+                          params={"aoi": "vietnam", "data": "raw", "method": "hts"})
+        assert good.status_code == 200
+        assert "cell_km2" in good.text.splitlines()[0]
+    removed = client.get("/api/firms/export",
+                         params={"aoi": "vietnam", "method": "ml"})
+    assert removed.status_code == 422
     bad2 = client.get("/api/firms/export",
                       params={"aoi": "vietnam", "data": "raw", "method": "nonsense"})
     assert bad2.status_code == 422
@@ -629,18 +548,6 @@ def test_upload_dataset_roundtrip():
     assert "user-uploaded" in cal["data_source"]
     bad = client.get("/api/firms/calendar", params={"dataset": "upload:deadbeefdeadbeef"})
     assert bad.status_code == 404
-
-
-@_NEEDS_RAW
-def test_raw_artifact_gate():
-    # all 3 AOIs now have raw-trained ml + ts artifacts (2019-2025 pulls)
-    for aoi, method in [("vietnam", "ml"), ("vietnam", "ts"),
-                        ("amazon", "ml"), ("amazon", "ts"),
-                        ("australia", "ml"), ("australia", "ts")]:
-        r = client.get("/api/firms/calendar",
-                       params={"aoi": aoi, "data": "raw", "method": method})
-        assert r.status_code == 200, (aoi, method)
-        assert r.json()["ml_meta"]["training_source"] == "nasa-firms-raw", (aoi, method)
 
 
 def test_noaa_abbrev_satellites_normalized_and_kept():
@@ -675,39 +582,6 @@ def _synthetic_pairs(n_months: int = 48) -> list[dict]:
     return pairs
 
 
-def test_T01_v4_dispatch_uses_seven_features():
-    """T01: b2_residual must dispatch to ml_v4, never the 6-feature legacy path."""
-    from app.firms import ml_v4
-    res = ml_v4.train_holdout(_synthetic_pairs(), test_years=2, tune=False)
-    model = res["model"]
-    assert model.n_features_in_ == 7
-    from app.firms import ml_cal
-    pred = ml_cal.predict_viirs(model, 500, 3, 0.8, 0.5, 400)
-    assert pred >= 0
-    # an unknown target must fail loudly, not silently fall back
-    class _Bad:
-        _target = "unknown-space"
-        n_features_in_ = 7
-    with pytest.raises(ValueError):
-        ml_cal.predict_viirs(_Bad(), 10, 1)
-
-
-def test_T02_predict_one_equals_predict_counts_gate_on_and_off():
-    """T02: one inverse transform for batch and single-row inference."""
-    from app.firms import ml_v4
-    res = ml_v4.train_holdout(_synthetic_pairs(), test_years=2, tune=False)
-    model = res["model"]
-    for gate in (True, False):
-        model._use_residual = gate
-        model._fallback = "b2_seasonal_ratio"
-        for modis in (0, 1, 5, 30, 1000):
-            for month in range(1, 13):
-                batch = float(ml_v4.predict_counts(
-                    model, [{"modis": modis, "month": month}])[0])
-                one = float(ml_v4.predict_one(model, modis, month, 0.5, 0.5))
-                assert abs(batch - one) < 1e-6, (gate, modis, month, batch, one)
-
-
 def test_T03_full_month_windows_cover_every_day():
     """T03: 28/29/30/31-day months are fully requested, with no spill."""
     from scripts.firms.fetch_full_month import windows_for_month
@@ -720,29 +594,6 @@ def test_T03_full_month_windows_cover_every_day():
             assert start + ndays - 1 <= last
             covered += list(range(start, start + ndays))
         assert covered == list(range(1, last + 1)), (year, month, wins)
-
-
-def test_T04_no_target_leakage_from_test_viirs():
-    """T04: changing holdout VIIRS must not change train-only predictions."""
-    from app.firms import evaluation, ml_v4
-    pairs = _synthetic_pairs(60)
-    train = [p for p in pairs if p["year"] < 2023]
-    test = [p for p in pairs if p["year"] >= 2023]
-    b1_log, b2_log = evaluation.ratios_from_train(train)
-    before = [evaluation._counts(p["modis"], b2_log.get(p["month"], b1_log))
-              for p in test]
-    for p in test:
-        p["viirs"] = int(p["viirs"] * 100)
-    after = [evaluation._counts(p["modis"], b2_log.get(p["month"], b1_log))
-             for p in test]
-    assert before == after
-    # a model fit on train is also invariant to test targets
-    res = ml_v4.train_holdout(pairs, test_years=2, tune=False)
-    m = res["model"]
-    pred_mutated = ml_v4.predict_counts(m, test)
-    for p, v in zip(test, pred_mutated):
-        p["viirs"] = 1
-    assert (pred_mutated == ml_v4.predict_counts(m, test)).all()
 
 
 def test_T05_missing_month_is_null_not_zero():
@@ -775,7 +626,7 @@ def test_T07b_unified_table_includes_the_primary_model():
     m = evaluation.load_manifest("raw")
     if not m:
         pytest.skip("run scripts.firms.unify_eval --data raw first")
-    assert m["evaluation_version"] == "eval-v3"
+    assert m["evaluation_version"] == "eval-v4"
     assert m["primary_method_id"] == "stan_safe_v1"
     for method in evaluation.ARTIFACT_METHODS:
         assert method in m["methods"], method
@@ -799,10 +650,9 @@ def test_T07c_registry_declares_exactly_one_primary():
     assert primary[0]["method_id"] == registry.PRIMARY == "stan_safe_v1"
     assert registry.BASELINE in registry.served_methods()
     assert registry.FALLBACK in registry.served_methods()
-    archived = {m["method_id"] for m in registry.archived()}
-    assert {"hgb_b2res_v4", "ts_logratio_pool_v2", "tileformer_v1"} <= archived
-    # No archived model may claim to serve the calendar.
-    assert not any(m["served"] for m in registry.archived())
+    assert registry.archived() == []
+    assert {m["method_id"] for m in registry.MODELS} == {
+        "stan_safe_v1", "b2_seasonal_ratio", "hts_anchor_v1"}
 
 
 def test_T07e_model_band_propagates_to_estimated_cells():
@@ -956,23 +806,15 @@ def test_T07h_primary_recommendation_tracks_the_gate():
             assert metrics[name]["mae"] < metrics["b2_seasonal_ratio"]["mae"]
 
 
-def test_T08_cache_key_changes_with_model_or_data_version(monkeypatch):
-    from app.firms import evaluation, ml_v4
-    k1 = evaluation.cache_key("vietnam", "raw", 2, extra="x")
-    monkeypatch.setattr(ml_v4, "ALGORITHM_VERSION", ml_v4.ALGORITHM_VERSION + "-next")
-    k2 = evaluation.cache_key("vietnam", "raw", 2, extra="x")
-    assert k1 != k2
-
-
 def test_T09_xray_uses_unified_manifest_not_legacy():
     """T09: xray scores the V4 manifest and never loads sample for raw."""
     x = client.get("/api/firms/xray", params={"aoi": "vietnam", "data": "sample"}).json()
     assert "backtest_metrics" in x
-    assert "hgb_residual_enabled" in x
+    assert "primary_gate" in x
     assert x["months"] and "ratio_source" in x["months"][0]
     if x.get("evaluation_version"):
         assert x["backtest_metrics"] is not None
-        assert "hgb_b2res_v4" in x["backtest_metrics"]
+        assert "b2_seasonal_ratio" in x["backtest_metrics"]
 
 
 def test_T10_raw_absent_is_explicit_404(tmp_path, monkeypatch):
@@ -1008,42 +850,12 @@ def test_T11_export_matches_calendar():
             assert abs(got - v) < 0.02, (y, mi + 1, got, v)
 
 
-@_NEEDS_TORCH
 def test_T12_brief_matches_calendar_method_and_scope():
-    b = client.get("/api/firms/brief", params={"aoi": "vietnam", "method": "ts"}).text
-    assert "requested `ts`" in b
-    assert "effective `ts_logratio_pool_v2`" in b
+    b = client.get("/api/firms/brief", params={"aoi": "vietnam", "method": "stat"}).text
+    assert "requested `stat`" in b
+    assert "effective `seasonal_ratio_v1`" in b
     assert "Period:" in b
     assert "synthetic" in b.lower()
-
-
-def test_T13_artifact_compat_rejects_stale_fingerprint():
-    from pathlib import Path as _P
-    from app.firms import ml_cal
-    model, meta = ml_cal.load_artifact(
-        "vietnam", _P(__file__).resolve().parents[1] / "data" / "firms" / "models",
-        tag="raw")
-    ok, why = ml_cal.artifact_compat(model, meta, expected_fingerprint="stale")
-    assert not ok and "mismatch" in why
-    ok2, why2 = ml_cal.artifact_compat(model, meta, expected_fingerprint=None)
-    assert ok2
-
-
-def test_T14_replay_hides_test_viirs_but_keeps_reference():
-    """T14: predicted inputs depend on MODIS/context only; reference is separate."""
-    from app.firms import ml_v4
-    pairs = _synthetic_pairs(60)
-    res = ml_v4.train_holdout(pairs, test_years=2, tune=False)
-    m = res["model"]
-    test = [p for p in pairs if p["year"] >= 2023]
-    p1 = ml_v4.predict_counts(m, test)
-    ref1 = [p["viirs"] for p in test]
-    for p in test:
-        p["viirs"] = 0
-    p2 = ml_v4.predict_counts(m, test)
-    ref2 = [p["viirs"] for p in test]
-    assert (p1 == p2).all()
-    assert ref1 != ref2
 
 
 def test_T15_platform_mix_is_explicit():
@@ -1074,7 +886,8 @@ def test_T17_production_requires_admin_token(monkeypatch):
     """T17: APP_ENV=production with no ADMIN_TOKEN must not expose writes."""
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.delenv("ADMIN_TOKEN", raising=False)
-    r = client.post("/api/firms/ml-train", json={"aoi": "vietnam", "data": "sample"})
+    r = client.get("/api/firms/backtest",
+                   params={"aoi": "vietnam", "data": "sample", "refresh": 1})
     assert r.status_code == 503
 
 
@@ -1211,127 +1024,6 @@ def test_T32b_streaming_llm_obeys_the_grounding_guard(monkeypatch):
     assert "ungrounded" in out[-1]["reason"]
 
 
-@_NEEDS_TORCH
-def test_T33_sensorformer_lite_is_an_honest_comparator():
-    """Audit V6 + audit-2: SF is scored on the same holdout, gated, not served."""
-    st = client.get("/api/firms/sf-status", params={"data": "raw"}).json()
-    assert st["trained"] is True
-    assert st["model_artifact_available"] is True
-    assert st["artifact_verified"] is True
-    assert st["artifact"]["hash_ok"] is True
-    assert st["n_test"] == 72 and st["n_train"] > 100
-    assert st["metrics"]["n"] == 72
-    assert 0.0 <= st["coverage80"] <= 1.0
-    assert {"no_gate", "no_attn"} <= set(st["ablation"])
-    # Audit-2 P1: mean and median width are different statistics, both stored.
-    assert st["mean_interval_width"] >= st["median_interval_width"] > 0
-    assert st["quantile_crossings"] == 0
-    assert len(st["per_seed_mae"]) == 5
-    bt = client.get("/api/firms/backtest",
-                    params={"aoi": "vietnam", "data": "sample"}).json()
-    assert "sf_lite_v1" in bt["metrics"]
-    assert bt["sf_lite_deployed"] is False
-    assert bt["months"] and bt["months"][0].get("sf_pred") is not None
-    # The gate must be explicit: losing to B2 means not deployed.
-    assert st["mean_gain_vs_b2"] < 0.02
-    assert st["metrics"]["mae"] > st["b2_mae"]
-    # Predictions are monotone quantiles by construction.
-    from app.firms import sf_lite
-    _, meta = sf_lite.load_artifact("raw")
-    for p in meta["predictions"].values():
-        assert p["low"] <= p["mid"] <= p["high"]
-
-
-def test_T34_sensorformer_inputs_never_contain_target_viirs():
-    import numpy as np
-    from app.firms import sf_lite
-    pairs = sf_lite.load_pairs("raw")
-    train = [p for p in pairs if p["year"] < 2024]
-    ratios = {a: sf_lite._b2_log([p for p in train if p["aoi"] == a])
-              for a in sf_lite.AOIS}
-    before = {w["id"]: w for w in sf_lite.build_windows(pairs, ratios)}
-    mutated = [dict(p) for p in pairs]
-    for p in mutated:
-        if p["year"] >= 2024:
-            p["viirs"] = 999999.0
-    after = {w["id"]: w for w in sf_lite.build_windows(mutated, ratios)}
-    sid = "vietnam:2025-01"
-    assert sid in before and sid in after
-    assert np.array_equal(before[sid]["X"], after[sid]["X"])
-    assert np.array_equal(before[sid]["ctx"], after[sid]["ctx"])
-    # Audit-2 P1: the constant `observed` flag was removed, not faked.
-    assert "observed" not in sf_lite.FEATURES
-    assert before[sid]["X"].shape == (12, len(sf_lite.FEATURES))
-
-
-def test_T36_sensorformer_selection_split_has_no_2023_leak():
-    """Audit-2 P0: 2023 validation must not enter the B2 features/labels."""
-    import math
-    import numpy as np
-    from app.firms import sf_lite
-    pairs = sf_lite.load_pairs("raw")
-    sel = [p for p in pairs if p["year"] < 2023]
-    ratios = {a: sf_lite._b2_log([p for p in sel if p["aoi"] == a])
-              for a in sf_lite.AOIS}
-    ws = {w["id"]: w for w in sf_lite.build_windows(pairs, ratios)}
-    row = ws["vietnam:2023-06"]
-    manual = float(np.median([
-        math.log((p["viirs"] + 1.0) / (p["modis"] + 1.0))
-        for p in sel if p["aoi"] == "vietnam" and p["month"] == 6
-        and p["modis"] > 0]))
-    assert abs(row["b2_log"] - manual) < 1e-9
-    # The old buggy cutoff (<2024) differs, so this test would have caught it.
-    leaky = {a: sf_lite._b2_log([p for p in pairs
-                                 if p["aoi"] == a and p["year"] < 2024])
-             for a in sf_lite.AOIS}
-    leaky_row = {w["id"]: w for w in sf_lite.build_windows(pairs, leaky)}["vietnam:2023-06"]
-    assert abs(leaky_row["b2_log"] - manual) > 1e-6
-
-
-@_NEEDS_TORCH
-def test_T37_sensorformer_early_stopping_runs_in_eval_mode():
-    """Audit-2 P0: dropout must be off while validation picks the epoch."""
-    from app.firms import sf_lite
-    pairs = sf_lite.load_pairs("sample")
-    ratios = {a: sf_lite._b2_log([p for p in pairs
-                                  if p["aoi"] == a and p["year"] < 2023])
-              for a in sf_lite.AOIS}
-    ws = sf_lite.build_windows(pairs, ratios)
-    fit = [w for w in ws if w["year"] < 2023]
-    val = [w for w in ws if w["year"] == 2023]
-    model, best_epoch, best_mae = sf_lite._fit(7, fit, val, epochs=2)
-    assert model.training is False
-    assert best_epoch >= 1 and best_mae > 0
-    a = sf_lite._val_mae(model, val)
-    b = sf_lite._val_mae(model, val)
-    assert a == b  # no dropout noise in the selection metric
-
-
-def test_T38_sf_artifact_hash_mismatch_is_rejected(tmp_path):
-    """Audit-2 P1: never load weights that do not match metadata."""
-    import shutil
-    from app.firms import sf_lite
-    src = sf_lite._pairs_path("raw").parent.parent / "models"
-    shutil.copy(src / "sf_lite_raw.json", tmp_path / "sf_lite_raw.json")
-    shutil.copy(src / "sf_lite_raw.pt", tmp_path / "sf_lite_raw.pt")
-    st = sf_lite.artifact_status("raw", tmp_path)
-    assert st["available"] is True and st["hash_ok"] is True
-    with (tmp_path / "sf_lite_raw.pt").open("ab") as fh:
-        fh.write(b"tampered")
-    st = sf_lite.artifact_status("raw", tmp_path)
-    assert st["available"] is False
-    assert st["reason"] == "weights_sha256_mismatch"
-    assert sf_lite.load_artifact("raw", tmp_path) == (None, None)
-
-
-def test_T39_sf_status_separates_artifact_from_live_data():
-    """Audit-2 P1: a trained artifact does not imply raw NASA data is present."""
-    st = client.get("/api/firms/sf-status", params={"data": "raw"}).json()
-    assert st["model_artifact_available"] is True
-    assert isinstance(st["live_data_available"], bool)
-    assert "artifact" in st and "feature_version" in st
-
-
 def test_T35_srf_artifacts_were_removed():
     """SRF was deleted (srf.py + srf_raw.*); nothing may resurrect it."""
     assert not (BACKEND_DIR / "data/firms/models/srf_raw.pt").exists()
@@ -1423,43 +1115,6 @@ def test_T47_hts_evidence_serves_a_candidate_month():
     st = client.get("/api/firms/hts-status").json()
     assert st["series"]["available"] is True
     assert st["served"] is False and st["candidate"] is True
-
-
-def test_T48_spatial_hgb_wins_but_is_explicitly_retrospective():
-    """Neighbour VIIRS is a valid retrospective covariate, not a forecast input."""
-    import json
-    meta = json.loads((BACKEND_DIR / "data/firms/models/spatial_hgb_raw.json")
-                      .read_text(encoding="utf-8"))
-    assert meta["retrospective"] is True
-    assert meta["requires_neighbour_viirs"] is True
-    assert meta["headline"]["n"] == 72
-    # With the full-month Australia backfill the absolute gain is smaller than
-    # on the sparse-window data; the relative ordering and CI are the contract.
-    assert meta["headline"]["mae"] < 0.8 * meta["b2_headline"]["mae"]
-    assert meta["headline"]["mae"] < 0.85 * meta["hts_headline"]["mae"]
-    ci = meta["comparisons"]["spatial_vs_b2"]["ci95"]
-    assert ci[1] < 0
-    ci_h = meta["comparisons"]["spatial_vs_hts"]["ci95"]
-    assert ci_h[1] < 0
-    for aoi, row in meta["per_aoi"].items():
-        assert row["spatial"]["mae"] < row["hts"]["mae"], aoi
-    # Spatial holdout: whole tiles never seen in training.
-    ho = meta["spatial_holdout"]
-    assert ho["held_tiles"] > 150
-    assert ho["spatial_mae"] < ho["hts_mae"]
-    # Ablation: without same-month neighbour VIIRS the gain disappears.
-    assert meta["safe_headline"]["mae"] > meta["hts_headline"]["mae"]
-    # Rolling-origin: the spatial model wins every pre-holdout year too.
-    for year, row in meta["rolling"].items():
-        assert row["pred"] < row["hts"], year
-
-
-def test_T49_spatial_status_is_a_candidate_not_a_served_default():
-    st = client.get("/api/firms/spatial-status").json()
-    assert st["trained"] is True
-    assert st["candidate"] is True and st["served"] is False
-    assert st["retrospective"] is True
-    assert st["requires_neighbour_viirs"] is True
 
 
 def test_T50_stan_safe_beats_b2_without_retrospective_leakage():

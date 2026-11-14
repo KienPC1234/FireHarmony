@@ -1,6 +1,6 @@
 {
- "evaluation_version": "eval-v3",
- "created_at": "2026-11-13T00:45:32.439104+00:00",
+ "evaluation_version": "eval-v4",
+ "created_at": "2026-11-13T03:14:33.247279+00:00",
  "data": "raw",
  "data_source": "NASA FIRMS observed",
  "eval_unit": "aoi-month (VIIRS hotspot detections, not fires)",
@@ -18,61 +18,9 @@
  ],
  "test_year_count": 2,
  "excluded_months": [],
- "dataset_sha256": "7ba6b1ac91043aeb",
- "pair_table_hash": "7ba6b1ac91043aeb",
+ "dataset_sha256": "ba2843d649435d28",
+ "pair_table_hash": "ba2843d649435d28",
  "comparisons": {
-  "hgb_vs_b2": {
-   "method_a": "hgb_b2res_v4",
-   "method_b": "b2_seasonal_ratio",
-   "delta_mae": 275.6382,
-   "ci95": [
-    -154.6796,
-    717.1522
-   ],
-   "prob_a_better": 0.1125,
-   "n": 72,
-   "n_boot": 2000,
-   "unit": "AOI-month row bootstrap (not independent hotspots)"
-  },
-  "hgb_vs_b1": {
-   "method_a": "hgb_b2res_v4",
-   "method_b": "b1_global_ratio",
-   "delta_mae": -1699.0823,
-   "ci95": [
-    -3244.433,
-    -450.073
-   ],
-   "prob_a_better": 0.9975,
-   "n": 72,
-   "n_boot": 2000,
-   "unit": "AOI-month row bootstrap (not independent hotspots)"
-  },
-  "ts_vs_b2": {
-   "method_a": "ts_logratio_pool_v2",
-   "method_b": "b2_seasonal_ratio",
-   "delta_mae": 911.0455,
-   "ci95": [
-    91.4375,
-    1758.4455
-   ],
-   "prob_a_better": 0.0185,
-   "n": 72,
-   "n_boot": 2000,
-   "unit": "AOI-month row bootstrap (not independent hotspots)"
-  },
-  "ts_vs_b1": {
-   "method_a": "ts_logratio_pool_v2",
-   "method_b": "b1_global_ratio",
-   "delta_mae": -1063.675,
-   "ci95": [
-    -2465.4593,
-    121.4529
-   ],
-   "prob_a_better": 0.9625,
-   "n": 72,
-   "n_boot": 2000,
-   "unit": "AOI-month row bootstrap (not independent hotspots)"
-  },
   "stan_vs_b2": {
    "method_a": "stan_safe_v1",
    "method_b": "b2_seasonal_ratio",
@@ -111,19 +59,6 @@
    "n": 72,
    "n_boot": 2000,
    "unit": "AOI-month row bootstrap (not independent hotspots)"
-  },
-  "spatial_vs_b2": {
-   "method_a": "spatial_hgb_v1",
-   "method_b": "b2_seasonal_ratio",
-   "delta_mae": -1335.4499,
-   "ci95": [
-    -2740.4225,
-    -162.2599
-   ],
-   "prob_a_better": 0.989,
-   "n": 72,
-   "n_boot": 2000,
-   "unit": "AOI-month row bootstrap (not independent hotspots)"
   }
  },
  "n_eval": 72,
@@ -138,11 +73,8 @@
    "b0_raw_modis": 2059.0,
    "b1_global_ratio": 7194.2799,
    "b2_seasonal_ratio": 6636.7778,
-   "hgb_b2res_v4": 6636.7778,
-   "ts_logratio_pool_v2": 7136.0985,
    "stan_safe_v1": 6737.401,
-   "hts_anchor_v1": 6590.583,
-   "spatial_hgb_v1": 6286.018
+   "hts_anchor_v1": 6590.583
   },
   {
    "id": "amazon:2024-02",
@@ -154,11 +86,8 @@
    "b0_raw_modis": 5237.0,
    "b1_global_ratio": 18294.5709,
    "b2_seasonal_ratio": 12209.0206,
-   "hgb_b2res_v4": 12209.0206,
-   "ts_logratio_pool_v2": 19062.7745,
    "stan_safe_v1": 15031.945,
-   "hts_anchor_v1": 14963.817,
-   "spatial_hgb_v1": 14313.916
+   "hts_anchor_v1": 14963.817
   },
   {
    "id": "amazon:2024-03",
@@ -170,11 +99,8 @@
    "b0_raw_modis": 4942.0,
    "b1_global_ratio": 17264.1789,
    "b2_seasonal_ratio": 13989.3875,
-   "hgb_b2res_v4": 13989.3875,
-   "ts_logratio_pool_v2": 16904.371,
    "stan_safe_v1": 14587.559,
-   "hts_anchor_v1": 15307.763,
-   "spatial_hgb_v1": 14846.008
+   "hts_anchor_v1": 15307.763
   },
   {
    "id": "amazon:2024-04",
@@ -186,11 +112,8 @@
    "b0_raw_modis": 1249.0,
    "b1_global_ratio": 4365.0679,
    "b2_seasonal_ratio": 3740.8514,
-   "hgb_b2res_v4": 3740.8514,
-   "ts_logratio_pool_v2": 3580.3136,
    "stan_safe_v1": 3788.25,
-   "hts_anchor_v1": 3892.684,
-   "spatial_hgb_v1": 3254.994
+   "hts_anchor_v1": 3892.684
   },
   {
    "id": "amazon:2024-05",
@@ -202,11 +125,8 @@
    "b0_raw_modis": 2253.0,
    "b1_global_ratio": 7871.8936,
    "b2_seasonal_ratio": 6995.7327,
-   "hgb_b2res_v4": 6995.7327,
-   "ts_logratio_pool_v2": 6819.4027,
    "stan_safe_v1": 6275.659,
-   "hts_anchor_v1": 6740.342,
-   "spatial_hgb_v1": 5625.953
+   "hts_anchor_v1": 6740.342
   },
   {
    "id": "amazon:2024-06",
@@ -218,11 +138,8 @@
    "b0_raw_modis": 4416.0,
    "b1_global_ratio": 15426.9375,
    "b2_seasonal_ratio": 14406.1909,
-   "hgb_b2res_v4": 14406.1909,
-   "ts_logratio_pool_v2": 14086.1724,
    "stan_safe_v1": 14124.761,
-   "hts_anchor_v1": 14529.217,
-   "spatial_hgb_v1": 13350.162
+   "hts_anchor_v1": 14529.217
   },
   {
    "id": "amazon:2024-07",
@@ -234,11 +151,8 @@
    "b0_raw_modis": 17223.0,
    "b1_global_ratio": 60159.9227,
    "b2_seasonal_ratio": 60715.3615,
-   "hgb_b2res_v4": 60715.3615,
-   "ts_logratio_pool_v2": 61428.4187,
    "stan_safe_v1": 57298.639,
-   "hts_anchor_v1": 58749.759,
-   "spatial_hgb_v1": 39627.958
+   "hts_anchor_v1": 58749.759
   },
   {
    "id": "amazon:2024-08",
@@ -250,11 +164,8 @@
    "b0_raw_modis": 67155.0,
    "b1_global_ratio": 234565.1243,
    "b2_seasonal_ratio": 260630.3385,
-   "hgb_b2res_v4": 260630.3385,
-   "ts_logratio_pool_v2": 255994.7511,
    "stan_safe_v1": 275024.387,
-   "hts_anchor_v1": 263017.955,
-   "spatial_hgb_v1": 262801.382
+   "hts_anchor_v1": 263017.955
   },
   {
    "id": "amazon:2024-09",
@@ -266,11 +177,8 @@
    "b0_raw_modis": 77616.0,
    "b1_global_ratio": 271103.8733,
    "b2_seasonal_ratio": 309320.2745,
-   "hgb_b2res_v4": 309320.2745,
-   "ts_logratio_pool_v2": 304361.3575,
    "stan_safe_v1": 324536.593,
-   "hts_anchor_v1": 313727.476,
-   "spatial_hgb_v1": 315762.645
+   "hts_anchor_v1": 313727.476
   },
   {
    "id": "amazon:2024-10",
@@ -282,11 +190,8 @@
    "b0_raw_modis": 21481.0,
    "b1_global_ratio": 75032.4964,
    "b2_seasonal_ratio": 93130.5542,
-   "hgb_b2res_v4": 93130.5542,
-   "ts_logratio_pool_v2": 84696.0152,
    "stan_safe_v1": 91803.304,
-   "hts_anchor_v1": 91800.498,
-   "spatial_hgb_v1": 88911.396
+   "hts_anchor_v1": 91800.498
   },
   {
    "id": "amazon:2024-11",
@@ -298,11 +203,8 @@
    "b0_raw_modis": 16192.0,
    "b1_global_ratio": 56558.7899,
    "b2_seasonal_ratio": 63645.2467,
-   "hgb_b2res_v4": 63645.2467,
-   "ts_logratio_pool_v2": 65800.9228,
    "stan_safe_v1": 68186.607,
-   "hts_anchor_v1": 65657.231,
-   "spatial_hgb_v1": 59655.517
+   "hts_anchor_v1": 65657.231
   },
   {
    "id": "amazon:2024-12",
@@ -314,11 +216,8 @@
    "b0_raw_modis": 4517.0,
    "b1_global_ratio": 15779.7158,
    "b2_seasonal_ratio": 17908.6139,
-   "hgb_b2res_v4": 17908.6139,
-   "ts_logratio_pool_v2": 17158.1953,
    "stan_safe_v1": 19495.721,
-   "hts_anchor_v1": 18739.576,
-   "spatial_hgb_v1": 17012.079
+   "hts_anchor_v1": 18739.576
   },
   {
    "id": "amazon:2025-01",
@@ -330,11 +229,8 @@
    "b0_raw_modis": 998.0,
    "b1_global_ratio": 3488.3615,
    "b2_seasonal_ratio": 3218.0,
-   "hgb_b2res_v4": 3218.0,
-   "ts_logratio_pool_v2": 3191.7901,
    "stan_safe_v1": 3711.913,
-   "hts_anchor_v1": 3680.519,
-   "spatial_hgb_v1": 3351.826
+   "hts_anchor_v1": 3680.519
   },
   {
    "id": "amazon:2025-02",
@@ -346,11 +242,8 @@
    "b0_raw_modis": 401.0,
    "b1_global_ratio": 1403.1274,
    "b2_seasonal_ratio": 936.0806,
-   "hgb_b2res_v4": 936.0806,
-   "ts_logratio_pool_v2": 1016.1665,
    "stan_safe_v1": 930.951,
-   "hts_anchor_v1": 938.453,
-   "spatial_hgb_v1": 693.968
+   "hts_anchor_v1": 938.453
   },
   {
    "id": "amazon:2025-03",
@@ -362,11 +255,8 @@
    "b0_raw_modis": 900.0,
    "b1_global_ratio": 3146.0617,
    "b2_seasonal_ratio": 2549.1394,
-   "hgb_b2res_v4": 2549.1394,
-   "ts_logratio_pool_v2": 2427.1653,
    "stan_safe_v1": 2900.819,
-   "hts_anchor_v1": 2910.176,
-   "spatial_hgb_v1": 2177.665
+   "hts_anchor_v1": 2910.176
   },
   {
    "id": "amazon:2025-04",
@@ -378,11 +268,8 @@
    "b0_raw_modis": 358.0,
    "b1_global_ratio": 1252.9347,
    "b2_seasonal_ratio": 1073.6597,
-   "hgb_b2res_v4": 1073.6597,
-   "ts_logratio_pool_v2": 796.088,
    "stan_safe_v1": 880.085,
-   "hts_anchor_v1": 925.034,
-   "spatial_hgb_v1": 672.732
+   "hts_anchor_v1": 925.034
   },
   {
    "id": "amazon:2025-05",
@@ -394,11 +281,8 @@
    "b0_raw_modis": 915.0,
    "b1_global_ratio": 3198.4546,
    "b2_seasonal_ratio": 2842.3927,
-   "hgb_b2res_v4": 2842.3927,
-   "ts_logratio_pool_v2": 2506.9358,
    "stan_safe_v1": 2790.63,
-   "hts_anchor_v1": 2905.018,
-   "spatial_hgb_v1": 2529.411
+   "hts_anchor_v1": 2905.018
   },
   {
    "id": "amazon:2025-06",
@@ -410,11 +294,8 @@
    "b0_raw_modis": 2620.0,
    "b1_global_ratio": 9153.7712,
    "b2_seasonal_ratio": 8548.0712,
-   "hgb_b2res_v4": 8548.0712,
-   "ts_logratio_pool_v2": 8082.0424,
    "stan_safe_v1": 8637.166,
-   "hts_anchor_v1": 8717.592,
-   "spatial_hgb_v1": 7860.544
+   "hts_anchor_v1": 8717.592
   },
   {
    "id": "amazon:2025-07",
@@ -426,11 +307,8 @@
    "b0_raw_modis": 2957.0,
    "b1_global_ratio": 10330.8631,
    "b2_seasonal_ratio": 10426.2525,
-   "hgb_b2res_v4": 10426.2525,
-   "ts_logratio_pool_v2": 9503.4259,
    "stan_safe_v1": 10357.776,
-   "hts_anchor_v1": 10479.162,
-   "spatial_hgb_v1": 9844.034
+   "hts_anchor_v1": 10479.162
   },
   {
    "id": "amazon:2025-08",
@@ -442,11 +320,8 @@
    "b0_raw_modis": 9485.0,
    "b1_global_ratio": 33132.216,
    "b2_seasonal_ratio": 36814.011,
-   "hgb_b2res_v4": 36814.011,
-   "ts_logratio_pool_v2": 33953.3021,
    "stan_safe_v1": 37102.976,
-   "hts_anchor_v1": 36346.174,
-   "spatial_hgb_v1": 35445.476
+   "hts_anchor_v1": 36346.174
   },
   {
    "id": "amazon:2025-09",
@@ -458,11 +333,8 @@
    "b0_raw_modis": 8555.0,
    "b1_global_ratio": 29883.8615,
    "b2_seasonal_ratio": 34096.5923,
-   "hgb_b2res_v4": 34096.5923,
-   "ts_logratio_pool_v2": 31043.9239,
    "stan_safe_v1": 34839.694,
-   "hts_anchor_v1": 34794.404,
-   "spatial_hgb_v1": 33628.991
+   "hts_anchor_v1": 34794.404
   },
   {
    "id": "amazon:2025-10",
@@ -474,11 +346,8 @@
    "b0_raw_modis": 8185.0,
    "b1_global_ratio": 28591.5054,
    "b2_seasonal_ratio": 35488.0095,
-   "hgb_b2res_v4": 35488.0095,
-   "ts_logratio_pool_v2": 31014.529,
    "stan_safe_v1": 35766.609,
-   "hts_anchor_v1": 35760.849,
-   "spatial_hgb_v1": 34262.179
+   "hts_anchor_v1": 35760.849
   },
   {
    "id": "amazon:2025-11",
@@ -490,11 +359,8 @@
    "b0_raw_modis": 5765.0,
    "b1_global_ratio": 20138.798,
    "b2_seasonal_ratio": 22662.142,
-   "hgb_b2res_v4": 22662.142,
-   "ts_logratio_pool_v2": 23053.6761,
    "stan_safe_v1": 24417.011,
-   "hts_anchor_v1": 23950.043,
-   "spatial_hgb_v1": 18849.445
+   "hts_anchor_v1": 23950.043
   },
   {
    "id": "amazon:2025-12",
@@ -506,11 +372,8 @@
    "b0_raw_modis": 2430.0,
    "b1_global_ratio": 8490.1288,
    "b2_seasonal_ratio": 9635.6249,
-   "hgb_b2res_v4": 9635.6249,
-   "ts_logratio_pool_v2": 9240.2371,
    "stan_safe_v1": 10597.962,
-   "hts_anchor_v1": 10365.347,
-   "spatial_hgb_v1": 8289.959
+   "hts_anchor_v1": 10365.347
   },
   {
    "id": "australia:2024-01",
@@ -522,11 +385,8 @@
    "b0_raw_modis": 9837.0,
    "b1_global_ratio": 48429.342,
    "b2_seasonal_ratio": 46759.9742,
-   "hgb_b2res_v4": 48429.342,
-   "ts_logratio_pool_v2": 50928.8885,
    "stan_safe_v1": 42396.106,
-   "hts_anchor_v1": 42209.821,
-   "spatial_hgb_v1": 38874.336
+   "hts_anchor_v1": 42209.821
   },
   {
    "id": "australia:2024-02",
@@ -538,11 +398,8 @@
    "b0_raw_modis": 3196.0,
    "b1_global_ratio": 15737.1382,
    "b2_seasonal_ratio": 16308.7088,
-   "hgb_b2res_v4": 15737.1382,
-   "ts_logratio_pool_v2": 16377.8012,
    "stan_safe_v1": 15437.345,
-   "hts_anchor_v1": 15659.417,
-   "spatial_hgb_v1": 14223.295
+   "hts_anchor_v1": 15659.417
   },
   {
    "id": "australia:2024-03",
@@ -554,11 +411,8 @@
    "b0_raw_modis": 4647.0,
    "b1_global_ratio": 22880.0967,
    "b2_seasonal_ratio": 23286.4286,
-   "hgb_b2res_v4": 22880.0967,
-   "ts_logratio_pool_v2": 23831.5467,
    "stan_safe_v1": 21473.346,
-   "hts_anchor_v1": 21791.551,
-   "spatial_hgb_v1": 19964.537
+   "hts_anchor_v1": 21791.551
   },
   {
    "id": "australia:2024-04",
@@ -570,11 +424,8 @@
    "b0_raw_modis": 19301.0,
    "b1_global_ratio": 95018.563,
    "b2_seasonal_ratio": 90992.8874,
-   "hgb_b2res_v4": 95018.563,
-   "ts_logratio_pool_v2": 99792.1112,
    "stan_safe_v1": 93912.058,
-   "hts_anchor_v1": 92469.683,
-   "spatial_hgb_v1": 89525.92
+   "hts_anchor_v1": 92469.683
   },
   {
    "id": "australia:2024-05",
@@ -586,11 +437,8 @@
    "b0_raw_modis": 18473.0,
    "b1_global_ratio": 90942.4984,
    "b2_seasonal_ratio": 90909.4779,
-   "hgb_b2res_v4": 90942.4984,
-   "ts_logratio_pool_v2": 92455.8942,
    "stan_safe_v1": 88394.172,
-   "hts_anchor_v1": 88709.116,
-   "spatial_hgb_v1": 88253.838
+   "hts_anchor_v1": 88709.116
   },
   {
    "id": "australia:2024-06",
@@ -602,11 +450,8 @@
    "b0_raw_modis": 13044.0,
    "b1_global_ratio": 64216.708,
    "b2_seasonal_ratio": 62126.3839,
-   "hgb_b2res_v4": 64216.708,
-   "ts_logratio_pool_v2": 62389.4288,
    "stan_safe_v1": 60765.877,
-   "hts_anchor_v1": 60753.813,
-   "spatial_hgb_v1": 59216.619
+   "hts_anchor_v1": 60753.813
   },
   {
    "id": "australia:2024-07",
@@ -618,11 +463,8 @@
    "b0_raw_modis": 14843.0,
    "b1_global_ratio": 73072.7951,
    "b2_seasonal_ratio": 70351.0593,
-   "hgb_b2res_v4": 73072.7951,
-   "ts_logratio_pool_v2": 70956.9409,
    "stan_safe_v1": 68639.109,
-   "hts_anchor_v1": 68846.76,
-   "spatial_hgb_v1": 59216.154
+   "hts_anchor_v1": 68846.76
   },
   {
    "id": "australia:2024-08",
@@ -634,11 +476,8 @@
    "b0_raw_modis": 15222.0,
    "b1_global_ratio": 74938.53,
    "b2_seasonal_ratio": 73769.5254,
-   "hgb_b2res_v4": 74938.53,
-   "ts_logratio_pool_v2": 71223.5899,
    "stan_safe_v1": 73253.955,
-   "hts_anchor_v1": 72823.798,
-   "spatial_hgb_v1": 69772.642
+   "hts_anchor_v1": 72823.798
   },
   {
    "id": "australia:2024-09",
@@ -650,11 +489,8 @@
    "b0_raw_modis": 19076.0,
    "b1_global_ratio": 93910.9368,
    "b2_seasonal_ratio": 100173.1117,
-   "hgb_b2res_v4": 93910.9368,
-   "ts_logratio_pool_v2": 89960.1135,
    "stan_safe_v1": 98433.241,
-   "hts_anchor_v1": 97237.688,
-   "spatial_hgb_v1": 95444.412
+   "hts_anchor_v1": 97237.688
   },
   {
    "id": "australia:2024-10",
@@ -666,11 +502,8 @@
    "b0_raw_modis": 45411.0,
    "b1_global_ratio": 223552.4346,
    "b2_seasonal_ratio": 221320.2609,
-   "hgb_b2res_v4": 223552.4346,
-   "ts_logratio_pool_v2": 225584.9182,
    "stan_safe_v1": 214611.858,
-   "hts_anchor_v1": 212299.756,
-   "spatial_hgb_v1": 199216.628
+   "hts_anchor_v1": 212299.756
   },
   {
    "id": "australia:2024-11",
@@ -682,11 +515,8 @@
    "b0_raw_modis": 43223.0,
    "b1_global_ratio": 212781.3848,
    "b2_seasonal_ratio": 202605.0675,
-   "hgb_b2res_v4": 212781.3848,
-   "ts_logratio_pool_v2": 220862.6716,
    "stan_safe_v1": 203753.22,
-   "hts_anchor_v1": 202755.967,
-   "spatial_hgb_v1": 169738.221
+   "hts_anchor_v1": 202755.967
   },
   {
    "id": "australia:2024-12",
@@ -698,11 +528,8 @@
    "b0_raw_modis": 11424.0,
    "b1_global_ratio": 56241.799,
    "b2_seasonal_ratio": 57665.5286,
-   "hgb_b2res_v4": 56241.799,
-   "ts_logratio_pool_v2": 58556.2639,
    "stan_safe_v1": 60396.862,
-   "hts_anchor_v1": 59490.792,
-   "spatial_hgb_v1": 59567.111
+   "hts_anchor_v1": 59490.792
   },
   {
    "id": "australia:2025-01",
@@ -714,11 +541,8 @@
    "b0_raw_modis": 15886.0,
    "b1_global_ratio": 78207.2581,
    "b2_seasonal_ratio": 75511.4615,
-   "hgb_b2res_v4": 78207.2581,
-   "ts_logratio_pool_v2": 83268.8476,
    "stan_safe_v1": 66955.208,
-   "hts_anchor_v1": 66986.401,
-   "spatial_hgb_v1": 65326.874
+   "hts_anchor_v1": 66986.401
   },
   {
    "id": "australia:2025-02",
@@ -730,11 +554,8 @@
    "b0_raw_modis": 7229.0,
    "b1_global_ratio": 35590.7232,
    "b2_seasonal_ratio": 36883.3274,
-   "hgb_b2res_v4": 35590.7232,
-   "ts_logratio_pool_v2": 37764.0403,
    "stan_safe_v1": 27548.792,
-   "hts_anchor_v1": 28076.099,
-   "spatial_hgb_v1": 25162.37
+   "hts_anchor_v1": 28076.099
   },
   {
    "id": "australia:2025-03",
@@ -746,11 +567,8 @@
    "b0_raw_modis": 6855.0,
    "b1_global_ratio": 33749.6022,
    "b2_seasonal_ratio": 34348.9592,
-   "hgb_b2res_v4": 33749.6022,
-   "ts_logratio_pool_v2": 35703.0653,
    "stan_safe_v1": 33466.708,
-   "hts_anchor_v1": 33436.048,
-   "spatial_hgb_v1": 30534.306
+   "hts_anchor_v1": 33436.048
   },
   {
    "id": "australia:2025-04",
@@ -762,11 +580,8 @@
    "b0_raw_modis": 10961.0,
    "b1_global_ratio": 53962.5504,
    "b2_seasonal_ratio": 51676.287,
-   "hgb_b2res_v4": 53962.5504,
-   "ts_logratio_pool_v2": 56931.0046,
    "stan_safe_v1": 53806.332,
-   "hts_anchor_v1": 51949.112,
-   "spatial_hgb_v1": 49573.397
+   "hts_anchor_v1": 51949.112
   },
   {
    "id": "australia:2025-05",
@@ -778,11 +593,8 @@
    "b0_raw_modis": 22726.0,
    "b1_global_ratio": 111879.0957,
    "b2_seasonal_ratio": 111838.4734,
-   "hgb_b2res_v4": 111879.0957,
-   "ts_logratio_pool_v2": 115150.6885,
    "stan_safe_v1": 110116.156,
-   "hts_anchor_v1": 110012.994,
-   "spatial_hgb_v1": 111710.526
+   "hts_anchor_v1": 110012.994
   },
   {
    "id": "australia:2025-06",
@@ -794,11 +606,8 @@
    "b0_raw_modis": 16375.0,
    "b1_global_ratio": 80614.4991,
    "b2_seasonal_ratio": 77990.4173,
-   "hgb_b2res_v4": 80614.4991,
-   "ts_logratio_pool_v2": 79851.4987,
    "stan_safe_v1": 75564.125,
-   "hts_anchor_v1": 75417.197,
-   "spatial_hgb_v1": 76484.129
+   "hts_anchor_v1": 75417.197
   },
   {
    "id": "australia:2025-07",
@@ -810,11 +619,8 @@
    "b0_raw_modis": 17136.0,
    "b1_global_ratio": 84360.7372,
    "b2_seasonal_ratio": 81218.5662,
-   "hgb_b2res_v4": 84360.7372,
-   "ts_logratio_pool_v2": 80550.5281,
    "stan_safe_v1": 77807.201,
-   "hts_anchor_v1": 78133.818,
-   "spatial_hgb_v1": 75213.49
+   "hts_anchor_v1": 78133.818
   },
   {
    "id": "australia:2025-08",
@@ -826,11 +632,8 @@
    "b0_raw_modis": 23601.0,
    "b1_global_ratio": 116186.5311,
    "b2_seasonal_ratio": 114374.0864,
-   "hgb_b2res_v4": 116186.5311,
-   "ts_logratio_pool_v2": 111804.7436,
    "stan_safe_v1": 116105.439,
-   "hts_anchor_v1": 112994.131,
-   "spatial_hgb_v1": 111792.961
+   "hts_anchor_v1": 112994.131
   },
   {
    "id": "australia:2025-09",
@@ -842,11 +645,8 @@
    "b0_raw_modis": 23228.0,
    "b1_global_ratio": 114350.333,
    "b2_seasonal_ratio": 121975.4345,
-   "hgb_b2res_v4": 114350.333,
-   "ts_logratio_pool_v2": 109478.3651,
    "stan_safe_v1": 116126.817,
-   "hts_anchor_v1": 113877.193,
-   "spatial_hgb_v1": 109557.655
+   "hts_anchor_v1": 113877.193
   },
   {
    "id": "australia:2025-10",
@@ -858,11 +658,8 @@
    "b0_raw_modis": 65304.0,
    "b1_global_ratio": 321481.3625,
    "b2_seasonal_ratio": 318271.3717,
-   "hgb_b2res_v4": 321481.3625,
-   "ts_logratio_pool_v2": 326078.6411,
    "stan_safe_v1": 309316.419,
-   "hts_anchor_v1": 305008.397,
-   "spatial_hgb_v1": 299459.646
+   "hts_anchor_v1": 305008.397
   },
   {
    "id": "australia:2025-11",
@@ -874,11 +671,8 @@
    "b0_raw_modis": 27095.0,
    "b1_global_ratio": 133386.7359,
    "b2_seasonal_ratio": 127007.4677,
-   "hgb_b2res_v4": 133386.7359,
-   "ts_logratio_pool_v2": 137229.5968,
    "stan_safe_v1": 133189.733,
-   "hts_anchor_v1": 132050.901,
-   "spatial_hgb_v1": 124360.534
+   "hts_anchor_v1": 132050.901
   },
   {
    "id": "australia:2025-12",
@@ -890,11 +684,8 @@
    "b0_raw_modis": 13930.0,
    "b1_global_ratio": 68578.294,
    "b2_seasonal_ratio": 70314.3094,
-   "hgb_b2res_v4": 68578.294,
-   "ts_logratio_pool_v2": 71472.594,
    "stan_safe_v1": 74573.315,
-   "hts_anchor_v1": 71822.319,
-   "spatial_hgb_v1": 72614.071
+   "hts_anchor_v1": 71822.319
   },
   {
    "id": "vietnam:2024-01",
@@ -906,11 +697,8 @@
    "b0_raw_modis": 9953.0,
    "b1_global_ratio": 40080.341,
    "b2_seasonal_ratio": 44801.3078,
-   "hgb_b2res_v4": 44801.3078,
-   "ts_logratio_pool_v2": 48842.4163,
    "stan_safe_v1": 48208.541,
-   "hts_anchor_v1": 45029.766,
-   "spatial_hgb_v1": 44795.658
+   "hts_anchor_v1": 45029.766
   },
   {
    "id": "vietnam:2024-02",
@@ -922,11 +710,8 @@
    "b0_raw_modis": 9040.0,
    "b1_global_ratio": 36404.0034,
    "b2_seasonal_ratio": 54015.5824,
-   "hgb_b2res_v4": 54015.5824,
-   "ts_logratio_pool_v2": 49235.7894,
    "stan_safe_v1": 55786.85,
-   "hts_anchor_v1": 53819.156,
-   "spatial_hgb_v1": 57037.185
+   "hts_anchor_v1": 53819.156
   },
   {
    "id": "vietnam:2024-03",
@@ -938,11 +723,8 @@
    "b0_raw_modis": 7252.0,
    "b1_global_ratio": 29204.3412,
    "b2_seasonal_ratio": 40236.6361,
-   "hgb_b2res_v4": 40236.6361,
-   "ts_logratio_pool_v2": 38166.0314,
    "stan_safe_v1": 42546.755,
-   "hts_anchor_v1": 41024.775,
-   "spatial_hgb_v1": 42788.228
+   "hts_anchor_v1": 41024.775
   },
   {
    "id": "vietnam:2024-04",
@@ -954,11 +736,8 @@
    "b0_raw_modis": 5130.0,
    "b1_global_ratio": 20659.7756,
    "b2_seasonal_ratio": 30257.0525,
-   "hgb_b2res_v4": 30257.0525,
-   "ts_logratio_pool_v2": 27151.4651,
    "stan_safe_v1": 32028.143,
-   "hts_anchor_v1": 30815.445,
-   "spatial_hgb_v1": 32229.812
+   "hts_anchor_v1": 30815.445
   },
   {
    "id": "vietnam:2024-05",
@@ -970,11 +749,8 @@
    "b0_raw_modis": 1061.0,
    "b1_global_ratio": 4275.3094,
    "b2_seasonal_ratio": 4637.0758,
-   "hgb_b2res_v4": 4637.0758,
-   "ts_logratio_pool_v2": 4342.0472,
    "stan_safe_v1": 5154.212,
-   "hts_anchor_v1": 5045.396,
-   "spatial_hgb_v1": 5379.745
+   "hts_anchor_v1": 5045.396
   },
   {
    "id": "vietnam:2024-06",
@@ -986,11 +762,8 @@
    "b0_raw_modis": 508.0,
    "b1_global_ratio": 2048.5683,
    "b2_seasonal_ratio": 1661.9698,
-   "hgb_b2res_v4": 1661.9698,
-   "ts_logratio_pool_v2": 1643.2641,
    "stan_safe_v1": 1589.445,
-   "hts_anchor_v1": 1642.459,
-   "spatial_hgb_v1": 1488.253
+   "hts_anchor_v1": 1642.459
   },
   {
    "id": "vietnam:2024-07",
@@ -1002,11 +775,8 @@
    "b0_raw_modis": 264.0,
    "b1_global_ratio": 1066.064,
    "b2_seasonal_ratio": 846.4897,
-   "hgb_b2res_v4": 846.4897,
-   "ts_logratio_pool_v2": 768.117,
    "stan_safe_v1": 731.014,
-   "hts_anchor_v1": 765.527,
-   "spatial_hgb_v1": 570.115
+   "hts_anchor_v1": 765.527
   },
   {
    "id": "vietnam:2024-08",
@@ -1018,11 +788,8 @@
    "b0_raw_modis": 764.0,
    "b1_global_ratio": 3079.3924,
    "b2_seasonal_ratio": 2524.7001,
-   "hgb_b2res_v4": 2524.7001,
-   "ts_logratio_pool_v2": 2573.1412,
    "stan_safe_v1": 2183.753,
-   "hts_anchor_v1": 2532.038,
-   "spatial_hgb_v1": 2064.775
+   "hts_anchor_v1": 2532.038
   },
   {
    "id": "vietnam:2024-09",
@@ -1034,11 +801,8 @@
    "b0_raw_modis": 238.0,
    "b1_global_ratio": 961.371,
    "b2_seasonal_ratio": 732.7912,
-   "hgb_b2res_v4": 732.7912,
-   "ts_logratio_pool_v2": 692.4802,
    "stan_safe_v1": 721.988,
-   "hts_anchor_v1": 753.038,
-   "spatial_hgb_v1": 603.011
+   "hts_anchor_v1": 753.038
   },
   {
    "id": "vietnam:2024-10",
@@ -1050,11 +814,8 @@
    "b0_raw_modis": 256.0,
    "b1_global_ratio": 1033.8508,
    "b2_seasonal_ratio": 639.4243,
-   "hgb_b2res_v4": 639.4243,
-   "ts_logratio_pool_v2": 708.7284,
    "stan_safe_v1": 490.681,
-   "hts_anchor_v1": 492.104,
-   "spatial_hgb_v1": 338.791
+   "hts_anchor_v1": 492.104
   },
   {
    "id": "vietnam:2024-11",
@@ -1066,11 +827,8 @@
    "b0_raw_modis": 260.0,
    "b1_global_ratio": 1049.9574,
    "b2_seasonal_ratio": 1066.1693,
-   "hgb_b2res_v4": 1066.1693,
-   "ts_logratio_pool_v2": 892.4349,
    "stan_safe_v1": 1045.487,
-   "hts_anchor_v1": 1060.132,
-   "spatial_hgb_v1": 957.695
+   "hts_anchor_v1": 1060.132
   },
   {
    "id": "vietnam:2024-12",
@@ -1082,11 +840,8 @@
    "b0_raw_modis": 1136.0,
    "b1_global_ratio": 4577.3087,
    "b2_seasonal_ratio": 4536.5906,
-   "hgb_b2res_v4": 4536.5906,
-   "ts_logratio_pool_v2": 4755.7572,
    "stan_safe_v1": 4601.634,
-   "hts_anchor_v1": 4602.45,
-   "spatial_hgb_v1": 4410.567
+   "hts_anchor_v1": 4602.45
   },
   {
    "id": "vietnam:2025-01",
@@ -1098,11 +853,8 @@
    "b0_raw_modis": 9165.0,
    "b1_global_ratio": 36907.3355,
    "b2_seasonal_ratio": 41254.5709,
-   "hgb_b2res_v4": 41254.5709,
-   "ts_logratio_pool_v2": 44798.0851,
    "stan_safe_v1": 42942.231,
-   "hts_anchor_v1": 41749.254,
-   "spatial_hgb_v1": 40499.196
+   "hts_anchor_v1": 41749.254
   },
   {
    "id": "vietnam:2025-02",
@@ -1114,11 +866,8 @@
    "b0_raw_modis": 6943.0,
    "b1_global_ratio": 27960.1043,
    "b2_seasonal_ratio": 41486.7943,
-   "hgb_b2res_v4": 41486.7943,
-   "ts_logratio_pool_v2": 37551.0232,
    "stan_safe_v1": 42448.176,
-   "hts_anchor_v1": 41872.313,
-   "spatial_hgb_v1": 44450.396
+   "hts_anchor_v1": 41872.313
   },
   {
    "id": "vietnam:2025-03",
@@ -1130,11 +879,8 @@
    "b0_raw_modis": 5711.0,
    "b1_global_ratio": 22999.2632,
    "b2_seasonal_ratio": 31687.5947,
-   "hgb_b2res_v4": 31687.5947,
-   "ts_logratio_pool_v2": 30209.8554,
    "stan_safe_v1": 31936.169,
-   "hts_anchor_v1": 31303.165,
-   "spatial_hgb_v1": 29614.097
+   "hts_anchor_v1": 31303.165
   },
   {
    "id": "vietnam:2025-04",
@@ -1146,11 +892,8 @@
    "b0_raw_modis": 2649.0,
    "b1_global_ratio": 10669.6403,
    "b2_seasonal_ratio": 15626.3317,
-   "hgb_b2res_v4": 15626.3317,
-   "ts_logratio_pool_v2": 13634.6872,
    "stan_safe_v1": 16556.829,
-   "hts_anchor_v1": 15885.703,
-   "spatial_hgb_v1": 14610.198
+   "hts_anchor_v1": 15885.703
   },
   {
    "id": "vietnam:2025-05",
@@ -1162,11 +905,8 @@
    "b0_raw_modis": 699.0,
    "b1_global_ratio": 2817.6597,
    "b2_seasonal_ratio": 3056.1121,
-   "hgb_b2res_v4": 3056.1121,
-   "ts_logratio_pool_v2": 2755.8619,
    "stan_safe_v1": 3224.026,
-   "hts_anchor_v1": 3269.787,
-   "spatial_hgb_v1": 2969.601
+   "hts_anchor_v1": 3269.787
   },
   {
    "id": "vietnam:2025-06",
@@ -1178,11 +918,8 @@
    "b0_raw_modis": 315.0,
    "b1_global_ratio": 1271.4235,
    "b2_seasonal_ratio": 1031.4135,
-   "hgb_b2res_v4": 1031.4135,
-   "ts_logratio_pool_v2": 975.0388,
    "stan_safe_v1": 1037.729,
-   "hts_anchor_v1": 1090.571,
-   "spatial_hgb_v1": 961.81
+   "hts_anchor_v1": 1090.571
   },
   {
    "id": "vietnam:2025-07",
@@ -1194,11 +931,8 @@
    "b0_raw_modis": 227.0,
    "b1_global_ratio": 917.0777,
    "b2_seasonal_ratio": 728.161,
-   "hgb_b2res_v4": 728.161,
-   "ts_logratio_pool_v2": 656.5124,
    "stan_safe_v1": 804.049,
-   "hts_anchor_v1": 871.137,
-   "spatial_hgb_v1": 762.053
+   "hts_anchor_v1": 871.137
   },
   {
    "id": "vietnam:2025-08",
@@ -1210,11 +944,8 @@
    "b0_raw_modis": 468.0,
    "b1_global_ratio": 1887.502,
    "b2_seasonal_ratio": 1547.4357,
-   "hgb_b2res_v4": 1547.4357,
-   "ts_logratio_pool_v2": 1480.6347,
    "stan_safe_v1": 1488.36,
-   "hts_anchor_v1": 1630.479,
-   "spatial_hgb_v1": 1320.741
+   "hts_anchor_v1": 1630.479
   },
   {
    "id": "vietnam:2025-09",
@@ -1226,11 +957,8 @@
    "b0_raw_modis": 175.0,
    "b1_global_ratio": 707.6916,
    "b2_seasonal_ratio": 539.365,
-   "hgb_b2res_v4": 539.365,
-   "ts_logratio_pool_v2": 477.0614,
    "stan_safe_v1": 589.938,
-   "hts_anchor_v1": 604.996,
-   "spatial_hgb_v1": 512.02
+   "hts_anchor_v1": 604.996
   },
   {
    "id": "vietnam:2025-10",
@@ -1242,11 +970,8 @@
    "b0_raw_modis": 209.0,
    "b1_global_ratio": 844.5979,
    "b2_seasonal_ratio": 522.3039,
-   "hgb_b2res_v4": 522.3039,
-   "ts_logratio_pool_v2": 572.2134,
    "stan_safe_v1": 617.565,
-   "hts_anchor_v1": 611.778,
-   "spatial_hgb_v1": 502.106
+   "hts_anchor_v1": 611.778
   },
   {
    "id": "vietnam:2025-11",
@@ -1258,11 +983,8 @@
    "b0_raw_modis": 164.0,
    "b1_global_ratio": 663.3984,
    "b2_seasonal_ratio": 673.6473,
-   "hgb_b2res_v4": 673.6473,
-   "ts_logratio_pool_v2": 539.6295,
    "stan_safe_v1": 726.927,
-   "hts_anchor_v1": 734.829,
-   "spatial_hgb_v1": 636.583
+   "hts_anchor_v1": 734.829
   },
   {
    "id": "vietnam:2025-12",
@@ -1274,11 +996,8 @@
    "b0_raw_modis": 665.0,
    "b1_global_ratio": 2680.7534,
    "b2_seasonal_ratio": 2656.9027,
-   "hgb_b2res_v4": 2656.9027,
-   "ts_logratio_pool_v2": 2671.3707,
    "stan_safe_v1": 2818.402,
-   "hts_anchor_v1": 2821.721,
-   "spatial_hgb_v1": 2749.182
+   "hts_anchor_v1": 2821.721
   }
  ],
  "per_aoi": {
@@ -1317,10 +1036,10 @@
      "2": 1,
      "3": 1,
      "4": 1,
-     "5": 1,
-     "6": 1,
-     "7": 1,
-     "8": 1,
+     "10": 1,
+     "11": 1,
+     "12": 1,
+     "13": 1,
      "14": 1,
      "15": 1,
      "16": 1,
@@ -17650,10 +17369,10 @@
        2,
        3,
        4,
-       5,
-       6,
-       7,
-       8,
+       10,
+       11,
+       12,
+       13,
        14,
        15,
        16,
@@ -17677,10 +17396,10 @@
        2,
        3,
        4,
-       5,
-       6,
-       7,
-       8,
+       10,
+       11,
+       12,
+       13,
        14,
        15,
        16,
@@ -17704,10 +17423,10 @@
        2,
        3,
        4,
-       5,
-       6,
-       7,
-       8,
+       10,
+       11,
+       12,
+       13,
        14,
        15,
        16,
@@ -17737,18 +17456,18 @@
       },
       "source_families": {
        "MODIS": [
-        9,
-        10,
-        11,
-        12,
-        13
+        5,
+        6,
+        7,
+        8,
+        9
        ],
        "VIIRS": [
-        9,
-        10,
-        11,
-        12,
-        13
+        5,
+        6,
+        7,
+        8,
+        9
        ]
       },
       "nrt": true
@@ -17783,83 +17502,6 @@
     }
    },
    "coverage_class": "full_month",
-   "hgb_full_test": {
-    "mae": 844.1616,
-    "wape": 0.061404,
-    "bias": -132.3574,
-    "n": 24
-   },
-   "hgb_residual_enabled": false,
-   "hgb_fallback_baseline": "b2_seasonal_ratio",
-   "hgb_gate": {
-    "enabled": false,
-    "folds": [
-     {
-      "test_year": 2015,
-      "b1_mae": 5425.98,
-      "b2_mae": 2465.55,
-      "residual_mae": 2930.99
-     },
-     {
-      "test_year": 2016,
-      "b1_mae": 7811.34,
-      "b2_mae": 4731.14,
-      "residual_mae": 4831.95
-     },
-     {
-      "test_year": 2017,
-      "b1_mae": 3497.21,
-      "b2_mae": 1115.56,
-      "residual_mae": 1282.03
-     },
-     {
-      "test_year": 2018,
-      "b1_mae": 3766.75,
-      "b2_mae": 548.23,
-      "residual_mae": 971.72
-     },
-     {
-      "test_year": 2019,
-      "b1_mae": 4972.59,
-      "b2_mae": 1769.03,
-      "residual_mae": 1737.8
-     },
-     {
-      "test_year": 2020,
-      "b1_mae": 6755.35,
-      "b2_mae": 2428.42,
-      "residual_mae": 2443.56
-     },
-     {
-      "test_year": 2021,
-      "b1_mae": 4115.81,
-      "b2_mae": 1312.81,
-      "residual_mae": 1632.17
-     },
-     {
-      "test_year": 2022,
-      "b1_mae": 2856.89,
-      "b2_mae": 1903.06,
-      "residual_mae": 2165.56
-     },
-     {
-      "test_year": 2023,
-      "b1_mae": 3754.3,
-      "b2_mae": 865.32,
-      "residual_mae": 696.74
-     }
-    ],
-    "cv_b1_mae": 4772.913930937392,
-    "cv_b2_mae": 1904.3466194845007,
-    "cv_residual_mae": 2076.9472418446676,
-    "cv_best_baseline_mae": 1904.3466194845007,
-    "fold_wins": 2,
-    "n_folds": 9,
-    "fallback_baseline": "b2_seasonal_ratio",
-    "reason": "no robust gain; serving b2_seasonal_ratio (mean gain vs best baseline only -9.1% (<2%); won 2/9 folds)"
-   },
-   "ts_context_covered_months": 24,
-   "ts_months_missing_context": 0,
    "b1_log_ratio": 1.392936,
    "b2_log_ratios": {
     "1": 1.504285,
@@ -17875,6 +17517,32 @@
     "11": 1.408245,
     "12": 1.384003
    },
+   "ids": [
+    "vietnam:2024-01",
+    "vietnam:2024-02",
+    "vietnam:2024-03",
+    "vietnam:2024-04",
+    "vietnam:2024-05",
+    "vietnam:2024-06",
+    "vietnam:2024-07",
+    "vietnam:2024-08",
+    "vietnam:2024-09",
+    "vietnam:2024-10",
+    "vietnam:2024-11",
+    "vietnam:2024-12",
+    "vietnam:2025-01",
+    "vietnam:2025-02",
+    "vietnam:2025-03",
+    "vietnam:2025-04",
+    "vietnam:2025-05",
+    "vietnam:2025-06",
+    "vietnam:2025-07",
+    "vietnam:2025-08",
+    "vietnam:2025-09",
+    "vietnam:2025-10",
+    "vietnam:2025-11",
+    "vietnam:2025-12"
+   ],
    "metrics": {
     "b0_raw_modis": {
      "mae": 11112.125,
@@ -17894,18 +17562,6 @@
      "bias": -132.3574,
      "n": 24
     },
-    "hgb_b2res_v4": {
-     "mae": 844.1616,
-     "wape": 0.061404,
-     "bias": -132.3574,
-     "n": 24
-    },
-    "ts_logratio_pool_v2": {
-     "mae": 1264.4335,
-     "wape": 0.091975,
-     "bias": -577.0564,
-     "n": 24
-    },
     "stan_safe_v1": {
      "mae": 694.2243,
      "wape": 0.050498,
@@ -17917,15 +17573,260 @@
      "wape": 0.057021,
      "bias": 3.5425,
      "n": 24
-    },
-    "spatial_hgb_v1": {
-     "mae": 633.4785,
-     "wape": 0.046079,
-     "bias": 96.2008,
-     "n": 24
     }
    },
-   "n_eval": 24
+   "n_eval": 24,
+   "unified_eval": {
+    "evaluation_version": "eval-v4",
+    "dataset_sha256": "ba2843d649435d28",
+    "pair_table_hash": "ba2843d649435d28",
+    "candidate_holdout_years": [
+     2024,
+     2025
+    ],
+    "scored_years": [
+     2024,
+     2025
+    ],
+    "excluded_months": [],
+    "n_eval": 24,
+    "eval_unit": "aoi-month (VIIRS hotspot detections, not fires)",
+    "metrics": {
+     "b0_raw_modis": {
+      "mae": 11112.125,
+      "wape": 0.808294,
+      "bias": -11112.125,
+      "n": 24
+     },
+     "b1_global_ratio": {
+      "mae": 3493.2241,
+      "wape": 0.254097,
+      "bias": -3132.3446,
+      "n": 24
+     },
+     "b2_seasonal_ratio": {
+      "mae": 844.1616,
+      "wape": 0.061404,
+      "bias": -132.3574,
+      "n": 24
+     },
+     "stan_safe_v1": {
+      "mae": 694.2243,
+      "wape": 0.050498,
+      "bias": 430.6627,
+      "n": 24
+     },
+     "hts_anchor_v1": {
+      "mae": 783.9016,
+      "wape": 0.057021,
+      "bias": 3.5425,
+      "n": 24
+     }
+    },
+    "pooled_metrics": {
+     "b0_raw_modis": {
+      "mae": 38119.8472,
+      "wape": 0.774485,
+      "bias": -38119.8472,
+      "n": 72
+     },
+     "b1_global_ratio": {
+      "mae": 6386.5596,
+      "wape": 0.129756,
+      "bias": -682.6304,
+      "n": 72
+     },
+     "b2_seasonal_ratio": {
+      "mae": 4411.8391,
+      "wape": 0.089636,
+      "bias": 1281.2545,
+      "n": 72
+     },
+     "stan_safe_v1": {
+      "mae": 3765.8416,
+      "wape": 0.076511,
+      "bias": 1421.3016,
+      "n": 72
+     },
+     "hts_anchor_v1": {
+      "mae": 4154.4198,
+      "wape": 0.084406,
+      "bias": 646.0759,
+      "n": 72
+     }
+    },
+    "headline": {
+     "scope": "full-month AOIs only",
+     "aois": [
+      "vietnam",
+      "amazon",
+      "australia"
+     ],
+     "n_eval": 72,
+     "metrics": {
+      "b0_raw_modis": {
+       "mae": 38119.8472,
+       "wape": 0.774485,
+       "bias": -38119.8472,
+       "n": 72
+      },
+      "b1_global_ratio": {
+       "mae": 6386.5596,
+       "wape": 0.129756,
+       "bias": -682.6304,
+       "n": 72
+      },
+      "b2_seasonal_ratio": {
+       "mae": 4411.8391,
+       "wape": 0.089636,
+       "bias": 1281.2545,
+       "n": 72
+      },
+      "stan_safe_v1": {
+       "mae": 3765.8416,
+       "wape": 0.076511,
+       "bias": 1421.3016,
+       "n": 72
+      },
+      "hts_anchor_v1": {
+       "mae": 4154.4198,
+       "wape": 0.084406,
+       "bias": 646.0759,
+       "n": 72
+      }
+     },
+     "why": "All scored AOIs meet the full-month coverage rule (>=80% of months with >=90% paired MODIS/VIIRS days)."
+    },
+    "pooled_full_month": {
+     "aois": [
+      "vietnam",
+      "amazon",
+      "australia"
+     ],
+     "n_eval": 72,
+     "metrics": {
+      "b0_raw_modis": {
+       "mae": 38119.8472,
+       "wape": 0.774485,
+       "bias": -38119.8472,
+       "n": 72
+      },
+      "b1_global_ratio": {
+       "mae": 6386.5596,
+       "wape": 0.129756,
+       "bias": -682.6304,
+       "n": 72
+      },
+      "b2_seasonal_ratio": {
+       "mae": 4411.8391,
+       "wape": 0.089636,
+       "bias": 1281.2545,
+       "n": 72
+      }
+     }
+    },
+    "comparisons": {
+     "stan_vs_b2": {
+      "method_a": "stan_safe_v1",
+      "method_b": "b2_seasonal_ratio",
+      "delta_mae": -645.9976,
+      "ci95": [
+       -1452.9229,
+       81.7885
+      ],
+      "prob_a_better": 0.958,
+      "n": 72,
+      "n_boot": 2000,
+      "unit": "AOI-month row bootstrap (not independent hotspots)"
+     },
+     "stan_vs_hts": {
+      "method_a": "stan_safe_v1",
+      "method_b": "hts_anchor_v1",
+      "delta_mae": -388.5783,
+      "ci95": [
+       -938.951,
+       50.6513
+      ],
+      "prob_a_better": 0.954,
+      "n": 72,
+      "n_boot": 2000,
+      "unit": "AOI-month row bootstrap (not independent hotspots)"
+     },
+     "hts_vs_b2": {
+      "method_a": "hts_anchor_v1",
+      "method_b": "b2_seasonal_ratio",
+      "delta_mae": -257.4193,
+      "ci95": [
+       -777.1027,
+       266.2206
+      ],
+      "prob_a_better": 0.833,
+      "n": 72,
+      "n_boot": 2000,
+      "unit": "AOI-month row bootstrap (not independent hotspots)"
+     }
+    },
+    "rank": [
+     {
+      "method": "stan_safe_v1",
+      "mae": 694.2243
+     },
+     {
+      "method": "hts_anchor_v1",
+      "mae": 783.9016
+     },
+     {
+      "method": "b2_seasonal_ratio",
+      "mae": 844.1616
+     },
+     {
+      "method": "b1_global_ratio",
+      "mae": 3493.2241
+     },
+     {
+      "method": "b0_raw_modis",
+      "mae": 11112.125
+     }
+    ],
+    "best_method": "stan_safe_v1",
+    "coverage_class": "full_month",
+    "coverage": {
+     "months": 169,
+     "full_months": 168,
+     "complete_months": 168,
+     "partial_months": 1,
+     "missing_day_histogram": {
+      "1": 1,
+      "2": 1,
+      "3": 1,
+      "4": 1,
+      "10": 1,
+      "11": 1,
+      "12": 1,
+      "13": 1,
+      "14": 1,
+      "15": 1,
+      "16": 1,
+      "17": 1,
+      "18": 1,
+      "19": 1,
+      "20": 1,
+      "21": 1,
+      "22": 1,
+      "23": 1,
+      "24": 1,
+      "25": 1,
+      "26": 1,
+      "27": 1,
+      "28": 1,
+      "29": 1,
+      "30": 1
+     },
+     "verified": true
+    },
+    "ts_unified_seed_mae_range": null,
+    "note": "Baselines are scored on every test AOI-month; STAN/HTS are joined on the same IDs by merge_artifact_methods."
+   }
   },
   "amazon": {
    "n_train": 60,
@@ -17955,10 +17856,10 @@
      "2": 1,
      "3": 1,
      "4": 1,
-     "5": 1,
-     "6": 1,
-     "7": 1,
-     "8": 1,
+     "10": 1,
+     "11": 1,
+     "12": 1,
+     "13": 1,
      "14": 1,
      "15": 1,
      "16": 1,
@@ -26148,10 +26049,10 @@
        2,
        3,
        4,
-       5,
-       6,
-       7,
-       8,
+       10,
+       11,
+       12,
+       13,
        14,
        15,
        16,
@@ -26175,10 +26076,10 @@
        2,
        3,
        4,
-       5,
-       6,
-       7,
-       8,
+       10,
+       11,
+       12,
+       13,
        14,
        15,
        16,
@@ -26202,10 +26103,10 @@
        2,
        3,
        4,
-       5,
-       6,
-       7,
-       8,
+       10,
+       11,
+       12,
+       13,
        14,
        15,
        16,
@@ -26235,18 +26136,18 @@
       },
       "source_families": {
        "MODIS": [
-        9,
-        10,
-        11,
-        12,
-        13
+        5,
+        6,
+        7,
+        8,
+        9
        ],
        "VIIRS": [
-        9,
-        10,
-        11,
-        12,
-        13
+        5,
+        6,
+        7,
+        8,
+        9
        ]
       },
       "nrt": true
@@ -26289,41 +26190,6 @@
     }
    },
    "coverage_class": "full_month",
-   "hgb_full_test": {
-    "mae": 4647.7437,
-    "wape": 0.107344,
-    "bias": -313.4031,
-    "n": 24
-   },
-   "hgb_residual_enabled": false,
-   "hgb_fallback_baseline": "b2_seasonal_ratio",
-   "hgb_gate": {
-    "enabled": false,
-    "folds": [
-     {
-      "test_year": 2022,
-      "b1_mae": 7649.84,
-      "b2_mae": 4434.88,
-      "residual_mae": 4350.69
-     },
-     {
-      "test_year": 2023,
-      "b1_mae": 4978.47,
-      "b2_mae": 2662.84,
-      "residual_mae": 2863.9
-     }
-    ],
-    "cv_b1_mae": 6314.156140822898,
-    "cv_b2_mae": 3548.8613475617167,
-    "cv_residual_mae": 3607.2946150501925,
-    "cv_best_baseline_mae": 3548.8613475617167,
-    "fold_wins": 1,
-    "n_folds": 2,
-    "fallback_baseline": "b2_seasonal_ratio",
-    "reason": "no robust gain; serving b2_seasonal_ratio (mean gain vs best baseline only -1.6% (<2%); won 1/2 folds; regressed on the most recent fold)"
-   },
-   "ts_context_covered_months": 24,
-   "ts_months_missing_context": 0,
    "b1_log_ratio": 1.250719,
    "b2_log_ratios": {
     "1": 1.170071,
@@ -26339,6 +26205,32 @@
     "11": 1.368761,
     "12": 1.377268
    },
+   "ids": [
+    "amazon:2024-01",
+    "amazon:2024-02",
+    "amazon:2024-03",
+    "amazon:2024-04",
+    "amazon:2024-05",
+    "amazon:2024-06",
+    "amazon:2024-07",
+    "amazon:2024-08",
+    "amazon:2024-09",
+    "amazon:2024-10",
+    "amazon:2024-11",
+    "amazon:2024-12",
+    "amazon:2025-01",
+    "amazon:2025-02",
+    "amazon:2025-03",
+    "amazon:2025-04",
+    "amazon:2025-05",
+    "amazon:2025-06",
+    "amazon:2025-07",
+    "amazon:2025-08",
+    "amazon:2025-09",
+    "amazon:2025-10",
+    "amazon:2025-11",
+    "amazon:2025-12"
+   ],
    "metrics": {
     "b0_raw_modis": {
      "mae": 32134.625,
@@ -26358,18 +26250,6 @@
      "bias": -313.4031,
      "n": 24
     },
-    "hgb_b2res_v4": {
-     "mae": 4647.7437,
-     "wape": 0.107344,
-     "bias": -313.4031,
-     "n": 24
-    },
-    "ts_logratio_pool_v2": {
-     "mae": 4769.705,
-     "wape": 0.110161,
-     "bias": -1095.0802,
-     "n": 24
-    },
     "stan_safe_v1": {
      "mae": 3391.3739,
      "wape": 0.078327,
@@ -26381,15 +26261,260 @@
      "wape": 0.098161,
      "bias": 264.5697,
      "n": 24
-    },
-    "spatial_hgb_v1": {
-     "mae": 2870.4254,
-     "wape": 0.066295,
-     "bias": -1670.2393,
-     "n": 24
     }
    },
-   "n_eval": 24
+   "n_eval": 24,
+   "unified_eval": {
+    "evaluation_version": "eval-v4",
+    "dataset_sha256": "ba2843d649435d28",
+    "pair_table_hash": "ba2843d649435d28",
+    "candidate_holdout_years": [
+     2024,
+     2025
+    ],
+    "scored_years": [
+     2024,
+     2025
+    ],
+    "excluded_months": [],
+    "n_eval": 24,
+    "eval_unit": "aoi-month (VIIRS hotspot detections, not fires)",
+    "metrics": {
+     "b0_raw_modis": {
+      "mae": 32134.625,
+      "wape": 0.742182,
+      "bias": -32134.625,
+      "n": 24
+     },
+     "b1_global_ratio": {
+      "mae": 7095.928,
+      "wape": 0.163888,
+      "bias": -4304.711,
+      "n": 24
+     },
+     "b2_seasonal_ratio": {
+      "mae": 4647.7437,
+      "wape": 0.107344,
+      "bias": -313.4031,
+      "n": 24
+     },
+     "stan_safe_v1": {
+      "mae": 3391.3739,
+      "wape": 0.078327,
+      "bias": 1278.5174,
+      "n": 24
+     },
+     "hts_anchor_v1": {
+      "mae": 4250.1056,
+      "wape": 0.098161,
+      "bias": 264.5697,
+      "n": 24
+     }
+    },
+    "pooled_metrics": {
+     "b0_raw_modis": {
+      "mae": 38119.8472,
+      "wape": 0.774485,
+      "bias": -38119.8472,
+      "n": 72
+     },
+     "b1_global_ratio": {
+      "mae": 6386.5596,
+      "wape": 0.129756,
+      "bias": -682.6304,
+      "n": 72
+     },
+     "b2_seasonal_ratio": {
+      "mae": 4411.8391,
+      "wape": 0.089636,
+      "bias": 1281.2545,
+      "n": 72
+     },
+     "stan_safe_v1": {
+      "mae": 3765.8416,
+      "wape": 0.076511,
+      "bias": 1421.3016,
+      "n": 72
+     },
+     "hts_anchor_v1": {
+      "mae": 4154.4198,
+      "wape": 0.084406,
+      "bias": 646.0759,
+      "n": 72
+     }
+    },
+    "headline": {
+     "scope": "full-month AOIs only",
+     "aois": [
+      "vietnam",
+      "amazon",
+      "australia"
+     ],
+     "n_eval": 72,
+     "metrics": {
+      "b0_raw_modis": {
+       "mae": 38119.8472,
+       "wape": 0.774485,
+       "bias": -38119.8472,
+       "n": 72
+      },
+      "b1_global_ratio": {
+       "mae": 6386.5596,
+       "wape": 0.129756,
+       "bias": -682.6304,
+       "n": 72
+      },
+      "b2_seasonal_ratio": {
+       "mae": 4411.8391,
+       "wape": 0.089636,
+       "bias": 1281.2545,
+       "n": 72
+      },
+      "stan_safe_v1": {
+       "mae": 3765.8416,
+       "wape": 0.076511,
+       "bias": 1421.3016,
+       "n": 72
+      },
+      "hts_anchor_v1": {
+       "mae": 4154.4198,
+       "wape": 0.084406,
+       "bias": 646.0759,
+       "n": 72
+      }
+     },
+     "why": "All scored AOIs meet the full-month coverage rule (>=80% of months with >=90% paired MODIS/VIIRS days)."
+    },
+    "pooled_full_month": {
+     "aois": [
+      "vietnam",
+      "amazon",
+      "australia"
+     ],
+     "n_eval": 72,
+     "metrics": {
+      "b0_raw_modis": {
+       "mae": 38119.8472,
+       "wape": 0.774485,
+       "bias": -38119.8472,
+       "n": 72
+      },
+      "b1_global_ratio": {
+       "mae": 6386.5596,
+       "wape": 0.129756,
+       "bias": -682.6304,
+       "n": 72
+      },
+      "b2_seasonal_ratio": {
+       "mae": 4411.8391,
+       "wape": 0.089636,
+       "bias": 1281.2545,
+       "n": 72
+      }
+     }
+    },
+    "comparisons": {
+     "stan_vs_b2": {
+      "method_a": "stan_safe_v1",
+      "method_b": "b2_seasonal_ratio",
+      "delta_mae": -645.9976,
+      "ci95": [
+       -1452.9229,
+       81.7885
+      ],
+      "prob_a_better": 0.958,
+      "n": 72,
+      "n_boot": 2000,
+      "unit": "AOI-month row bootstrap (not independent hotspots)"
+     },
+     "stan_vs_hts": {
+      "method_a": "stan_safe_v1",
+      "method_b": "hts_anchor_v1",
+      "delta_mae": -388.5783,
+      "ci95": [
+       -938.951,
+       50.6513
+      ],
+      "prob_a_better": 0.954,
+      "n": 72,
+      "n_boot": 2000,
+      "unit": "AOI-month row bootstrap (not independent hotspots)"
+     },
+     "hts_vs_b2": {
+      "method_a": "hts_anchor_v1",
+      "method_b": "b2_seasonal_ratio",
+      "delta_mae": -257.4193,
+      "ci95": [
+       -777.1027,
+       266.2206
+      ],
+      "prob_a_better": 0.833,
+      "n": 72,
+      "n_boot": 2000,
+      "unit": "AOI-month row bootstrap (not independent hotspots)"
+     }
+    },
+    "rank": [
+     {
+      "method": "stan_safe_v1",
+      "mae": 3391.3739
+     },
+     {
+      "method": "hts_anchor_v1",
+      "mae": 4250.1056
+     },
+     {
+      "method": "b2_seasonal_ratio",
+      "mae": 4647.7437
+     },
+     {
+      "method": "b1_global_ratio",
+      "mae": 7095.928
+     },
+     {
+      "method": "b0_raw_modis",
+      "mae": 32134.625
+     }
+    ],
+    "best_method": "stan_safe_v1",
+    "coverage_class": "full_month",
+    "coverage": {
+     "months": 85,
+     "full_months": 84,
+     "complete_months": 84,
+     "partial_months": 1,
+     "missing_day_histogram": {
+      "1": 1,
+      "2": 1,
+      "3": 1,
+      "4": 1,
+      "10": 1,
+      "11": 1,
+      "12": 1,
+      "13": 1,
+      "14": 1,
+      "15": 1,
+      "16": 1,
+      "17": 1,
+      "18": 1,
+      "19": 1,
+      "20": 1,
+      "21": 1,
+      "22": 1,
+      "23": 1,
+      "24": 1,
+      "25": 1,
+      "26": 1,
+      "27": 1,
+      "28": 1,
+      "29": 1,
+      "30": 1
+     },
+     "verified": true
+    },
+    "ts_unified_seed_mae_range": null,
+    "note": "Baselines are scored on every test AOI-month; STAN/HTS are joined on the same IDs by merge_artifact_methods."
+   }
   },
   "australia": {
    "n_train": 60,
@@ -26419,10 +26544,10 @@
      "2": 1,
      "3": 1,
      "4": 1,
-     "5": 1,
-     "6": 1,
-     "7": 1,
-     "8": 1,
+     "10": 1,
+     "11": 1,
+     "12": 1,
+     "13": 1,
      "14": 1,
      "15": 1,
      "16": 1,
@@ -34612,10 +34737,10 @@
        2,
        3,
        4,
-       5,
-       6,
-       7,
-       8,
+       10,
+       11,
+       12,
+       13,
        14,
        15,
        16,
@@ -34639,10 +34764,10 @@
        2,
        3,
        4,
-       5,
-       6,
-       7,
-       8,
+       10,
+       11,
+       12,
+       13,
        14,
        15,
        16,
@@ -34666,10 +34791,10 @@
        2,
        3,
        4,
-       5,
-       6,
-       7,
-       8,
+       10,
+       11,
+       12,
+       13,
        14,
        15,
        16,
@@ -34699,18 +34824,18 @@
       },
       "source_families": {
        "MODIS": [
-        9,
-        10,
-        11,
-        12,
-        13
+        5,
+        6,
+        7,
+        8,
+        9
        ],
        "VIIRS": [
-        9,
-        10,
-        11,
-        12,
-        13
+        5,
+        6,
+        7,
+        8,
+        9
        ]
       },
       "nrt": true
@@ -34753,41 +34878,6 @@
     }
    },
    "coverage_class": "full_month",
-   "hgb_full_test": {
-    "mae": 8570.5267,
-    "wape": 0.094583,
-    "bias": 5389.1645,
-    "n": 24
-   },
-   "hgb_residual_enabled": false,
-   "hgb_fallback_baseline": "b1_global_ratio",
-   "hgb_gate": {
-    "enabled": false,
-    "folds": [
-     {
-      "test_year": 2022,
-      "b1_mae": 10252.14,
-      "b2_mae": 11956.41,
-      "residual_mae": 12277.16
-     },
-     {
-      "test_year": 2023,
-      "b1_mae": 9510.23,
-      "b2_mae": 15654.96,
-      "residual_mae": 17038.04
-     }
-    ],
-    "cv_b1_mae": 9881.183353069348,
-    "cv_b2_mae": 13805.684285144138,
-    "cv_residual_mae": 14657.603407343786,
-    "cv_best_baseline_mae": 9881.183353069348,
-    "fold_wins": 0,
-    "n_folds": 2,
-    "fallback_baseline": "b1_global_ratio",
-    "reason": "no robust gain; serving b1_global_ratio (mean gain vs best baseline only -48.3% (<2%); won 0/2 folds; regressed on the most recent fold)"
-   },
-   "ts_context_covered_months": 24,
-   "ts_months_missing_context": 0,
    "b1_log_ratio": 1.593874,
    "b2_log_ratios": {
     "1": 1.558797,
@@ -34803,6 +34893,32 @@
     "11": 1.544868,
     "12": 1.618873
    },
+   "ids": [
+    "australia:2024-01",
+    "australia:2024-02",
+    "australia:2024-03",
+    "australia:2024-04",
+    "australia:2024-05",
+    "australia:2024-06",
+    "australia:2024-07",
+    "australia:2024-08",
+    "australia:2024-09",
+    "australia:2024-10",
+    "australia:2024-11",
+    "australia:2024-12",
+    "australia:2025-01",
+    "australia:2025-02",
+    "australia:2025-03",
+    "australia:2025-04",
+    "australia:2025-05",
+    "australia:2025-06",
+    "australia:2025-07",
+    "australia:2025-08",
+    "australia:2025-09",
+    "australia:2025-10",
+    "australia:2025-11",
+    "australia:2025-12"
+   ],
    "metrics": {
     "b0_raw_modis": {
      "mae": 71112.7917,
@@ -34822,18 +34938,6 @@
      "bias": 4289.524,
      "n": 24
     },
-    "hgb_b2res_v4": {
-     "mae": 8570.5267,
-     "wape": 0.094583,
-     "bias": 5389.1645,
-     "n": 24
-    },
-    "ts_logratio_pool_v2": {
-     "mae": 9934.5152,
-     "wape": 0.109636,
-     "bias": 6394.7409,
-     "n": 24
-    },
     "stan_safe_v1": {
      "mae": 7211.9265,
      "wape": 0.07959,
@@ -34845,15 +34949,260 @@
      "wape": 0.081988,
      "bias": 1670.1155,
      "n": 24
-    },
-    "spatial_hgb_v1": {
-     "mae": 5725.2639,
-     "wape": 0.063183,
-     "bias": -2496.9303,
-     "n": 24
     }
    },
-   "n_eval": 24
+   "n_eval": 24,
+   "unified_eval": {
+    "evaluation_version": "eval-v4",
+    "dataset_sha256": "ba2843d649435d28",
+    "pair_table_hash": "ba2843d649435d28",
+    "candidate_holdout_years": [
+     2024,
+     2025
+    ],
+    "scored_years": [
+     2024,
+     2025
+    ],
+    "excluded_months": [],
+    "n_eval": 24,
+    "eval_unit": "aoi-month (VIIRS hotspot detections, not fires)",
+    "metrics": {
+     "b0_raw_modis": {
+      "mae": 71112.7917,
+      "wape": 0.78479,
+      "bias": -71112.7917,
+      "n": 24
+     },
+     "b1_global_ratio": {
+      "mae": 8570.5267,
+      "wape": 0.094583,
+      "bias": 5389.1645,
+      "n": 24
+     },
+     "b2_seasonal_ratio": {
+      "mae": 7743.6121,
+      "wape": 0.085457,
+      "bias": 4289.524,
+      "n": 24
+     },
+     "stan_safe_v1": {
+      "mae": 7211.9265,
+      "wape": 0.07959,
+      "bias": 2554.7248,
+      "n": 24
+     },
+     "hts_anchor_v1": {
+      "mae": 7429.2523,
+      "wape": 0.081988,
+      "bias": 1670.1155,
+      "n": 24
+     }
+    },
+    "pooled_metrics": {
+     "b0_raw_modis": {
+      "mae": 38119.8472,
+      "wape": 0.774485,
+      "bias": -38119.8472,
+      "n": 72
+     },
+     "b1_global_ratio": {
+      "mae": 6386.5596,
+      "wape": 0.129756,
+      "bias": -682.6304,
+      "n": 72
+     },
+     "b2_seasonal_ratio": {
+      "mae": 4411.8391,
+      "wape": 0.089636,
+      "bias": 1281.2545,
+      "n": 72
+     },
+     "stan_safe_v1": {
+      "mae": 3765.8416,
+      "wape": 0.076511,
+      "bias": 1421.3016,
+      "n": 72
+     },
+     "hts_anchor_v1": {
+      "mae": 4154.4198,
+      "wape": 0.084406,
+      "bias": 646.0759,
+      "n": 72
+     }
+    },
+    "headline": {
+     "scope": "full-month AOIs only",
+     "aois": [
+      "vietnam",
+      "amazon",
+      "australia"
+     ],
+     "n_eval": 72,
+     "metrics": {
+      "b0_raw_modis": {
+       "mae": 38119.8472,
+       "wape": 0.774485,
+       "bias": -38119.8472,
+       "n": 72
+      },
+      "b1_global_ratio": {
+       "mae": 6386.5596,
+       "wape": 0.129756,
+       "bias": -682.6304,
+       "n": 72
+      },
+      "b2_seasonal_ratio": {
+       "mae": 4411.8391,
+       "wape": 0.089636,
+       "bias": 1281.2545,
+       "n": 72
+      },
+      "stan_safe_v1": {
+       "mae": 3765.8416,
+       "wape": 0.076511,
+       "bias": 1421.3016,
+       "n": 72
+      },
+      "hts_anchor_v1": {
+       "mae": 4154.4198,
+       "wape": 0.084406,
+       "bias": 646.0759,
+       "n": 72
+      }
+     },
+     "why": "All scored AOIs meet the full-month coverage rule (>=80% of months with >=90% paired MODIS/VIIRS days)."
+    },
+    "pooled_full_month": {
+     "aois": [
+      "vietnam",
+      "amazon",
+      "australia"
+     ],
+     "n_eval": 72,
+     "metrics": {
+      "b0_raw_modis": {
+       "mae": 38119.8472,
+       "wape": 0.774485,
+       "bias": -38119.8472,
+       "n": 72
+      },
+      "b1_global_ratio": {
+       "mae": 6386.5596,
+       "wape": 0.129756,
+       "bias": -682.6304,
+       "n": 72
+      },
+      "b2_seasonal_ratio": {
+       "mae": 4411.8391,
+       "wape": 0.089636,
+       "bias": 1281.2545,
+       "n": 72
+      }
+     }
+    },
+    "comparisons": {
+     "stan_vs_b2": {
+      "method_a": "stan_safe_v1",
+      "method_b": "b2_seasonal_ratio",
+      "delta_mae": -645.9976,
+      "ci95": [
+       -1452.9229,
+       81.7885
+      ],
+      "prob_a_better": 0.958,
+      "n": 72,
+      "n_boot": 2000,
+      "unit": "AOI-month row bootstrap (not independent hotspots)"
+     },
+     "stan_vs_hts": {
+      "method_a": "stan_safe_v1",
+      "method_b": "hts_anchor_v1",
+      "delta_mae": -388.5783,
+      "ci95": [
+       -938.951,
+       50.6513
+      ],
+      "prob_a_better": 0.954,
+      "n": 72,
+      "n_boot": 2000,
+      "unit": "AOI-month row bootstrap (not independent hotspots)"
+     },
+     "hts_vs_b2": {
+      "method_a": "hts_anchor_v1",
+      "method_b": "b2_seasonal_ratio",
+      "delta_mae": -257.4193,
+      "ci95": [
+       -777.1027,
+       266.2206
+      ],
+      "prob_a_better": 0.833,
+      "n": 72,
+      "n_boot": 2000,
+      "unit": "AOI-month row bootstrap (not independent hotspots)"
+     }
+    },
+    "rank": [
+     {
+      "method": "stan_safe_v1",
+      "mae": 7211.9265
+     },
+     {
+      "method": "hts_anchor_v1",
+      "mae": 7429.2523
+     },
+     {
+      "method": "b2_seasonal_ratio",
+      "mae": 7743.6121
+     },
+     {
+      "method": "b1_global_ratio",
+      "mae": 8570.5267
+     },
+     {
+      "method": "b0_raw_modis",
+      "mae": 71112.7917
+     }
+    ],
+    "best_method": "stan_safe_v1",
+    "coverage_class": "full_month",
+    "coverage": {
+     "months": 85,
+     "full_months": 84,
+     "complete_months": 84,
+     "partial_months": 1,
+     "missing_day_histogram": {
+      "1": 1,
+      "2": 1,
+      "3": 1,
+      "4": 1,
+      "10": 1,
+      "11": 1,
+      "12": 1,
+      "13": 1,
+      "14": 1,
+      "15": 1,
+      "16": 1,
+      "17": 1,
+      "18": 1,
+      "19": 1,
+      "20": 1,
+      "21": 1,
+      "22": 1,
+      "23": 1,
+      "24": 1,
+      "25": 1,
+      "26": 1,
+      "27": 1,
+      "28": 1,
+      "29": 1,
+      "30": 1
+     },
+     "verified": true
+    },
+    "ts_unified_seed_mae_range": null,
+    "note": "Baselines are scored on every test AOI-month; STAN/HTS are joined on the same IDs by merge_artifact_methods."
+   }
   }
  },
  "pooled": {
@@ -34877,18 +35226,6 @@
     "bias": 1281.2545,
     "n": 72
    },
-   "hgb_b2res_v4": {
-    "mae": 4687.4773,
-    "wape": 0.095236,
-    "bias": 1647.8014,
-    "n": 72
-   },
-   "ts_logratio_pool_v2": {
-    "mae": 5322.8846,
-    "wape": 0.108146,
-    "bias": 1574.2014,
-    "n": 72
-   },
    "stan_safe_v1": {
     "mae": 3765.8416,
     "wape": 0.076511,
@@ -34899,12 +35236,6 @@
     "mae": 4154.4198,
     "wape": 0.084406,
     "bias": 646.0759,
-    "n": 72
-   },
-   "spatial_hgb_v1": {
-    "mae": 3076.3893,
-    "wape": 0.062503,
-    "bias": -1356.9896,
     "n": 72
    }
   }
@@ -34933,18 +35264,6 @@
     "mae": 4411.8391,
     "wape": 0.089636,
     "bias": 1281.2545,
-    "n": 72
-   },
-   "hgb_b2res_v4": {
-    "mae": 4687.4773,
-    "wape": 0.095236,
-    "bias": 1647.8014,
-    "n": 72
-   },
-   "ts_logratio_pool_v2": {
-    "mae": 5322.8846,
-    "wape": 0.108146,
-    "bias": 1574.2014,
     "n": 72
    }
   }
@@ -34976,18 +35295,6 @@
     "bias": 1281.2545,
     "n": 72
    },
-   "hgb_b2res_v4": {
-    "mae": 4687.4773,
-    "wape": 0.095236,
-    "bias": 1647.8014,
-    "n": 72
-   },
-   "ts_logratio_pool_v2": {
-    "mae": 5322.8846,
-    "wape": 0.108146,
-    "bias": 1574.2014,
-    "n": 72
-   },
    "stan_safe_v1": {
     "mae": 3765.8416,
     "wape": 0.076511,
@@ -34999,111 +35306,17 @@
     "wape": 0.084406,
     "bias": 646.0759,
     "n": 72
-   },
-   "spatial_hgb_v1": {
-    "mae": 3076.3893,
-    "wape": 0.062503,
-    "bias": -1356.9896,
-    "n": 72
    }
   },
   "why": "All scored AOIs meet the full-month coverage rule (>=80% of months with >=90% paired MODIS/VIIRS days)."
- },
- "ts": {
-  "trained": true,
-  "n_train": 231,
-  "n_test": 72,
-  "train_years": [
-   2012,
-   2013,
-   2014,
-   2015,
-   2016,
-   2017,
-   2018,
-   2019,
-   2020,
-   2021,
-   2022,
-   2023
-  ],
-  "test_years": [
-   2024,
-   2025
-  ],
-  "seed_maes": [
-   5615.19,
-   5787.4,
-   5594.76,
-   5888.57,
-   5496.93
-  ],
-  "seed_mae_mean": 5676.57,
-  "seed_mae_range": [
-   5496.93,
-   5888.57
-  ],
-  "method_id": "ts_logratio_pool_v2",
-  "seed": 7,
-  "seeds": [
-   7,
-   17,
-   27,
-   37,
-   47
-  ],
-  "params": 17793,
-  "win": 12,
-  "target": "log_ratio",
-  "feature_version": "ts-features-v2",
-  "algorithm_version": "ts_logratio_pool_v2.1",
-  "val_year": 2023,
-  "aois": [
-   "amazon",
-   "australia",
-   "vietnam"
-  ]
- },
- "ts_unified_seed_mae_range": [
-  5496.93,
-  5888.57
- ],
- "ts_training_split_metrics": {
-  "transformer": {
-   "mae": 5322.8851,
-   "wape": 0.108146,
-   "bias": 1574.2007,
-   "n": 72
-  },
-  "b0_raw_modis": {
-   "mae": 38119.8472,
-   "wape": 0.774485,
-   "bias": -38119.8472,
-   "n": 72
-  },
-  "b1_global_ratio": {
-   "mae": 6739.7595,
-   "wape": 0.136932,
-   "bias": -2914.0189,
-   "n": 72
-  },
-  "b2_seasonal_ratio": {
-   "mae": 9861.6568,
-   "wape": 0.20036,
-   "bias": -4844.3589,
-   "n": 72
-  }
  },
  "methods": [
   "b0_raw_modis",
   "b1_global_ratio",
   "b2_seasonal_ratio",
-  "hgb_b2res_v4",
-  "ts_logratio_pool_v2",
   "stan_safe_v1",
-  "hts_anchor_v1",
-  "spatial_hgb_v1"
+  "hts_anchor_v1"
  ],
- "note": "Every method in `pooled`/`per_aoi` is scored on the exact same sample IDs. `hgb_full_test` covers all monthly test pairs and is reported separately because the Transformer lacks a 12-month context for some of them.",
+ "note": "Baselines are scored on every test AOI-month; STAN/HTS are joined on the same IDs by merge_artifact_methods.",
  "primary_method_id": "stan_safe_v1"
 }

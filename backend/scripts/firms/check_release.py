@@ -2,9 +2,7 @@
 
     python -m scripts.firms.check_release
 
-Levels:
-  verify-artifacts : pytest clean profile + benchmark/eval/docs checks
-  rebuild-fixture  : add `--rebuild` (retrains from committed monthly pairs)
+Single level: pytest clean profile + benchmark/eval/docs/env/artifact checks.
 """
 from __future__ import annotations
 
@@ -37,16 +35,13 @@ def artifacts_ok() -> bool:
     print("\n== artifact health ==")
     print(a)
     ok = bool(a["stat"] and a.get("stan") and a.get("hts"))
-    if not (a["ml"] and a["ts"]):
-        print("WARN archived HGB/TS artifacts missing (fine, not served)")
     print(("PASS " if ok else "FAIL ") + "artifact health")
     return ok
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--rebuild", action="store_true")
-    a = ap.parse_args()
+    ap.parse_args()
     if not artifacts_ok():
         print("\nRELEASE GATE FAILED (artifact health)")
         return 1
@@ -64,9 +59,6 @@ def main() -> int:
     if (BACKEND / "data" / "firms" / "demo_pack" / "manifest.json").exists():
         checks.append(("demo pack checksums",
                        [PY, "-m", "scripts.firms.demo_pack", "verify"], None))
-    if a.rebuild:
-        checks.append(("rebuild fixture (raw)",
-                       [PY, "-m", "scripts.firms.rebuild_benchmark", "--data", "raw"], None))
     ok = all(run(*c) for c in checks)
     print("\nRELEASE GATE " + ("OK" if ok else "FAILED"))
     return 0 if ok else 1

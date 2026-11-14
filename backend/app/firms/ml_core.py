@@ -2,7 +2,7 @@
 
 Before this module, `_metrics`, `_delta_ci`, the B2/B1 log-ratio estimate and the
 "rescale only the estimated cells" conservation step existed in 3-4 copies
-(`evaluation`, `ts_v2`, `stan`, `sf_tile`, `hts`, `main`). Divergence there is how
+(`evaluation`, `stan`, `sf_tile`, `hts`, `main`). Divergence there is how
 the served number and the published number drift apart, so the canonical
 implementations live here and every caller imports them.
 

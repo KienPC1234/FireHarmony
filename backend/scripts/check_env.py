@@ -31,16 +31,7 @@ def main() -> int:
     print("torch", tv or "missing")
     warnings = 0
     mdir = BACKEND / "data" / "firms" / "models"
-    for jp in sorted(mdir.glob("cal_*.json")):
-        try:
-            doc = json.loads(jp.read_text())
-        except Exception:
-            continue
-        want = str(doc.get("sklearn_version", ""))
-        if want and ".".join(want.split(".")[:2]) != ".".join(sklearn.__version__.split(".")[:2]):
-            print(f"WARN {jp.name}: artifact sklearn {want} vs runtime {sklearn.__version__}")
-            warnings += 1
-    for jp in sorted(mdir.glob("ts_*.json")) + sorted(mdir.glob("stan_*.json")):
+    for jp in sorted(mdir.glob("stan_*.json")) + sorted(mdir.glob("hts_*.json")):
         try:
             doc = json.loads(jp.read_text())
         except Exception:

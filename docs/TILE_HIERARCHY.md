@@ -76,7 +76,7 @@ Reproduce: `python -m scripts.firms.evaluate_hts`.
 
 ## 3. TileFormer: region-agnostic residual on HTS
 
-Architecture (`app/firms/sf_tile.py`):
+Architecture (`app/firms/sf_tile.py`, code removed in STAN cleanup):
 
 - 12-month window of `[log MODIS, sin/cos month, day_frac, terra_frac]`;
 - 2 dilated convolutions (1, 2) + one transformer encoder layer, d=64, 4 heads;
@@ -195,7 +195,7 @@ before any claim of regional generalization.
 cd backend
 python -m scripts.firms.build_tiles          # 1.7 MB tile CSV
 python -m scripts.firms.evaluate_hts         # HTS vs B2 on 72 rows
-python -m app.firms.sf_tile --epochs 120     # TileFormer + LOO (CUDA)
+# python -m app.firms.sf_tile --epochs 120   # TileFormer + LOO (code removed)
 python -m pytest tests/test_firms.py -q -k "T40 or T41 or T42 or T43"
 ```
 
@@ -269,10 +269,8 @@ for months with no neighbouring VIIRS. The model card says this explicitly.
    and missing platforms do add variance; a denser NOAA-20/21 pull would test
    whether the safe variant can recover part of the gain.
 
-Artifact: `backend/data/firms/models/spatial_hgb_raw.json`, produced by
-`python -m app.firms.spatial_hgb`. Status: `GET /api/firms/spatial-status`.
-Not wired into the calendar: serving it would require tile-level gap-fill and
-an explicit "retrospective" badge.
+The retrospective spatial model and its artifact were removed on 2026-11-13
+(non-served cleanup); the evidence above is historical and lives in git history.
 
 ## 9. STAN: a network tuned to the count/season/space structure
 

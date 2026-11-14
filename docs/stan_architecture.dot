@@ -1,0 +1,57 @@
+digraph STAN {
+  graph [rankdir=TB, bgcolor="#0b1220", pad="0.35", nodesep="0.35", ranksep="0.55", fontname="Helvetica", fontsize=13, fontcolor="#e2e8f0", label=<<B>STAN · Spatial-Temporal Anchor Network</B><BR/><FONT POINT-SIZE="11" COLOR="#94a3b8">171,362 params · NB2 count loss · residual on the HTS anchor · 12-month MODIS window · forecast-safe context</FONT>>, labelloc=t, labeljust=l];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, fontcolor="#e2e8f0", color="#334155", penwidth=1.2, margin="0.14,0.08"];
+  edge [color="#64748b", fontcolor="#94a3b8", fontsize=9, arrowsize=0.7, penwidth=1.1];
+
+  subgraph cluster_in {
+    label=<<FONT COLOR="#7dd3fc">Inputs</FONT>>; fontsize=11; style="rounded,dashed"; color="#1e40af"; bgcolor="#0f172a";
+    x  [label=<<B>x</B> (B, 12, 8)<BR/><FONT POINT-SIZE="9" COLOR="#94a3b8">MODIS: log_modis, days_modis,<BR/>day_frac, terra_frac, sin, cos,<BR/>nbr_modis_log, nbr_ratio_prev</FONT>>, fillcolor="#11284a", color="#2563eb"];
+    c  [label=<<B>ctx</B> (B, 9)<BR/><FONT POINT-SIZE="9" COLOR="#94a3b8">lat/lon basis, tile_clim,<BR/>anchor, nbr_viirs_prev_log</FONT>>, fillcolor="#11284a", color="#0ea5e9"];
+    mo [label=<<B>month</B> (B,)<BR/><FONT POINT-SIZE="9" COLOR="#94a3b8">1 … 12</FONT>>, fillcolor="#11284a", color="#0ea5e9"];
+  }
+
+  proj  [label=<<B>Linear</B>  8 → 96<BR/><FONT POINT-SIZE="9" COLOR="#94a3b8">864 params</FONT>>, fillcolor="#172554", color="#3b82f6"];
+  emb   [label=<<B>Embedding</B>  12 × 96<BR/><FONT POINT-SIZE="9" COLOR="#94a3b8">1,152 params</FONT>>, fillcolor="#172554", color="#3b82f6"];
+  film  [label=<<B>FiLM</B>  96 → 192<BR/><FONT POINT-SIZE="9" COLOR="#94a3b8">18,624 params · γ / β</FONT>>, fillcolor="#172554", color="#3b82f6"];
+  fuse  [label=<<B>h = proj(x) · (1+γ) + β</B><BR/><FONT POINT-SIZE="9" COLOR="#94a3b8">(B, 96, 12)</FONT>>, fillcolor="#0f2a3f", color="#38bdf8"];
+
+  subgraph cluster_tcn {
+    label=<<FONT COLOR="#67e8f9">Dilated causal TCN</FONT>>; fontsize=11; style="rounded,dashed"; color="#0e7490"; bgcolor="#0f172a";
+    t1 [label=<<B>TCN 1</B> · Conv1d k=3 d=1<BR/><FONT POINT-SIZE="9" COLOR="#94a3b8">residual + GroupNorm</FONT>>, fillcolor="#0e2a3a", color="#22d3ee"];
+    t2 [label=<<B>TCN 2</B> · Conv1d k=3 d=2<BR/><FONT POINT-SIZE="9" COLOR="#94a3b8">residual + GroupNorm</FONT>>, fillcolor="#0e2a3a", color="#22d3ee"];
+    t3 [label=<<B>TCN 3</B> · Conv1d k=3 d=4<BR/><FONT POINT-SIZE="9" COLOR="#94a3b8">residual + GroupNorm</FONT>>, fillcolor="#0e2a3a", color="#22d3ee"];
+  }
+  last [label=<<B>h_last</B> (B, 96)<BR/><FONT POINT-SIZE="9" COLOR="#94a3b8">last timestep</FONT>>, fillcolor="#0f2a3f", color="#38bdf8"];
+
+  subgraph cluster_attn {
+    label=<<FONT COLOR="#d8b4fe">Target-month attention</FONT>>; fontsize=11; style="rounded,dashed"; color="#6b21a8"; bgcolor="#0f172a";
+    qry [label=<<B>query</B> Linear 105 → 96<BR/><FONT POINT-SIZE="9" COLOR="#94a3b8">concat(month, ctx)</FONT>>, fillcolor="#2a1a3f", color="#a855f7"];
+    mha [label=<<B>MultiheadAttention</B> 4 heads<BR/><FONT POINT-SIZE="9" COLOR="#94a3b8">q=(B,1,96), kv=(B,12,96)</FONT>>, fillcolor="#2a1a3f", color="#a855f7"];
+    cat [label=<<B>concat(attn, h_last, ctx)</B><BR/><FONT POINT-SIZE="9" COLOR="#94a3b8">(B, 201)</FONT>>, fillcolor="#2a1a3f", color="#a855f7"];
+  }
+
+  subgraph cluster_out {
+    label=<<FONT COLOR="#fdba74">NB2 head</FONT>>; fontsize=11; style="rounded,dashed"; color="#9a3412"; bgcolor="#0f172a";
+    head [label="head · Linear 201 → 96 → GELU → 1\n19,489 params", fillcolor="#3b1d1d", color="#f97316"];
+    delta [label="delta = clamp(·, −3, 3)", fillcolor="#3b1d1d", color="#f97316"];
+    alpha [label="alpha = softplus(log_alpha)\n1 param · clamp 1e-6 … 10", fillcolor="#3b1d1d", color="#f97316"];
+  }
+  mu [label="mu = exp( log1p(anchor_count) + delta )\nNB2 likelihood trains delta and alpha", fillcolor="#06281f", color="#10b981", fontsize=12];
+
+  x -> proj [label="enc"];
+  mo -> emb;
+  emb -> film;
+  c -> qry [style=dashed, label="ctx"];
+  mo -> qry [style=dashed, label="month"];
+  proj -> fuse;
+  film -> fuse [style=dashed, label="γ / β"];
+  fuse -> t1 -> t2 -> t3 -> last;
+  last -> mha [label="kv"];
+  qry -> mha [label="q"];
+  mha -> cat;
+  last -> cat;
+  c -> cat [style=dashed];
+  cat -> head -> delta -> mu;
+  alpha -> mu [label="dispersion"];
+  {rank=same; x; c; mo;}
+}

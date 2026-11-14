@@ -26,19 +26,18 @@ from pathlib import Path
 
 import numpy as np
 
-from app.firms import coverage as cov, ml_cal, ml_v4, store, ts_v2
+from app.firms import coverage as cov, ml_cal, store
 from app.firms.ml_core import counts_from_log_ratio as _counts
 from app.firms.ml_core import delta_ci as _delta_ci
 from app.firms.ml_core import metrics as _metrics
 from app.firms.ml_core import ratios_from_train
 
-EVALUATION_VERSION = "eval-v3"
+EVALUATION_VERSION = "eval-v4"
 MODEL_DIR = Path(__file__).resolve().parents[2] / "data" / "firms" / "models"
-METHOD_ORDER = ("b0_raw_modis", "b1_global_ratio", "b2_seasonal_ratio",
-                "hgb_b2res_v4", "ts_logratio_pool_v2")
-# Artifact-backed methods are joined onto the same sample IDs by
-# `merge_artifact_methods`; they are not retrained inside evaluate().
-ARTIFACT_METHODS = ("stan_safe_v1", "hts_anchor_v1", "spatial_hgb_v1")
+METHOD_ORDER = ("b0_raw_modis", "b1_global_ratio", "b2_seasonal_ratio")
+# Only the served/fallback artifacts are joined; archived and retrospective
+# models were removed in the 2026-11-13 consolidation.
+ARTIFACT_METHODS = ("stan_safe_v1", "hts_anchor_v1")
 
 
 def _hash(obj) -> str:
@@ -57,10 +56,15 @@ def split_years(pairs: list[dict], test_years: int) -> tuple[set[int], set[int]]
 
 
 def evaluate(data: str = "raw", aois: tuple[str, ...] = store.AOIS,
-             test_years: int = 2, epochs: int = 140,
+             test_years: int = 2, epochs: int | None = None,
              model_dir: Path | None = None) -> dict:
-    """Train and score every method on one frozen sample set."""
-    model_dir = Path(model_dir or Path(__file__).resolve().parents[2] / "data" / "firms" / "models")
+    """Build the frozen sample set and score B0/B1/B2 on it.
+
+    Learned models (STAN/HTS) are joined afterwards by
+    `merge_artifact_methods`, so evaluating a new model never requires retraining
+    the baselines. `epochs` is accepted for CLI compatibility and ignored.
+    """
+    model_dir = Path(model_dir or MODEL_DIR)
     pairs_by_aoi: dict[str, list[dict]] = {}
     for aoi in aois:
         if data == "raw":
@@ -77,94 +81,44 @@ def evaluate(data: str = "raw", aois: tuple[str, ...] = store.AOIS,
     if not pairs_by_aoi:
         return {"trained": False, "reason": "no_pairs"}
 
-    all_pairs = [p for ps in pairs_by_aoi.values() for p in ps]
-    # One global holdout for every AOI: use years present in ALL AOIs, so a
-    # pooled table never mixes 2025 for one region with 2026 for another.
     year_sets = [set(int(p["year"]) for p in ps) for ps in pairs_by_aoi.values()]
     common_years = set.intersection(*year_sets) if year_sets else set()
     global_test = set(sorted(common_years)[-test_years:]) if common_years else set()
 
-    windows: list[dict] = []
-    for aoi, ps in pairs_by_aoi.items():
-        windows += ts_v2.build_windows(ps, aoi=aoi)
-
-    # ---- pooled Transformer, trained on the same train years -------------
-    ts_models = None
-    ts_info: dict = {"trained": False}
-    if ts_v2._HAS_TORCH:  # noqa: SLF001 - capability check is intentional
-        tr = ts_v2.train_pooled(windows, test_years=test_years, epochs=epochs,
-                                test_set=global_test)
-        if tr.get("trained"):
-            ts_models = tr["models"]
-            ts_info = {k: v for k, v in tr.items() if k != "models"}
-
-    # ---- per-AOI models and the shared intersection ----------------------
     per_aoi: dict[str, dict] = {}
     predicted: dict[str, dict[str, float]] = {}
     refs: dict[str, dict] = {}
     for aoi, pairs in pairs_by_aoi.items():
         years_all = sorted({int(p["year"]) for p in pairs})
-        test_years_set = set(global_test)
         cutoff = min(global_test) if global_test else (max(years_all) + 1)
-        train_years = {y for y in years_all if y < cutoff}
-        train = [p for p in pairs if int(p["year"]) in train_years]
-        test = [p for p in pairs if int(p["year"]) in test_years_set]
+        train = [p for p in pairs if int(p["year"]) < cutoff]
+        test = [p for p in pairs if int(p["year"]) in global_test]
         if not train or not test:
             continue
-        hgb_res = ml_v4.train_holdout(pairs, test_years=test_years,
-                                      test_set=global_test)
-        hgb_model = hgb_res.get("model")
         b1_log, b2_log = ratios_from_train(train)
-        gate = hgb_res.get("residual_gate") or {}
-        # HGB on its full test set (reported separately, never in the table)
-        hgb_full = None
-        if hgb_model is not None:
-            hgb_full = _metrics(
-                np.array([p["viirs"] for p in test]),
-                ml_v4.predict_counts(hgb_model, test))
-        # TS eval windows for this AOI, restricted to the same test years
-        ev_wins = [w for w in windows
-                   if w["aoi"] == aoi and int(w["year"]) in test_years_set]
-        ts_pred_by_id: dict[str, float] = {}
-        if ts_models and ev_wins:
-            preds = np.mean([ts_v2._predict(m, ev_wins) for m in ts_models], axis=0)  # noqa: SLF001
-            for w, v in zip(ev_wins, preds):
-                ts_pred_by_id[f"{aoi}:{int(w['year'])}-{int(w['month']):02d}"] = float(v)
-        test_by_id = {pair_id(aoi, p): p for p in test}
-        ids = sorted(set(test_by_id) & set(ts_pred_by_id))
+        cover = cov.coverage_summary(aoi)
         per_aoi[aoi] = {
             "n_train": len(train), "n_test": len(test),
-            "train_years": sorted(train_years), "test_years": sorted(test_years_set),
-            "coverage": cov.coverage_summary(aoi),
+            "train_years": sorted({int(p["year"]) for p in train}),
+            "test_years": sorted(global_test),
+            "coverage": cover,
             "coverage_class": (
                 "full_month"
-                if cov.coverage_summary(aoi)["full_months"] >=
-                max(12, int(0.8 * cov.coverage_summary(aoi)["months"]))
+                if cover["full_months"] >= max(12, int(0.8 * cover["months"]))
                 else "sparse_window"),
-            "hgb_full_test": hgb_full,
-            "hgb_residual_enabled": bool(hgb_res.get("residual_enabled")),
-            "hgb_fallback_baseline": hgb_res.get("fallback_baseline"),
-            "hgb_gate": gate,
-            "ts_context_covered_months": len(ts_pred_by_id),
-            "ts_months_missing_context": max(0, len(test_by_id) - len(ts_pred_by_id)),
             "b1_log_ratio": round(b1_log, 6),
             "b2_log_ratios": {str(k): round(v, 6) for k, v in sorted(b2_log.items())},
-            "hgb_model": hgb_model,
-            "hgb_meta": {k: v for k, v in hgb_res.items() if k != "model"},
-            "ids": ids,
+            "ids": [],
         }
-        for sid in ids:
-            p = test_by_id[sid]
+        for p in test:
+            sid = pair_id(aoi, p)
             refs[sid] = {"aoi": aoi, "year": int(p["year"]), "month": int(p["month"]),
                          "modis": p["modis"], "viirs": p["viirs"]}
             predicted.setdefault("b0_raw_modis", {})[sid] = float(p["modis"])
             predicted.setdefault("b1_global_ratio", {})[sid] = _counts(p["modis"], b1_log)
             predicted.setdefault("b2_seasonal_ratio", {})[sid] = _counts(
                 p["modis"], b2_log.get(int(p["month"]), b1_log))
-            predicted.setdefault("ts_logratio_pool_v2", {})[sid] = ts_pred_by_id[sid]
-            if hgb_model is not None:
-                predicted.setdefault("hgb_b2res_v4", {})[sid] = float(
-                    ml_v4.predict_counts(hgb_model, [p])[0])
+        per_aoi[aoi]["ids"] = sorted(pair_id(aoi, p) for p in test)
 
     if not refs:
         return {"trained": False, "reason": "empty_intersection"}
@@ -172,60 +126,36 @@ def evaluate(data: str = "raw", aois: tuple[str, ...] = store.AOIS,
     ids = sorted(refs)
     y = np.array([refs[s]["viirs"] for s in ids], dtype=float)
     metrics_per_aoi: dict[str, dict] = {}
-    for aoi in per_aoi:
+    for aoi, info in per_aoi.items():
         sub = [s for s in ids if refs[s]["aoi"] == aoi]
         if not sub:
             continue
         yy = np.array([refs[s]["viirs"] for s in sub], dtype=float)
-        metrics_per_aoi[aoi] = {}
-        for method in METHOD_ORDER:
-            vals = predicted.get(method, {})
-            vec = [vals.get(s, float("nan")) for s in sub]
-            if method == "hgb_b2res_v4" and per_aoi[aoi].get("hgb_model") is None:
-                continue
-            if any(math.isnan(v) for v in vec):
-                continue
-            metrics_per_aoi[aoi][method] = _metrics(yy, np.array(vec))
+        metrics_per_aoi[aoi] = {
+            m: _metrics(yy, np.array([predicted[m][s] for s in sub], dtype=float))
+            for m in METHOD_ORDER if all(s in predicted[m] for s in sub)}
     for aoi, metrics in metrics_per_aoi.items():
         per_aoi[aoi]["metrics"] = metrics
         per_aoi[aoi]["n_eval"] = metrics.get("b2_seasonal_ratio", {}).get("n", 0)
-    pooled: dict[str, dict] = {}
-    for method in METHOD_ORDER:
-        vals = predicted.get(method, {})
-        vec = [vals.get(s, float("nan")) for s in ids]
-        if any(math.isnan(v) for v in vec):
-            continue
-        pooled[method] = _metrics(y, np.array(vec))
+    pooled = {m: _metrics(y, np.array([predicted[m][s] for s in ids], dtype=float))
+              for m in METHOD_ORDER}
     full_month_aois = [a for a, info in per_aoi.items()
                        if info.get("coverage_class") == "full_month"]
     fm_ids = [s for s in ids if refs[s]["aoi"] in full_month_aois]
-    pooled_full_month: dict[str, dict] = {}
+    pooled_full_month = {}
     if fm_ids:
         y_fm = np.array([refs[s]["viirs"] for s in fm_ids], dtype=float)
-        for method in METHOD_ORDER:
-            vals = predicted.get(method, {})
-            vec = [vals.get(s, float("nan")) for s in fm_ids]
-            if any(math.isnan(v) for v in vec):
-                continue
-            pooled_full_month[method] = _metrics(y_fm, np.array(vec))
-    ts_seed_range = None
-    if ts_models:
-        eval_wins = [w for w in windows
-                     if f"{w['aoi']}:{int(w['year'])}-{int(w['month']):02d}" in refs]
-        eval_wins.sort(key=lambda w: f"{w['aoi']}:{int(w['year'])}-{int(w['month']):02d}")
-        y_ts = np.array([w["viirs_ref"] for w in eval_wins], dtype=float)
-        seed_maes = [float(np.mean(np.abs(
-            ts_v2._predict(m, eval_wins) - y_ts))) for m in ts_models]  # noqa: SLF001
-        ts_seed_range = [round(min(seed_maes), 2), round(max(seed_maes), 2)]
+        pooled_full_month = {
+            m: _metrics(y_fm, np.array([predicted[m][s] for s in fm_ids], dtype=float))
+            for m in METHOD_ORDER}
+
     samples = []
     for sid in ids:
         r = refs[sid]
         samples.append({
             "id": sid, "aoi": r["aoi"], "year": r["year"], "month": r["month"],
             "modis": r["modis"], "viirs_ref": r["viirs"],
-            **{m: round(predicted[m][sid], 4) for m in METHOD_ORDER
-               if sid in predicted.get(m, {})},
-        })
+            **{m: round(predicted[m][sid], 4) for m in METHOD_ORDER}})
 
     dataset_sha = _hash([
         {"aoi": a, "pairs": [{k: p[k] for k in
@@ -233,19 +163,6 @@ def evaluate(data: str = "raw", aois: tuple[str, ...] = store.AOIS,
                                "day_frac", "terra_frac") if k in p}
                              for p in ps]}
         for a, ps in sorted(pairs_by_aoi.items())])
-    comparisons = {
-        "hgb_vs_b2": _delta_ci(samples, "hgb_b2res_v4", "b2_seasonal_ratio"),
-        "hgb_vs_b1": _delta_ci(samples, "hgb_b2res_v4", "b1_global_ratio"),
-        "ts_vs_b2": _delta_ci(samples, "ts_logratio_pool_v2", "b2_seasonal_ratio"),
-        "ts_vs_b1": _delta_ci(samples, "ts_logratio_pool_v2", "b1_global_ratio"),
-    }
-    comparisons = {k: v for k, v in comparisons.items() if v}
-    scored_years = sorted({s["year"] for s in samples})
-    excluded_months = sorted({
-        f"{a}:{y}-{m:02d}" for a, ps in pairs_by_aoi.items()
-        for p in ps for y, m in [(int(p["year"]), int(p["month"]))]
-        if y in global_test and f"{a}:{y}-{m:02d}" not in refs
-    })
     manifest = {
         "evaluation_version": EVALUATION_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -254,20 +171,16 @@ def evaluate(data: str = "raw", aois: tuple[str, ...] = store.AOIS,
                         else "synthetic demo (NOT observed)"),
         "eval_unit": "aoi-month (VIIRS hotspot detections, not fires)",
         "candidate_holdout_years": sorted(global_test),
-        "scored_years": scored_years,
-        "test_years": scored_years,
+        "scored_years": sorted({s["year"] for s in samples}),
+        "test_years": sorted({s["year"] for s in samples}),
         "test_year_count": test_years,
-        "excluded_months": excluded_months,
+        "excluded_months": [],
         "dataset_sha256": dataset_sha,
         "pair_table_hash": dataset_sha,
-        "comparisons": comparisons,
+        "comparisons": {},
         "n_eval": len(ids),
         "samples": samples,
-        "per_aoi": {
-            a: {k: v for k, v in info.items()
-                if k not in ("hgb_model", "ids", "hgb_meta")}
-            for a, info in per_aoi.items()
-        },
+        "per_aoi": per_aoi,
         "pooled": {"n_eval": len(ids), "metrics": pooled},
         "pooled_full_month": {"aois": full_month_aois, "n_eval": len(fm_ids),
                               "metrics": pooled_full_month},
@@ -276,16 +189,11 @@ def evaluate(data: str = "raw", aois: tuple[str, ...] = store.AOIS,
                      "why": ("All scored AOIs meet the full-month coverage rule "
                              "(>=80% of months with >=90% paired MODIS/VIIRS days)."
                              if len(full_month_aois) == len(per_aoi)
-                             else "AOIs outside the full-month coverage rule are excluded "
-                                  "from this headline; see per_aoi.coverage_class.")},
-        "ts": {k: v for k, v in ts_info.items() if k not in ("models", "metrics")},
-        "ts_unified_seed_mae_range": ts_seed_range,
-        "ts_training_split_metrics": ts_info.get("metrics"),
+                             else "AOIs outside the full-month coverage rule are "
+                                  "excluded from this headline; see per_aoi.coverage_class.")},
         "methods": list(METHOD_ORDER),
-        "note": ("Every method in `pooled`/`per_aoi` is scored on the exact same "
-                 "sample IDs. `hgb_full_test` covers all monthly test pairs and is "
-                 "reported separately because the Transformer lacks a 12-month "
-                 "context for some of them."),
+        "note": ("Baselines are scored on every test AOI-month; STAN/HTS are "
+                 "joined on the same IDs by merge_artifact_methods."),
     }
     manifest = merge_artifact_methods(manifest, model_dir)
     out = model_dir / f"evaluation_{data}.json"
@@ -297,8 +205,7 @@ def evaluate(data: str = "raw", aois: tuple[str, ...] = store.AOIS,
 def _artifact_predictions(data: str, model_dir: Path) -> dict[str, dict[str, float]]:
     """Join committed artifact predictions onto the unified sample IDs.
 
-    No retraining: STAN/HTS/spatial already publish one prediction per
-    AOI-month. This is what stops the README from quoting a table that only
+    No retraining: STAN/HTS already publish one prediction per AOI-month. This is what stops the README from quoting a table that only
     contains the archived HGB/Transformer while the calendar serves STAN.
     """
     out: dict[str, dict[str, float]] = {}
@@ -326,11 +233,6 @@ def _artifact_predictions(data: str, model_dir: Path) -> dict[str, dict[str, flo
             for ym, v in months.items():
                 if v.get("hts") is not None:
                     out.setdefault("hts_anchor_v1", {})[f"{aoi}:{ym}"] = float(v["hts"])
-    spatial = _read("spatial_hgb_raw.json")
-    if spatial:
-        for sid, v in (spatial.get("predictions") or {}).items():
-            if v.get("spatial") is not None:
-                out.setdefault("spatial_hgb_v1", {})[sid] = float(v["spatial"])
     return out
 
 
@@ -347,7 +249,7 @@ def _group_metrics(samples: list[dict], methods: list[str], ids: list[str]) -> d
 
 
 def merge_artifact_methods(manifest: dict, model_dir: Path | None = None) -> dict:
-    """Add STAN/HTS/spatial to an evaluation manifest, on the same sample IDs.
+    """Add STAN/HTS to an evaluation manifest, on the same sample IDs.
 
     Pure bookkeeping over committed artifacts: no model is retrained and no
     sample is added or removed. `verify_manifest` can recompute every number.
@@ -390,8 +292,7 @@ def merge_artifact_methods(manifest: dict, model_dir: Path | None = None) -> dic
     comp = dict(manifest.get("comparisons") or {})
     for a, b, name in (("stan_safe_v1", "b2_seasonal_ratio", "stan_vs_b2"),
                        ("stan_safe_v1", "hts_anchor_v1", "stan_vs_hts"),
-                       ("hts_anchor_v1", "b2_seasonal_ratio", "hts_vs_b2"),
-                       ("spatial_hgb_v1", "b2_seasonal_ratio", "spatial_vs_b2")):
+                       ("hts_anchor_v1", "b2_seasonal_ratio", "hts_vs_b2")):
         c = _delta_ci(samples, a, b)
         if c:
             comp[name] = c
@@ -495,8 +396,7 @@ def load_manifest(data: str, model_dir: Path | None = None) -> dict | None:
 def _model_signature() -> dict:
     """Identity of every served/comparator artifact (path mtime + size)."""
     sig: dict[str, list[int]] = {}
-    for name in ("stan_series_raw.json", "hts_series_raw.json",
-                 "spatial_hgb_raw.json", "sf_lite_raw.json"):
+    for name in ("stan_series_raw.json", "hts_series_raw.json"):
         p = MODEL_DIR / name
         try:
             st = p.stat()
@@ -511,7 +411,6 @@ def cache_key(aoi: str, data: str, test_years: int, extra: str = "") -> str:
     fp = store.raw_fingerprint(aoi) if data == "raw" else store.sample_path(aoi).name
     payload = {"v": EVALUATION_VERSION, "aoi": aoi, "data": data,
                "test_years": test_years, "fp": fp,
-               "ml": ml_v4.ALGORITHM_VERSION, "ts": ts_v2.ALGORITHM_VERSION,
                "models": _model_signature(),
                "extra": extra}
     return _hash(payload)

@@ -56,8 +56,8 @@ MODEL_DIR = Path(__file__).resolve().parents[2] / "data" / "firms" / "models"
 
 
 def build_windows(retrospective: bool, cutoff: int = 2024) -> list[dict]:
-    from app.firms import sf_tile, spatial_hgb
-    df = spatial_hgb._frame()
+    from app.firms import sf_tile
+    df = sf_tile.frame()
     pairs = sf_tile.load_aoi_pairs()
     ratios = sf_tile.b2_by_aoi(pairs, cutoff)
     anchors = sf_tile.tile_anchors(sf_tile.loads(), ratios, cutoff)
