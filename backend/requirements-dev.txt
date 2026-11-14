@@ -4,3 +4,4 @@
 -r requirements-serve.txt
 pandas
 pyarrow
+duckdb>=1.0

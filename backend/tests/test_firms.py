@@ -1562,3 +1562,291 @@ def test_aggregate_rejects_unknown_instrument():
     modis = sum(a.count for (_, _, inst), a in agg.items() if inst == "MODIS")
     assert modis == 10
 
+
+
+def _p1_rows_for_month(month: str, n_modis: int, n_viirs: int) -> list[str]:
+    """Valid FIRMS rows: MODIS conf letters + VIIRS, spread over cell-days."""
+    out = []
+    for i in range(n_modis):
+        out.append(f"12.{i:02d},106.1,320.0,1.0,1.0,{month}-05,1330,Terra,MODIS,h,C6.1,290.0,12.0,D,0")
+    for i in range(n_viirs):
+        out.append(f"13.{i:02d},106.2,310.0,1.0,1.0,{month}-06,1345,NPP,VIIRS,n,V2,285.0,5.0,D,0")
+    return out
+
+
+def test_P1_cache_serves_current_truth_labels(tmp_path, monkeypatch):
+    """P1-1: disk cache must never return a pre-label payload.
+
+    Fresh and cached calendar runs must both carry `uncertainty_label` on
+    every daily cell and `_calibration_note` in ratios/calibration, and the
+    cached payload must equal the fresh one.
+    """
+    import app.firms.store as store
+    monkeypatch.setattr(store, "RAW_DIR", tmp_path)
+    monkeypatch.setattr(store, "CACHE_DIR", tmp_path / "cache")
+    monkeypatch.setattr(store, "raw_fingerprint",
+                        lambda aoi, raw_dir=None: "test-fp")
+    header = ("latitude,longitude,brightness,scan,track,acq_date,acq_time,satellite,"
+              "instrument,confidence,version,bright_t31,frp,daynight,type\n")
+    body = []
+    for m, nv in (("2024-01", 1), ("2024-02", 2), ("2024-03", 3), ("2024-04", 4)):
+        body += _p1_rows_for_month(m, 2, nv)
+    (tmp_path / "vietnam_test_20240101.csv").write_text(header + "\n".join(body) + "\n")
+    params = {"aoi": "vietnam", "data": "raw", "method": "stat"}
+    hits: list[str] = []
+    orig_get = store.cache_get
+
+    def _spy(key):
+        v = orig_get(key)
+        if v is not None:
+            hits.append(key)
+        return v
+
+    monkeypatch.setattr(store, "cache_get", _spy)
+    fresh = client.get("/api/firms/calendar", params=params).json()
+    assert not hits  # first run computes
+    assert "calibrated on 4 co-observed months" in fresh["calibration"]["_calibration_note"]
+    assert "calibrated on 4 co-observed months" in fresh["ratios"]["_calibration_note"]
+    assert fresh["daily"]
+    assert all(c.get("uncertainty_label") for c in fresh["daily"])
+    cached = client.get("/api/firms/calendar", params=params).json()
+    assert hits  # second run is served from disk
+    assert cached == fresh
+    assert all(c.get("uncertainty_label") for c in cached["daily"])
+    assert "calibrated on 4 co-observed months" in cached["calibration"]["_calibration_note"]
+    assert harmonize.cache_behavior().startswith("beh-")
+    assert harmonize.cache_behavior() == harmonize.cache_behavior()
+
+
+def test_P1_export_detections_normalizes_numeric_confidence(tmp_path, monkeypatch):
+    """P1-2: /export-detections must filter on FirmsRecord scales, not raw text.
+
+    Real MODIS C6.1 NRT rows ship confidence as 0-100 ("54", "85", "30");
+    the old raw-string compare dropped every numeric row under qa_min=high.
+    Satellite aliases (SNPP, N) must count as NPP for platform_set=snpp.
+    """
+    import csv as _csv
+    import io as _io
+    import app.firms.store as store
+    monkeypatch.setattr(store, "RAW_DIR", tmp_path)
+    header = ("latitude,longitude,brightness,scan,track,acq_date,acq_time,satellite,"
+              "instrument,confidence,version,bright_t31,frp,daynight,type\n")
+    modis = "\n".join([
+        "12.50,106.1,320.0,1.0,1.0,2024-01-05,1330,Terra,MODIS,54,C6.1,290.0,12.0,D,0",
+        "12.51,106.1,320.0,1.0,1.0,2024-01-05,1330,Terra,MODIS,85,C6.1,290.0,12.0,D,0",
+        "12.52,106.1,320.0,1.0,1.0,2024-01-05,1330,Terra,MODIS,30,C6.1,290.0,12.0,D,0",
+    ])
+    viirs = "\n".join([
+        "12.60,106.2,310.0,1.0,1.0,2024-01-05,1345,SNPP,VIIRS,n,V2,285.0,5.0,D,0",
+        "12.61,106.2,310.0,1.0,1.0,2024-01-05,1345,N,VIIRS,h,V2,285.0,5.0,D,0",
+        "12.62,106.2,310.0,1.0,1.0,2024-01-05,1345,NOAA-20,VIIRS,n,V2,285.0,5.0,D,0",
+    ])
+    (tmp_path / "vietnam_MODIS_SP_2024-01-05_5d_a.csv").write_text(header + modis + "\n")
+    (tmp_path / "vietnam_VIIRS_SNPP_SP_2024-01-05_5d_b.csv").write_text(header + viirs + "\n")
+
+    def _get(**kw):
+        r = client.get("/api/firms/export-detections",
+                       params={"aoi": "vietnam", "data": "raw", **kw})
+        assert r.status_code == 200, r.text[:300]
+        return list(_csv.DictReader(_io.StringIO(r.text)))
+
+    high = _get(qa_min="high")
+    confs = {(row["latitude"], row["confidence"]) for row in high}
+    assert ("12.51", "85") in confs  # numeric 85 -> h: kept (old code dropped it)
+    assert ("12.61", "h") in confs  # sat alias N: kept
+    assert all(row["confidence"] not in ("n", "54", "30") or row["latitude"] == "12.51"
+               for row in high)
+    assert not any(row["latitude"] in ("12.50", "12.52", "12.60", "12.62")
+                   for row in high)
+    nominal = _get(qa_min="nominal")
+    assert {row["latitude"] for row in nominal} == {"12.50", "12.51", "12.60", "12.61", "12.62"}
+    snpp = _get(platform_set="snpp")
+    assert {row["latitude"] for row in snpp} == {"12.50", "12.51", "12.52", "12.60", "12.61"}
+
+
+@_NEEDS_RAW
+def test_P1_export_detections_high_on_vietnam_2024_01_raw():
+    """P1-2 on real data: Vietnam 2024-01 keeps ~3377 rows under qa_min=high.
+
+    Independent FirmsRecord-scale count on 2026-11-13: 58848 deduped rows,
+    3377 with normalized confidence h (raw MODIS letters h + numerics >= 80).
+    The old raw-string compare kept 44878 under high (every letter n/h row,
+    while dropping ~1551 numeric-confidence detections >= 80) — it disagreed
+    with the harmonize path, where high means normalized h only.
+    """
+    import csv as _csv
+    import io as _io
+    r = client.get("/api/firms/export-detections", params={
+        "aoi": "vietnam", "data": "raw", "qa_min": "high",
+        "from_date": "2024-01-01", "to_date": "2024-01-31", "limit": 2000000})
+    assert r.status_code == 200, r.text[:300]
+    rows = list(_csv.DictReader(_io.StringIO(r.text)))
+    assert 3300 <= len(rows) <= 3450, len(rows)
+
+
+def test_P1_ingest_visible_to_month_fast_path(tmp_path, monkeypatch):
+    """P1-6: ingested uploads must survive the ym/year filename fast-path.
+
+    POST /ingest writes `{aoi}_{src}_{stamp}_{digest}.csv` (no YYYY-MM tag),
+    which the old `_{ym}-` filter excluded entirely. Manifest-listed files
+    are now scanned with row-level date filtering instead.
+    """
+    import app.firms.store as store
+    monkeypatch.setattr(store, "RAW_DIR", tmp_path)
+    monkeypatch.setattr(store, "MANIFEST", tmp_path / "manifest.json")
+    header = ("latitude,longitude,brightness,scan,track,acq_date,acq_time,satellite,"
+              "instrument,confidence,version,bright_t31,frp,daynight,type\n")
+    body = "\n".join(
+        f"12.5{i},106.1,320.0,1.0,1.0,2024-02-05,1330,Terra,MODIS,h,C6.1,290.0,12.0,D,0"
+        for i in range(5))
+    rep = store.ingest_upload("small.csv", (header + body + "\n").encode(),
+                              "vietnam", source="upload")
+    assert rep["clean"] == 5 and rep["file"].startswith("vietnam_upload_")
+    assert len(list(store.iter_raw_rows("vietnam", raw_dir=tmp_path))) == 5
+    assert len(list(store.iter_raw_rows("vietnam", raw_dir=tmp_path, ym="2024-02"))) == 5
+    assert list(store.iter_raw_rows("vietnam", raw_dir=tmp_path, ym="2024-01")) == []
+    assert len(list(store.iter_raw_rows("vietnam", raw_dir=tmp_path, year=2024))) == 5
+
+
+def test_CLAIM022_ops_caps_and_elapsed_header_are_served():
+    """CLAIM-022 docs lock: caps + X-Elapsed-Ms must match the published docs.
+
+    daily slice 5000 (min(limit, 5000)), map-cells max 200k, /validate max
+    50k, geometry max 200kB / 5k vertices, every response carries X-Elapsed-Ms.
+    """
+    import json as _json
+    # X-Elapsed-Ms on a cheap path.
+    r = client.get("/api/health")
+    assert r.status_code == 200
+    assert "x-elapsed-ms" in {k.lower() for k in r.headers}
+    # /validate cap: 50k rows max.
+    big = [{"latitude": 12.5, "longitude": 106.1, "acq_date": "2024-01-05",
+            "acq_time": "1330", "satellite": "Terra", "instrument": "MODIS",
+            "confidence": "h"}] * 50001
+    rv = client.post("/api/firms/validate", json={"records": big})
+    assert rv.status_code == 400
+    # geometry payload/vertex caps (unit-level: 5k-vertex polygons never
+    # survive httpx query limits, so lock the parser directly).
+    from fastapi import HTTPException as _HTTPException
+    from app.main import _parse_geometry as _parse_geom
+    try:
+        _parse_geom(" " * 200001)
+        raise AssertionError("expected 400 for >200kB geometry")
+    except _HTTPException as e:
+        assert e.status_code == 400
+    many = [[104.0 + (i % 100) * 0.05, 10.0 + (i // 100) * 0.05] for i in range(5001)]
+    many.append(many[0])
+    try:
+        _parse_geom(_json.dumps({"type": "Polygon", "coordinates": [many]}))
+        raise AssertionError("expected 400 for >5000 vertices")
+    except _HTTPException as e:
+        assert e.status_code == 400
+        assert "vertices" in e.detail
+    # map-cells cap: max_cells <= 200000.
+    rm = client.get("/api/firms/map-cells", params={
+        "data": "sample", "aoi": "vietnam", "ym": "2019-03", "max_cells": 200001})
+    assert rm.status_code == 422
+    # custom geometry on sample still forces stat: no 409 for method=stat,
+    # and empty ocean polygon is an empty 200 (not zero fires, latest None).
+    ocean = _json.dumps({"type": "Polygon",
+                         "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 0]]]})
+    d = client.get("/api/firms/calendar", params={
+        "data": "sample", "aoi": "vietnam", "method": "stat",
+        "geometry": ocean, "limit": 100}).json()
+    assert d["summary"]["n_daily_cells_total"] == 0
+    assert d["summary"]["estimated_index"] is None
+    assert d["latest"] is None
+
+
+def test_CLAIM020_custom_aoi_with_manifest_serves_stat(tmp_path, monkeypatch):
+    """CLAIM-020: a new AOI with manifest entries serves stat (200) and
+    data-status reports dataset_ready; unknown ids stay 404 no_raw_data."""
+    import json as _json
+    header = ("latitude,longitude,brightness,scan,track,acq_date,acq_time,"
+              "satellite,instrument,confidence,version,bright_t31,frp,daynight\n")
+    modis = (header + "10.5,20.5,320.0,1.0,1.0,2021-06-15,1330,Terra,MODIS,h,"
+             "C6.1,290.0,12.0,D\n")
+    viirs = (header + "10.51,20.51,310.0,1.0,1.0,2021-06-15,1345,NPP,VIIRS,n,"
+             "V2,285.0,5.0,D\n")
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    f1 = raw / "testland_MODIS_SP_2021-06-15_5d_aaa111.csv"
+    f2 = raw / "testland_VIIRS_SNPP_SP_2021-06-15_5d_bbb222.csv"
+    f1.write_text(modis)
+    f2.write_text(viirs)
+    man = tmp_path / "manifest.json"
+    man.write_text(_json.dumps([
+        {"file": f1.name, "aoi": "testland", "source": "MODIS_SP",
+         "bbox": "20,10,21,11", "days": 5, "rows": 1},
+        {"file": f2.name, "aoi": "testland", "source": "VIIRS_SNPP_SP",
+         "bbox": "20,10,21,11", "days": 5, "rows": 1},
+    ]))
+    monkeypatch.setattr(_store, "RAW_DIR", raw)
+    monkeypatch.setattr(_store, "MANIFEST", man)
+    r = client.get("/api/firms/calendar",
+                   params={"aoi": "testland", "data": "raw", "method": "stat"})
+    assert r.status_code == 200, r.text[:500]
+    assert r.json()["daily_cells"] >= 1
+    aois = client.get("/api/firms/aois").json()["aois"]
+    entry = next(a for a in aois if a["id"] == "testland")
+    assert entry["months"] >= 1 and entry["coverage_class"]
+    st = client.get("/api/firms/data-status").json()
+    row = next(d for d in st["datasets"] if d["aoi"] == "testland")
+    assert row["dataset_ready"] is True
+    assert row["raw_ready"] is True
+    missing = client.get("/api/firms/calendar",
+                         params={"aoi": "nowhere_xyz", "data": "raw"})
+    assert missing.status_code == 404
+    assert missing.json()["detail"]["error_code"] == "no_raw_data"
+
+
+def test_CLAIM023_post_aoi_registry_roundtrip(tmp_path, monkeypatch):
+    """CLAIM-023: POST /api/firms/aois validates, persists to custom, GET sees
+    it with dataset_ready=false; calendar stat on its bbox runs; unknown raw 404."""
+    import json as _json
+    import app.firms.store as store
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    tmp_aois = tmp_path / "aois.json"
+    orig_path = BACKEND_DIR / "data" / "firms" / "aois.json"
+    try:
+        tmp_aois.write_text(orig_path.read_text(encoding="utf-8"), encoding="utf-8")
+    except OSError:
+        tmp_aois.write_text("{}", encoding="utf-8")
+    store._registry_cached.cache_clear()
+    store._manifest_aois_cached.cache_clear()
+    monkeypatch.setattr(store, "AOIS_JSON", tmp_aois)
+    monkeypatch.setattr(_store, "AOIS_JSON", tmp_aois)
+    monkeypatch.setattr(store, "MANIFEST", tmp_path / "manifest.json")
+    monkeypatch.setattr(_store, "MANIFEST", tmp_path / "manifest.json")
+    monkeypatch.setattr(store, "RAW_DIR", raw)
+    monkeypatch.setattr(_store, "RAW_DIR", raw)
+    new_id = "claim023_e2e_probe"
+    bad = client.post("/api/firms/aois", json={
+        "id": new_id, "label": "CLAIM-023 E2E Probe",
+        "bbox": [200, 0, 10, 10]})
+    assert bad.status_code == 400, bad.text[:300]
+    r = client.post("/api/firms/aois", json={
+        "id": new_id, "label": "CLAIM-023 E2E Probe",
+        "bbox": [104.5, 10.5, 105.5, 11.5]})
+    assert r.status_code == 200, r.text[:500]
+    body = r.json()
+    assert body["id"] == new_id
+    assert body["label"] == "CLAIM-023 E2E Probe"
+    assert body["bbox"] == "104.5,10.5,105.5,11.5"
+    dup = client.post("/api/firms/aois", json={
+        "id": new_id, "label": "dup", "bbox": [104.5, 10.5, 105.5, 11.5]})
+    assert dup.status_code == 409, dup.text[:300]
+    aois = client.get("/api/firms/aois").json()["aois"]
+    entry = next(a for a in aois if a["id"] == new_id)
+    assert entry["label"] == "CLAIM-023 E2E Probe"
+    assert entry["bbox"] == "104.5,10.5,105.5,11.5"
+    assert entry["dataset_ready"] is False
+    cal = client.get("/api/firms/calendar", params={
+        "aoi": new_id, "data": "sample", "method": "stat"})
+    assert cal.status_code == 200, cal.text[:500]
+    assert cal.json()["daily_cells"] > 0
+    missing = client.get("/api/firms/calendar",
+                         params={"aoi": "nowhere_xyz_claim023", "data": "raw"})
+    assert missing.status_code == 404
+    assert missing.json()["detail"]["error_code"] == "no_raw_data"

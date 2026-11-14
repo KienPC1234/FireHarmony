@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { CalendarDays, Eye, Globe, Sparkles, X, Zap } from "lucide-react";
 import { useLang } from "@/lib/i18n";
 import { cn, compact } from "@/lib/utils";
@@ -56,6 +57,19 @@ export function CalendarMatrix({
   onOpenMap: () => void;
 }) {
   const { t } = useLang();
+  const detailRef = useRef<HTMLDivElement>(null);
+
+  // CLAIM-025: Escape closes the month inspector; focus moves into the
+  // dialog on open so keyboard users land inside it.
+  useEffect(() => {
+    if (!activeMonth) return;
+    detailRef.current?.focus();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCloseMonth();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeMonth, onCloseMonth]);
 
   return (
     <>
@@ -220,7 +234,7 @@ export function CalendarMatrix({
                     })();
 
                     const label = `${y}-${String(m).padStart(2, "0")}: ${
-                      v === null ? t("common.no_data") : `${v.toLocaleString()} detections`
+                      v === null ? t("common.no_data") : `${v.toLocaleString()} ${t("common.detections")}`
                     }, z=${z == null ? "-" : z.toFixed(1)}${isPartial ? `, ${t("common.partial_coverage")}` : ""}`;
                     return (
                       <td key={m} className="p-0.5 border border-slate-800/40">
@@ -266,7 +280,17 @@ export function CalendarMatrix({
 
       {/* Active Month Detail Card */}
       {activeMonth && (
-        <div data-fh-popover className="rounded-2xl border border-cyan-500/40 bg-slate-950/95 p-5 shadow-2xl space-y-4">
+        <div
+          ref={detailRef}
+          tabIndex={-1}
+          role="dialog"
+          aria-label={t("calendar.month_audit_title", {
+            month: String(activeMonth.month).padStart(2, "0"),
+            year: activeMonth.year,
+          })}
+          data-fh-popover
+          className="rounded-2xl border border-cyan-500/40 bg-slate-950/95 p-5 shadow-2xl space-y-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+        >
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-950 border border-cyan-500/30 text-cyan-300 font-mono font-bold text-sm">
@@ -305,8 +329,8 @@ export function CalendarMatrix({
               <button
                 type="button"
                 onClick={onCloseMonth}
-                className="text-slate-400 hover:text-white p-2 rounded-lg"
-                aria-label="Close month detail"
+                className="text-slate-400 hover:text-white p-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                aria-label={t("common.close_menu")}
               >
                 <X className="h-4 w-4" />
               </button>

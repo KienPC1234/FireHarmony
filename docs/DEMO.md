@@ -1,7 +1,8 @@
 # Demo script — 3 minutes, real data first
 
-> Numbers in the model table predate the 2026-11-13 Australia full-month
-> backfill; the current table is in `docs/FIRMS_MODEL_CARD.md` (`eval-v3`).
+> Numbers below are `eval-v4` post 2026-11-13 Australia full-month
+> backfill (STAN MAE 3765.8, 95% CI [-1452.9, +81.8] vs B2, n=72);
+> the current table is in `docs/FIRMS_MODEL_CARD.md` (`eval-v4`).
 
 Server: `make demo` → http://127.0.0.1:8000 (API + SPA). No external network is
 needed for the data; map tiles need OSM.

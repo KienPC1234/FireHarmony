@@ -166,7 +166,10 @@ How to read it:
   over B2 (4.4%) is also not statistically established.
 - The bootstrap CI resamples AOI-month rows independently (2,000 draws), not
   hotspots and not whole years. Seasonal/year correlation can make it
-  optimistic; it is not a year-block or region-year bootstrap. A CI that
+  optimistic; it is not a year-block or region-year bootstrap. A year-block
+  bootstrap (`block="year"` in `ml_core.delta_ci`) is future work: with only
+  two holdout years it would be coarse, so the shipped CI stays AOI-month
+  (see the generated row above: unit is AOI-month block). A CI that
   includes 0 means the improvement is not established.
 
 ## Architectures
@@ -191,7 +194,8 @@ How to read it:
 - NB2 count likelihood; mean = HTS anchor × exp(δ); 12-month dilated TCN
   (1/2/4) with seasonal FiLM; target-month query cross-attention; neighbour
   context without same-month neighbour VIIRS.
-- 171k params, 5 seeds, early stop on 2023 count MAE (the NLL made training
+- 171k params, 5 fixed seeds (7, 17, 27, 37, 47; `SEEDS` in
+  `backend/app/firms/stan.py:47`), early stop on 2023 count MAE (the NLL made training
   collapse to epoch 1 after the full Australia backfill — fixed), refit `< 2024`,
   one level factor from 2023. Weights `models/stan_safe_raw.pt` (sha256 in JSON).
 - **Official 72: MAE 3,765.8 vs B2 4,411.8 (−14.6%), CI [−1,452.9, +81.8];
@@ -200,7 +204,9 @@ How to read it:
 - LOO: Vietnam 801.4 vs HTS 783.9, Amazon 4,510.9 vs 4,250.1, Australia
   7,493.2 vs 7,429.3. Region transfer is still not solved.
 - Predictive band: log-scale 80% band calibrated on the 2023 selection year;
-  validation coverage 0.81, 2024-25 holdout coverage 0.72 (reported, not hidden).
+  validation coverage 0.81, 2024-25 holdout coverage 0.72 (measured
+  undercoverage on n=72 holdout months; the width is still fit on 2023 only —
+  a coverage gap, not a point-estimate claim).
 - Ablations from the earlier run: FiLM is the main structural win (no-FiLM +13%);
   3 layers best; Poisson ≈ NB; d=96 > d=64 > d=32. The retrospective twin
   (neighbour VIIRS) is flagged, not the forecast claim.

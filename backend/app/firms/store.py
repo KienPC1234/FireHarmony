@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import os
 import re
 import time
 from functools import lru_cache
@@ -637,6 +638,32 @@ def iter_raw_rows(aoi: str, raw_dir: Path | None = None, limit: int | None = Non
     if aoi != "custom" and not is_known_aoi(aoi):
         raise ValueError(f"Unknown aoi {aoi!r}")
     raw_dir = raw_dir or RAW_DIR
+    # CLAIM-024: opt-in Parquet fast path (FIRMS_PARQUET=1). Only for
+    # month/year-filtered reads; any parquet failure falls through to the
+    # legacy CSV scan below, so the default (flag off) behavior is unchanged.
+    # The explicit raw_dir (incl. test tmp_path dirs) is passed through, so
+    # parquet partitions stay isolated per source dir.
+    if (ym is not None or year is not None) \
+            and os.getenv("FIRMS_PARQUET") == "1":
+        try:
+            from app.firms import parquet_cache as _pq
+            yield from _pq.iter_parquet_rows(
+                aoi, raw_dir=raw_dir, limit=limit, year=year, ym=ym)
+            return
+        except Exception:
+            pass
+    # CLAIM-028: opt-in DuckDB rung (FIRMS_DUCKDB=1), after the Parquet path
+    # so each rung benchmarks independently. Any failure falls through to
+    # the legacy CSV scan below; default (flag off) behavior is unchanged.
+    if (ym is not None or year is not None) \
+            and os.getenv("FIRMS_DUCKDB") == "1":
+        try:
+            from app.firms import parquet_cache as _pq
+            yield from _pq.iter_duckdb_rows(
+                aoi, raw_dir=raw_dir, limit=limit, year=year, ym=ym)
+            return
+        except Exception:
+            pass
     if not raw_dir.exists():
         return
     files = sorted(raw_dir.glob(f"{aoi}_*.csv"),

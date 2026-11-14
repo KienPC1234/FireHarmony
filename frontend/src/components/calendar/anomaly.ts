@@ -13,7 +13,13 @@ export type TranslateFn = (key: string) => string;
 export function colorFor(z: number | null, palette: AnomalyPalette = "standard"): string {
   if (z === null || z === undefined) return "bg-slate-900/60 text-slate-500 border-slate-800/50";
   if (palette === "accessible") {
-    // High-contrast, colorblind-safe (Viridis/Cividis inspired, deuteranopia/protanopia verified)
+    // High-contrast ramp (amber/indigo/teal on near-black). Measured WCAG
+    // text/background contrast (alpha-blended over #020617, 2026-11-14):
+    // z>=3 slate-950/amber-400 12.08:1; z>=2 slate-950/amber-500 9.39:1;
+    // 1<=z<2 amber-100/amber-800@80% 8.36:1; z<=-1.5 indigo-100/indigo-900@90%
+    // 10.03:1; z<=-0.75 teal-200/teal-950@80% 12.55:1; neutral
+    // slate-300/slate-900@70% 12.56:1. All pass AA (>=4.5:1); no AAA claim
+    // (colorblind-safety not instrument-verified, so none is claimed).
     if (z >= 3) return "bg-amber-400 text-slate-950 border-2 border-white font-black shadow-[inset_0_0_8px_rgba(255,255,255,0.5)]";
     if (z >= 2) return "bg-amber-500 text-slate-950 border-amber-300 font-bold";
     if (z >= 1) return "bg-amber-800/80 text-amber-100 border-amber-500 font-medium";
