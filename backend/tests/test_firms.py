@@ -1668,7 +1668,7 @@ def test_P1_export_detections_normalizes_numeric_confidence(tmp_path, monkeypatc
 def test_P1_export_detections_high_on_vietnam_2024_01_raw():
     """P1-2 on real data: Vietnam 2024-01 keeps ~3377 rows under qa_min=high.
 
-    Independent FirmsRecord-scale count on 2026-11-13: 58848 deduped rows,
+    Independent FirmsRecord-scale count on 2026-11-14: 58848 deduped rows,
     3377 with normalized confidence h (raw MODIS letters h + numerics >= 80).
     The old raw-string compare kept 44878 under high (every letter n/h row,
     while dropping ~1551 numeric-confidence detections >= 80) — it disagreed
@@ -1850,3 +1850,53 @@ def test_CLAIM023_post_aoi_registry_roundtrip(tmp_path, monkeypatch):
                          params={"aoi": "nowhere_xyz_claim023", "data": "raw"})
     assert missing.status_code == 404
     assert missing.json()["detail"]["error_code"] == "no_raw_data"
+
+
+def test_CLAIM033_upload_dataset_rejects_hts_stan():
+    """CLAIM-033(a): upload + hts/stan is an explicit 409 naming method=stat."""
+    sample = client.get("/api/firms/sample",
+                        params={"aoi": "vietnam", "limit": 30}).json()
+    import io as _io
+    import csv as _csv
+    buf = _io.StringIO()
+    w = _csv.DictWriter(buf, fieldnames=list(sample["records"][0].keys()))
+    w.writeheader()
+    w.writerows(sample["records"])
+    up = client.post("/api/firms/upload-dataset",
+                     files={"file": ("mini.csv", buf.getvalue(), "text/csv")})
+    assert up.status_code == 200, up.text[:300]
+    ds = up.json()["dataset_id"]
+    assert ds.startswith("upload:")
+    for method in ("hts", "stan"):
+        r = client.get("/api/firms/calendar",
+                       params={"dataset": ds, "method": method})
+        assert r.status_code == 409, (method, r.text[:300])
+        assert "method=stat" in r.text
+
+
+def test_CLAIM033_unknown_sample_id_points_to_registration():
+    """CLAIM-033(b): unknown sample id names POST /aois + upload instead of
+    implying only 3 presets exist."""
+    r = client.get("/api/firms/calendar",
+                   params={"aoi": "no_such_aoi_xyz", "data": "sample"})
+    assert r.status_code == 400
+    assert "upload" in r.text
+    assert "POST /aois" in r.text
+
+
+def test_CLAIM033_evidence_backtest_reject_upload_dataset():
+    """CLAIM-033 guard test (TRUTH_CONTRACT): evidence/backtest must not
+    silently ignore ?dataset=upload:<id>; they name the supported endpoints."""
+    ev = client.get("/api/firms/evidence",
+                    params={"aoi": "vietnam", "data": "sample",
+                            "year": 2019, "month": 3,
+                            "dataset": "upload:deadbeefdeadbeef"})
+    assert ev.status_code == 400, ev.text[:300]
+    assert "dataset only applies to calendar/map-cells/export/brief" in ev.text
+    assert "method=stat" in ev.text
+    bt = client.get("/api/firms/backtest",
+                    params={"aoi": "vietnam", "data": "sample",
+                            "dataset": "upload:deadbeefdeadbeef"})
+    assert bt.status_code == 400, bt.text[:300]
+    assert "dataset only applies to calendar/map-cells/export/brief" in bt.text
+    assert "method=stat" in bt.text

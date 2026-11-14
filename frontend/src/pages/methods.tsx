@@ -650,6 +650,17 @@ export function MethodsPage() {
               </p>
             </div>
           )}
+
+          {/* CLAIM-034: custom/uploaded regions are stat-only and outside the
+              3-AOI per_aoi benchmark above. Static truthful note, no fetch. */}
+          <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-4 text-xs text-slate-300 leading-relaxed font-sans space-y-1">
+            <p className="font-bold text-slate-100">
+              {t("methods.bench_custom_title")}
+            </p>
+            <p className="text-slate-400">
+              {t("methods.bench_custom_body")}
+            </p>
+          </div>
         </section>
       )}
 

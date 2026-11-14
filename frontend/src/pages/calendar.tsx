@@ -165,6 +165,9 @@ export function CalendarPage() {
     mapMeta,
     mapError,
     monthEvidence,
+    requestedMethod,
+    servingMethod,
+    statForced,
   } = useCalendarData({ applied, activeTab, mapPeriod, activeMonth, t });
   const { periods, mapCells, mapPreview, yearly, scrubberYears } = useMapPeriod({
     data,
@@ -989,6 +992,15 @@ export function CalendarPage() {
           {applied.geometry && (
             <span>geometry_hash <span className="text-cyan-300">{data.geometry_hash}</span></span>
           )}
+        </div>
+      )}
+
+      {/* CLAIM-034: stat-forcing used to be silent (STAN requested, stat
+          served on subsets/samples). Keep one fixed badge near the method
+          switcher quoting only fields already in the response. */}
+      {statForced && (
+        <div data-testid="stat-forced-badge" className="shrink-0 border-b border-amber-500/30 bg-amber-950/30 px-3 py-1.5 font-mono text-[11px] text-amber-200">
+          {t("calendar.stat_forced_badge", { requested: requestedMethod, serving: servingMethod })}
         </div>
       )}
 

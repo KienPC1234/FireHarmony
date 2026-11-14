@@ -93,16 +93,16 @@ _Generated from `evaluation_raw.json` (eval-v4); headline = full-month AOIs ['vi
 | Method | MAE (headline) |
 |---|---:|
 | `b0_raw_modis` | 38119.8 |
-| `b1_global_ratio` | 6386.6 |
-| `b2_seasonal_ratio` | 4411.8 |
-| `stan_safe_v1` | 3765.8 |
-| `hts_anchor_v1` | 4154.4 |
+| `b1_global_ratio` | 5853.6 |
+| `b2_seasonal_ratio` | 4462.6 |
+| `stan_safe_v1` | 3899.5 |
+| `hts_anchor_v1` | 4172.7 |
 
-`stan_safe_v1` − `b2_seasonal_ratio` ΔMAE -646.0, 95% CI [-1452.9, +81.8] — CI includes 0, so the gain is not established.
+`stan_safe_v1` − `b2_seasonal_ratio` ΔMAE -563.1, 95% CI [-1184.4, +50.8] — CI includes 0, so the gain is not established.
 <!-- END GENERATED README METRICS -->
 
-* **1-degree tile hierarchy (`hts_anchor_v1`):** Aggregates raw pulls into `1,125` 1-degree tiles (`56,187` tile-months). Empirical Bayes shrinkage toward B2 achieves MAE **4,154.4 vs B2 4,411.8** (`-5.8%`, `95% CI [-777.1, +266.2]`) across the 72 holdout AOI-months (`2024-2025`), improving all three AOIs. The CI includes 0, so the gain is not statistically established. Serves as `method=hts` and as STAN's pre-2024 fallback.
-* **Primary served model (`stan_safe_v1`):** Negative-binomial spatio-temporal network (dilated causal TCN + seasonal FiLM + target-month query + forecast-safe neighbour context). Point-estimate winner at MAE **3,765.8 vs B2 4,411.8** (`-14.6%`, bootstrap P(STAN better) `0.96`, improves Vietnam `694.2`, Amazon `3,391.4`, and Australia `7,211.9`). The 95% bootstrap CI `[-1,452.9, +81.8]` includes 0, so the win is not statistically established: `/api/firms/models` reports `recommended_primary` separately from `statistically_established`. Serves `2024+` with HTS fallback before 2024.
+* **1-degree tile hierarchy (`hts_anchor_v1`):** Aggregates raw pulls into `1,125` 1-degree tiles (`56,187` tile-months). Empirical Bayes shrinkage toward B2 achieves MAE **4,172.7 vs B2 4,462.6** (`-6.5%`, `95% CI [-835.4, +252.8]`) across the 72 holdout AOI-months (`2024-2025`), improving all three AOIs. The CI includes 0, so the gain is not statistically established. Serves as `method=hts` and as STAN's pre-2024 fallback.
+* **Primary served model (`stan_safe_v1`):** Negative-binomial spatio-temporal network (dilated causal TCN + seasonal FiLM + target-month query + forecast-safe neighbour context). Point-estimate winner at MAE **3,899.5 vs B2 4,462.6** (`-12.6%`, bootstrap P(STAN better) `0.965`, improves Vietnam `726.7`, Amazon `3,704.9`, and Australia `7,266.8`). The 95% bootstrap CI `[-1,184.4, +50.8]` includes 0, so the win is not statistically established: `/api/firms/models` reports `recommended_primary` separately from `statistically_established`. Serves `2024+` with HTS fallback before 2024.
 * **Regional transfer & integrity:** Leave-one-region-out still favours HTS over STAN on held-out AOIs. All methods share frozen `evaluation_manifest.json` sample IDs, and `/api/firms/backtest` reads committed artifacts without training on live requests.
 
 ---

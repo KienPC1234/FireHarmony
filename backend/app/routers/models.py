@@ -85,7 +85,8 @@ def firms_backtest(request: Request,
                    aoi: str = Query("vietnam"),
                    data: str = Query("sample", pattern="^(sample|raw)$"),
                    test_years: int = Query(2, ge=1, le=6),
-                   refresh: int = Query(0)):
+                   refresh: int = Query(0),
+                   dataset: str | None = Query(None)):
     from app.main import MODEL_DIR, _backtest_from_manifest, _require_admin, logger
     """Unified time-travel backtest: one frozen sample set for every method.
 
@@ -95,6 +96,14 @@ def firms_backtest(request: Request,
     `python -m scripts.firms.evaluate`), verifies the cache identity, and
     refuses to train heavy ensembles on a public GET.
     """
+    if dataset and dataset.startswith("upload:"):
+        raise HTTPException(400, detail={
+            "error_code": "dataset_not_supported_here",
+            "message": ("dataset only applies to calendar/map-cells/export/brief; "
+                        "this endpoint does not read uploaded session datasets. "
+                        "Use method=stat at one of those endpoints, e.g. "
+                        "/api/firms/calendar?dataset=<id>&method=stat."),
+        })
     _require_aoi(aoi, data)
     if refresh:
         _require_admin(request)
@@ -474,9 +483,18 @@ def firms_evidence(aoi: str = Query("vietnam"),
                    month: int = Query(1, ge=1, le=12),
                    bbox: str | None = Query(None),
                    qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
-                   platform_set: str = Query("all", pattern="^(all|snpp)$")):
+                   platform_set: str = Query("all", pattern="^(all|snpp)$"),
+                   dataset: str | None = Query(None)):
     from app.main import _analysis_for_evidence
     """Evidence card for one AOI-month, from the same cells as /calendar."""
+    if dataset and dataset.startswith("upload:"):
+        raise HTTPException(400, detail={
+            "error_code": "dataset_not_supported_here",
+            "message": ("dataset only applies to calendar/map-cells/export/brief; "
+                        "this endpoint does not read uploaded session datasets. "
+                        "Use method=stat at one of those endpoints, e.g. "
+                        "/api/firms/calendar?dataset=<id>&method=stat."),
+        })
     _require_aoi(aoi, data)
     _block_raw_ml_ts(method, data, aoi)
     out = _analysis_for_evidence(aoi, data, method, bbox, qa_min, platform_set,

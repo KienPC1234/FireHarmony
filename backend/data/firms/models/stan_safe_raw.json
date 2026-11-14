@@ -7,36 +7,47 @@
  "params": 171362,
  "torch_version": "2.14.1+cu130",
  "device": "cuda",
- "n_train": 4931,
+ "n_train": 7341,
  "n_test": 2062,
  "epochs_by_seed": {
-  "7": 29,
-  "17": 23,
-  "27": 28,
-  "37": 63,
-  "47": 29
+  "7": 32,
+  "17": 56,
+  "27": 9,
+  "37": 30,
+  "47": 57
  },
- "level_scale_2023": 1.0143,
- "band_log_halfwidth": 0.1348,
+ "seed_mae": [
+  1561.95,
+  1522.07,
+  1725.36,
+  1722.05,
+  1849.57
+ ],
+ "seed_mae_range": [
+  1522.07,
+  1849.57
+ ],
+ "level_scale_2023": 1.0205,
+ "band_log_halfwidth": 0.1267,
  "band_validation_coverage80": 0.8056,
  "metrics": {
-  "mae": 1819.2783,
-  "wape": 0.097498,
-  "bias": 1177.9668,
+  "mae": 1662.031,
+  "wape": 0.089071,
+  "bias": 932.858,
   "n": 72
  },
  "hts_metrics": {
-  "mae": 1675.8585,
-  "wape": 0.089812,
-  "bias": 402.7061,
+  "mae": 1662.8473,
+  "wape": 0.089114,
+  "bias": 419.7507,
   "n": 72
  },
  "per_aoi": {
   "vietnam": {
    "stan": {
-    "mae": 571.526,
-    "wape": 0.081739,
-    "bias": 531.3973,
+    "mae": 498.4863,
+    "wape": 0.071293,
+    "bias": 391.3156,
     "n": 24
    },
    "hts": {
@@ -48,23 +59,23 @@
   },
   "amazon": {
    "stan": {
-    "mae": 1945.2221,
-    "wape": 0.0777,
-    "bias": 1248.3085,
+    "mae": 1755.8576,
+    "wape": 0.070136,
+    "bias": 886.1244,
     "n": 24
    },
    "hts": {
-    "mae": 2388.8615,
-    "wape": 0.095421,
-    "bias": 234.3142,
+    "mae": 2349.8279,
+    "wape": 0.093862,
+    "bias": 285.4481,
     "n": 24
    }
   },
   "australia": {
    "stan": {
-    "mae": 2941.0869,
-    "wape": 0.12279,
-    "bias": 1754.1946,
+    "mae": 2731.7493,
+    "wape": 0.114051,
+    "bias": 1521.1339,
     "n": 24
    },
    "hts": {
@@ -79,12 +90,12 @@
   "stan_vs_hts": {
    "method_a": "stan",
    "method_b": "hts_anchor",
-   "delta_mae": 143.4198,
+   "delta_mae": -0.8163,
    "ci95": [
-    -232.8191,
-    471.1914
+    -368.8169,
+    286.5566
    ],
-   "prob_a_better": 0.2015,
+   "prob_a_better": 0.4675,
    "n": 72,
    "n_boot": 2000,
    "unit": "AOI-month row bootstrap (not independent hotspots)"
@@ -93,33 +104,33 @@
  "official": {
   "n": 72,
   "metrics": {
-   "mae": 3765.8334,
-   "wape": 0.076511,
-   "bias": 1421.3367,
+   "mae": 3899.7166,
+   "wape": 0.079231,
+   "bias": 1083.4418,
    "n": 72
   },
   "hts_metrics": {
-   "mae": 4154.4199,
-   "wape": 0.084406,
-   "bias": 646.0759,
+   "mae": 4172.6757,
+   "wape": 0.084777,
+   "bias": 570.3345,
    "n": 72
   },
   "b2_metrics": {
-   "mae": 4411.8391,
-   "wape": 0.089636,
-   "bias": 1281.2545,
+   "mae": 4462.6015,
+   "wape": 0.090667,
+   "bias": 1442.3907,
    "n": 72
   },
   "comparisons": {
    "stan_vs_hts": {
     "method_a": "stan",
     "method_b": "hts_anchor",
-    "delta_mae": -388.5865,
+    "delta_mae": -272.9591,
     "ci95": [
-     -938.9773,
-     50.653
+     -627.915,
+     14.9163
     ],
-    "prob_a_better": 0.954,
+    "prob_a_better": 0.967,
     "n": 72,
     "n_boot": 2000,
     "unit": "AOI-month row bootstrap (not independent hotspots)"
@@ -127,12 +138,12 @@
    "stan_vs_b2": {
     "method_a": "stan",
     "method_b": "b2_seasonal_ratio",
-    "delta_mae": -646.0057,
+    "delta_mae": -562.8849,
     "ci95": [
-     -1452.9457,
-     81.79
+     -1184.0675,
+     50.8499
     ],
-    "prob_a_better": 0.958,
+    "prob_a_better": 0.9645,
     "n": 72,
     "n_boot": 2000,
     "unit": "AOI-month row bootstrap (not independent hotspots)"
@@ -141,9 +152,9 @@
   "per_aoi": {
    "vietnam": {
     "stan": {
-     "mae": 694.2258,
-     "wape": 0.050498,
-     "bias": 430.6759,
+     "mae": 726.6884,
+     "wape": 0.052859,
+     "bias": 290.5942,
      "n": 24
     },
     "hts": {
@@ -161,29 +172,29 @@
    },
    "amazon": {
     "stan": {
-     "mae": 3391.3534,
-     "wape": 0.078327,
-     "bias": 1278.564,
+     "mae": 3705.4403,
+     "wape": 0.085581,
+     "bias": 638.0218,
      "n": 24
     },
     "hts": {
-     "mae": 4250.1056,
-     "wape": 0.098161,
-     "bias": 264.5697,
+     "mae": 4304.8728,
+     "wape": 0.099425,
+     "bias": 37.3455,
      "n": 24
     },
     "b2": {
-     "mae": 4647.7437,
-     "wape": 0.107344,
-     "bias": -313.4031,
+     "mae": 4800.0307,
+     "wape": 0.110862,
+     "bias": 170.0054,
      "n": 24
     }
    },
    "australia": {
     "stan": {
-     "mae": 7211.921,
-     "wape": 0.07959,
-     "bias": 2554.7701,
+     "mae": 7267.0211,
+     "wape": 0.080198,
+     "bias": 2321.7094,
      "n": 24
     },
     "hts": {
@@ -201,384 +212,384 @@
    }
   },
   "headline": {
-   "mae": 2042.7896,
-   "wape": 0.07162,
-   "bias": 854.6199,
+   "mae": 2216.0643,
+   "wape": 0.077695,
+   "bias": 464.308,
    "n": 48
   },
   "hts_headline": {
-   "mae": 2517.0036,
-   "wape": 0.088246,
-   "bias": 134.0561,
+   "mae": 2544.3873,
+   "wape": 0.089206,
+   "bias": 20.444,
    "n": 48
   },
   "b2_headline": {
-   "mae": 2745.9527,
-   "wape": 0.096273,
-   "bias": -222.8802,
+   "mae": 2822.0961,
+   "wape": 0.098943,
+   "bias": 18.824,
    "n": 48
   }
  },
- "dataset_sha256": "952e8dc720216c58e887fd9c16a59bfc41f44d8385052310ec698290b34ea95b",
- "created_at": "2026-11-13T01:07:03.568221+00:00",
+ "dataset_sha256": "531de890a70be30c76fce680ac13aa4055a7c660e5ff9e6f4b0a3aeaee44a019",
+ "created_at": "2026-11-14T05:06:26.585850+00:00",
  "predictions": {
   "amazon:2024-03": {
-   "stan": 12570.497,
-   "hts": 13290.679,
+   "stan": 14176.363,
+   "hts": 14696.32,
    "viirs_ref": 16078.0
   },
   "amazon:2024-04": {
-   "stan": 2782.672,
-   "hts": 2887.102,
+   "stan": 3244.901,
+   "hts": 3237.716,
    "viirs_ref": 2359.0
   },
   "amazon:2024-05": {
-   "stan": 4695.846,
-   "hts": 5160.521,
+   "stan": 4698.599,
+   "hts": 4810.762,
    "viirs_ref": 4498.0
   },
   "amazon:2024-06": {
-   "stan": 11170.325,
-   "hts": 11574.761,
+   "stan": 11795.465,
+   "hts": 12044.205,
    "viirs_ref": 11574.0
   },
   "amazon:2024-07": {
-   "stan": 35434.289,
-   "hts": 36885.346,
+   "stan": 36782.78,
+   "hts": 37347.21,
    "viirs_ref": 25578.0
   },
   "amazon:2024-08": {
-   "stan": 171899.725,
-   "hts": 159892.99,
+   "stan": 166230.535,
+   "hts": 158553.647,
    "viirs_ref": 170308.0
   },
   "amazon:2024-09": {
-   "stan": 210035.381,
-   "hts": 199225.892,
+   "stan": 205047.439,
+   "hts": 198258.06,
    "viirs_ref": 206557.0
   },
   "amazon:2024-10": {
-   "stan": 55887.991,
-   "hts": 55885.086,
+   "stan": 55443.519,
+   "hts": 55822.883,
    "viirs_ref": 52775.0
   },
   "amazon:2025-05": {
-   "stan": 1341.349,
-   "hts": 1455.735,
+   "stan": 1262.747,
+   "hts": 1300.103,
    "viirs_ref": 1382.0
   },
   "amazon:2025-06": {
-   "stan": 4978.159,
-   "hts": 5058.576,
+   "stan": 5160.309,
+   "hts": 5265.956,
    "viirs_ref": 4766.0
   },
   "amazon:2025-07": {
-   "stan": 3003.758,
-   "hts": 3125.139,
+   "stan": 3182.944,
+   "hts": 3247.115,
    "viirs_ref": 2623.0
   },
   "amazon:2025-09": {
-   "stan": 14875.936,
-   "hts": 14830.619,
+   "stan": 15081.696,
+   "hts": 14919.848,
    "viirs_ref": 14673.0
   },
   "amazon:2025-10": {
-   "stan": 12473.327,
-   "hts": 12467.545,
+   "stan": 12329.192,
+   "hts": 12498.192,
    "viirs_ref": 11431.0
   },
   "amazon:2025-11": {
-   "stan": 7622.747,
-   "hts": 7155.766,
+   "stan": 7104.551,
+   "hts": 6929.252,
    "viirs_ref": 4721.0
   },
   "amazon:2025-08": {
-   "stan": 13629.264,
-   "hts": 12872.439,
+   "stan": 12984.073,
+   "hts": 12665.141,
    "viirs_ref": 13681.0
   },
   "amazon:2025-12": {
-   "stan": 4081.149,
-   "hts": 3848.527,
+   "stan": 3676.367,
+   "hts": 3689.626,
    "viirs_ref": 2319.0
   },
   "amazon:2024-11": {
-   "stan": 35710.831,
-   "hts": 33181.391,
+   "stan": 33754.535,
+   "hts": 32448.885,
    "viirs_ref": 25871.0
   },
   "amazon:2024-01": {
-   "stan": 4244.694,
-   "hts": 4097.868,
+   "stan": 4359.526,
+   "hts": 4357.866,
    "viirs_ref": 4689.0
   },
   "amazon:2024-02": {
-   "stan": 12106.805,
-   "hts": 12038.655,
+   "stan": 14232.964,
+   "hts": 14102.99,
    "viirs_ref": 15866.0
   },
   "amazon:2024-12": {
-   "stan": 11396.959,
-   "hts": 10640.794,
+   "stan": 10733.912,
+   "hts": 10644.392,
    "viirs_ref": 8230.0
   },
   "amazon:2025-02": {
-   "stan": 76.602,
-   "hts": 84.104,
+   "stan": 90.7,
+   "hts": 96.763,
    "viirs_ref": 85.0
   },
   "amazon:2025-03": {
-   "stan": 69.111,
-   "hts": 78.469,
+   "stan": 59.39,
+   "hts": 66.376,
    "viirs_ref": 83.0
   },
   "amazon:2025-04": {
-   "stan": 153.388,
-   "hts": 198.337,
+   "stan": 141.165,
+   "hts": 157.94,
    "viirs_ref": 287.0
   },
   "amazon:2025-01": {
-   "stan": 555.596,
-   "hts": 524.201,
+   "stan": 530.313,
+   "hts": 526.504,
    "viirs_ref": 403.0
   },
   "australia:2024-04": {
-   "stan": 28277.667,
+   "stan": 28672.284,
    "hts": 26835.242,
    "viirs_ref": 22529.0
   },
   "australia:2024-05": {
-   "stan": 15483.965,
+   "stan": 15694.945,
    "hts": 15798.882,
    "viirs_ref": 15886.0
   },
   "australia:2024-06": {
-   "stan": 6818.459,
+   "stan": 6612.675,
    "hts": 6806.383,
    "viirs_ref": 6784.0
   },
   "australia:2024-07": {
-   "stan": 4981.937,
+   "stan": 5088.978,
    "hts": 5189.579,
    "viirs_ref": 3955.0
   },
   "australia:2024-08": {
-   "stan": 27626.236,
+   "stan": 28028.607,
    "hts": 27196.03,
    "viirs_ref": 24698.0
   },
   "australia:2024-09": {
-   "stan": 35173.089,
+   "stan": 35122.005,
    "hts": 33977.475,
    "viirs_ref": 32639.0
   },
   "australia:2024-10": {
-   "stan": 49329.637,
+   "stan": 47993.492,
    "hts": 47017.449,
    "viirs_ref": 42896.0
   },
   "australia:2024-11": {
-   "stan": 31361.516,
+   "stan": 31311.763,
    "hts": 30364.208,
    "viirs_ref": 20588.0
   },
   "australia:2025-04": {
-   "stan": 27243.675,
+   "stan": 27661.435,
    "hts": 25386.406,
    "viirs_ref": 24457.0
   },
   "australia:2025-05": {
-   "stan": 48628.504,
+   "stan": 49540.092,
    "hts": 48525.257,
    "viirs_ref": 52500.0
   },
   "australia:2025-06": {
-   "stan": 21075.502,
+   "stan": 20530.613,
    "hts": 20928.538,
    "viirs_ref": 24752.0
   },
   "australia:2025-07": {
-   "stan": 12901.623,
+   "stan": 13021.286,
    "hts": 13228.217,
    "viirs_ref": 12574.0
   },
   "australia:2025-08": {
-   "stan": 44694.87,
+   "stan": 43006.729,
    "hts": 41583.483,
    "viirs_ref": 41411.0
   },
   "australia:2025-09": {
-   "stan": 49088.489,
+   "stan": 48574.153,
    "hts": 46838.778,
    "viirs_ref": 43603.0
   },
   "australia:2025-10": {
-   "stan": 72115.173,
+   "stan": 71005.24,
    "hts": 67807.024,
    "viirs_ref": 67893.0
   },
   "australia:2025-11": {
-   "stan": 37926.221,
+   "stan": 37757.939,
    "hts": 36787.322,
    "viirs_ref": 32882.0
   },
   "australia:2025-02": {
-   "stan": 7441.58,
+   "stan": 7465.141,
    "hts": 7968.873,
    "viirs_ref": 10185.0
   },
   "australia:2025-03": {
-   "stan": 13045.493,
+   "stan": 12661.431,
    "hts": 13014.81,
    "viirs_ref": 11897.0
   },
   "australia:2025-12": {
-   "stan": 29692.538,
+   "stan": 28698.202,
    "hts": 26941.49,
    "viirs_ref": 26376.0
   },
   "australia:2024-03": {
-   "stan": 9242.184,
+   "stan": 8915.577,
    "hts": 9560.373,
    "viirs_ref": 8553.0
   },
   "australia:2024-01": {
-   "stan": 9479.571,
+   "stan": 9386.478,
    "hts": 9293.27,
    "viirs_ref": 8920.0
   },
   "australia:2024-12": {
-   "stan": 18176.936,
+   "stan": 17571.233,
    "hts": 17270.834,
    "viirs_ref": 18260.0
   },
   "australia:2025-01": {
-   "stan": 13479.062,
+   "stan": 13330.385,
    "hts": 13510.232,
    "viirs_ref": 16901.0
   },
   "australia:2024-02": {
-   "stan": 3666.743,
+   "stan": 3706.533,
    "hts": 3888.809,
    "viirs_ref": 3711.0
   },
   "vietnam:2024-01": {
-   "stan": 34609.183,
+   "stan": 33806.276,
    "hts": 31430.346,
    "viirs_ref": 34401.0
   },
   "vietnam:2024-02": {
-   "stan": 31569.213,
+   "stan": 31153.496,
    "hts": 29601.465,
    "viirs_ref": 30766.0
   },
   "vietnam:2024-03": {
-   "stan": 25768.193,
+   "stan": 24644.134,
    "hts": 24246.167,
    "viirs_ref": 24819.0
   },
   "vietnam:2024-04": {
-   "stan": 19795.213,
+   "stan": 19577.874,
    "hts": 18582.481,
    "viirs_ref": 18751.0
   },
   "vietnam:2024-05": {
-   "stan": 3293.706,
+   "stan": 3277.93,
    "hts": 3184.884,
    "viirs_ref": 3374.0
   },
   "vietnam:2025-01": {
-   "stan": 14538.535,
+   "stan": 14352.753,
    "hts": 13345.533,
    "viirs_ref": 12613.0
   },
   "vietnam:2025-02": {
-   "stan": 13462.231,
+   "stan": 13344.997,
    "hts": 12886.344,
    "viirs_ref": 11907.0
   },
   "vietnam:2025-03": {
-   "stan": 15758.843,
+   "stan": 15097.321,
    "hts": 15125.811,
    "viirs_ref": 13750.0
   },
   "vietnam:2024-06": {
-   "stan": 1113.546,
+   "stan": 1116.226,
    "hts": 1166.559,
    "viirs_ref": 1083.0
   },
   "vietnam:2024-08": {
-   "stan": 1851.908,
+   "stan": 1984.878,
    "hts": 2200.189,
    "viirs_ref": 1848.0
   },
   "vietnam:2024-12": {
-   "stan": 1868.115,
+   "stan": 1857.416,
    "hts": 1868.928,
    "viirs_ref": 1950.0
   },
   "vietnam:2025-04": {
-   "stan": 9545.239,
+   "stan": 9546.736,
    "hts": 8874.096,
    "viirs_ref": 6287.0
   },
   "vietnam:2025-07": {
-   "stan": 536.781,
+   "stan": 542.682,
    "hts": 603.869,
    "viirs_ref": 588.0
   },
   "vietnam:2025-08": {
-   "stan": 1213.277,
+   "stan": 1255.286,
    "hts": 1355.393,
    "viirs_ref": 953.0
   },
   "vietnam:2024-07": {
-   "stan": 304.855,
+   "stan": 309.292,
    "hts": 339.368,
    "viirs_ref": 202.0
   },
   "vietnam:2024-10": {
-   "stan": 121.619,
+   "stan": 119.885,
    "hts": 123.042,
    "viirs_ref": 65.0
   },
   "vietnam:2025-05": {
-   "stan": 2149.008,
+   "stan": 2149.313,
    "hts": 2194.766,
    "viirs_ref": 1468.0
   },
   "vietnam:2025-06": {
-   "stan": 662.172,
+   "stan": 668.618,
    "hts": 715.013,
    "viirs_ref": 647.0
   },
   "vietnam:2025-12": {
-   "stan": 966.854,
+   "stan": 952.514,
    "hts": 970.172,
    "viirs_ref": 1235.0
   },
   "vietnam:2024-11": {
-   "stan": 274.557,
+   "stan": 271.597,
    "hts": 289.202,
    "viirs_ref": 166.0
   },
   "vietnam:2024-09": {
-   "stan": 498.653,
+   "stan": 508.54,
    "hts": 529.702,
    "viirs_ref": 417.0
   },
   "vietnam:2025-09": {
-   "stan": 377.006,
+   "stan": 382.249,
    "hts": 392.064,
    "viirs_ref": 328.0
   },
   "vietnam:2025-11": {
-   "stan": 91.538,
+   "stan": 91.714,
    "hts": 99.44,
    "viirs_ref": 28.0
   },
   "vietnam:2025-10": {
-   "stan": 194.29,
+   "stan": 190.847,
    "hts": 188.503,
    "viirs_ref": 165.0
   }
@@ -587,9 +598,9 @@
   "vietnam": {
    "n": 24,
    "metrics": {
-    "mae": 801.3881,
-    "wape": 0.058293,
-    "bias": -82.7249,
+    "mae": 773.8879,
+    "wape": 0.056292,
+    "bias": 35.6595,
     "n": 24
    },
    "hts_metrics": {
@@ -608,12 +619,12 @@
     "stan_vs_hts": {
      "method_a": "stan",
      "method_b": "hts_anchor",
-     "delta_mae": 17.4864,
+     "delta_mae": -10.0138,
      "ci95": [
-      -32.0743,
-      72.9651
+      -33.133,
+      10.1944
      ],
-     "prob_a_better": 0.2675,
+     "prob_a_better": 0.8105,
      "n": 24,
      "n_boot": 2000,
      "unit": "AOI-month row bootstrap (not independent hotspots)"
@@ -621,12 +632,12 @@
     "stan_vs_b2": {
      "method_a": "stan",
      "method_b": "b2_seasonal_ratio",
-     "delta_mae": -42.7735,
+     "delta_mae": -70.2737,
      "ci95": [
-      -138.4573,
-      55.2849
+      -179.2123,
+      40.5542
      ],
-     "prob_a_better": 0.8025,
+     "prob_a_better": 0.891,
      "n": 24,
      "n_boot": 2000,
      "unit": "AOI-month row bootstrap (not independent hotspots)"
@@ -635,9 +646,9 @@
    "per_aoi": {
     "vietnam": {
      "stan": {
-      "mae": 801.3881,
-      "wape": 0.058293,
-      "bias": -82.7249,
+      "mae": 773.8879,
+      "wape": 0.056292,
+      "bias": 35.6595,
       "n": 24
      },
      "hts": {
@@ -655,9 +666,9 @@
     }
    },
    "headline": {
-    "mae": 801.3881,
-    "wape": 0.058293,
-    "bias": -82.7249,
+    "mae": 773.8879,
+    "wape": 0.056292,
+    "bias": 35.6595,
     "n": 24
    },
    "hts_headline": {
@@ -672,40 +683,40 @@
     "bias": -132.3574,
     "n": 24
    },
-   "level_scale_2023": 0.9743,
-   "n_train": 3426,
+   "level_scale_2023": 1.0002,
+   "n_train": 5836,
    "n_test": 258
   },
   "amazon": {
    "n": 24,
    "metrics": {
-    "mae": 4510.9339,
-    "wape": 0.104185,
-    "bias": 31.4319,
+    "mae": 4545.1989,
+    "wape": 0.104976,
+    "bias": -189.8915,
     "n": 24
    },
    "hts_metrics": {
-    "mae": 4250.1056,
-    "wape": 0.098161,
-    "bias": 264.5697,
+    "mae": 4304.8728,
+    "wape": 0.099425,
+    "bias": 37.3455,
     "n": 24
    },
    "b2_metrics": {
-    "mae": 4647.7437,
-    "wape": 0.107344,
-    "bias": -313.4031,
+    "mae": 4800.0307,
+    "wape": 0.110862,
+    "bias": 170.0054,
     "n": 24
    },
    "comparisons": {
     "stan_vs_hts": {
      "method_a": "stan",
      "method_b": "hts_anchor",
-     "delta_mae": 260.8283,
+     "delta_mae": 240.3261,
      "ci95": [
-      -118.6492,
-      784.3147
+      -141.617,
+      759.1912
      ],
-     "prob_a_better": 0.12,
+     "prob_a_better": 0.144,
      "n": 24,
      "n_boot": 2000,
      "unit": "AOI-month row bootstrap (not independent hotspots)"
@@ -713,12 +724,12 @@
     "stan_vs_b2": {
      "method_a": "stan",
      "method_b": "b2_seasonal_ratio",
-     "delta_mae": -136.8099,
+     "delta_mae": -254.8318,
      "ci95": [
-      -803.425,
-      427.6691
+      -1020.1349,
+      377.4553
      ],
-     "prob_a_better": 0.666,
+     "prob_a_better": 0.7755,
      "n": 24,
      "n_boot": 2000,
      "unit": "AOI-month row bootstrap (not independent hotspots)"
@@ -727,41 +738,41 @@
    "per_aoi": {
     "amazon": {
      "stan": {
-      "mae": 4510.9339,
-      "wape": 0.104185,
-      "bias": 31.4319,
+      "mae": 4545.1989,
+      "wape": 0.104976,
+      "bias": -189.8915,
       "n": 24
      },
      "hts": {
-      "mae": 4250.1056,
-      "wape": 0.098161,
-      "bias": 264.5697,
+      "mae": 4304.8728,
+      "wape": 0.099425,
+      "bias": 37.3455,
       "n": 24
      },
      "b2": {
-      "mae": 4647.7437,
-      "wape": 0.107344,
-      "bias": -313.4031,
+      "mae": 4800.0307,
+      "wape": 0.110862,
+      "bias": 170.0054,
       "n": 24
      }
     }
    },
    "headline": {
-    "mae": 4510.9339,
-    "wape": 0.104185,
-    "bias": 31.4319,
+    "mae": 4545.1989,
+    "wape": 0.104976,
+    "bias": -189.8915,
     "n": 24
    },
    "hts_headline": {
-    "mae": 4250.1056,
-    "wape": 0.098161,
-    "bias": 264.5697,
+    "mae": 4304.8728,
+    "wape": 0.099425,
+    "bias": 37.3455,
     "n": 24
    },
    "b2_headline": {
-    "mae": 4647.7437,
-    "wape": 0.107344,
-    "bias": -313.4031,
+    "mae": 4800.0307,
+    "wape": 0.110862,
+    "bias": 170.0054,
     "n": 24
    },
    "level_scale_2023": 1.0143,
@@ -771,9 +782,9 @@
   "australia": {
    "n": 24,
    "metrics": {
-    "mae": 7493.1914,
-    "wape": 0.082694,
-    "bias": 1252.2068,
+    "mae": 7427.3526,
+    "wape": 0.081967,
+    "bias": 1568.5372,
     "n": 24
    },
    "hts_metrics": {
@@ -792,12 +803,12 @@
     "stan_vs_hts": {
      "method_a": "stan",
      "method_b": "hts_anchor",
-     "delta_mae": 63.939,
+     "delta_mae": -1.8998,
      "ci95": [
-      -385.4264,
-      531.2885
+      -177.4082,
+      155.1531
      ],
-     "prob_a_better": 0.408,
+     "prob_a_better": 0.512,
      "n": 24,
      "n_boot": 2000,
      "unit": "AOI-month row bootstrap (not independent hotspots)"
@@ -805,12 +816,12 @@
     "stan_vs_b2": {
      "method_a": "stan",
      "method_b": "b2_seasonal_ratio",
-     "delta_mae": -250.4206,
+     "delta_mae": -316.2594,
      "ci95": [
-      -2045.4734,
-      1454.3018
+      -1891.5368,
+      1212.6374
      ],
-     "prob_a_better": 0.604,
+     "prob_a_better": 0.655,
      "n": 24,
      "n_boot": 2000,
      "unit": "AOI-month row bootstrap (not independent hotspots)"
@@ -819,9 +830,9 @@
    "per_aoi": {
     "australia": {
      "stan": {
-      "mae": 7493.1914,
-      "wape": 0.082694,
-      "bias": 1252.2068,
+      "mae": 7427.3526,
+      "wape": 0.081967,
+      "bias": 1568.5372,
       "n": 24
      },
      "hts": {
@@ -841,10 +852,10 @@
    "headline": null,
    "hts_headline": null,
    "b2_headline": null,
-   "level_scale_2023": 0.9831,
-   "n_train": 2989,
+   "level_scale_2023": 1.0022,
+   "n_train": 5399,
    "n_test": 1110
   }
  },
- "weights_sha256": "76c5d9eabb6da1a4e61267b56b6a2e5cc2339d07dd89d9aa816256f701b80b95"
+ "weights_sha256": "8cc181b916b571f1101158ec06be6ddcdafc92a5ebef3155acc5bcd5ec1cf69c"
 }

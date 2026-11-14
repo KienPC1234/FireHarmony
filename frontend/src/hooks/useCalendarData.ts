@@ -338,6 +338,18 @@ export function useCalendarData(opts: {
     };
   }, [activeMonth, applied]);
 
+  // CLAIM-034: surface stat-forcing without extra fetches. `applied.method`
+  // is what the caller asked for; the served path is quoted by fields
+  // already in the response (`effective_method`, else `method_id`).
+  // Forcing logic itself is untouched (see requestMethodFor above).
+  const { method: sentMethod } = requestMethodFor(applied);
+  const servingMethod = data?.effective_method || data?.method_id || sentMethod;
+  const requestedMethod = applied.method;
+  const statForced = Boolean(
+    data && requestedMethod && servingMethod
+      && servingMethod === "stat" && requestedMethod !== servingMethod,
+  );
+
   return {
     data,
     loadingData,
@@ -354,5 +366,8 @@ export function useCalendarData(opts: {
     mapMeta,
     mapError,
     monthEvidence,
+    requestedMethod,
+    servingMethod,
+    statForced,
   };
 }

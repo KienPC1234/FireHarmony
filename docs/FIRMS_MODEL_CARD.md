@@ -15,15 +15,16 @@
 | AOI | raw rows | manifest months | months ≥90% of days requested | coverage class |
 |---|---|---|---|---|
 | vietnam | 3,411,143 | 169 (2012-01 … 2026-11) | 168 | full-month |
-| amazon | 4,653,546 | 85 | 84 | full-month |
-| australia | 1,700,959 | 85 | 84 | full-month (backfilled 2026-11-13) |
+| amazon | 4,653,546 | 169 | 168 | full-month |
+| australia | 1,700,959 | 85 | 84 | full-month (backfilled 2026-11-14) |
 
 The first full-month fetcher requested days 1,6,11,16,21,26 × 5 days, which
 covers 1–30 and **never day 31**. `fetch_missing.py` now diffs the manifest
 against every calendar day and fetched only the gaps: vietnam and amazon are
-at **168/169 full months** for vietnam (2012–2025 after the early-year backfill)
-and **84/85** for amazon. Australia was 0/85 full months (one 5-day window per
-month); the 2026-11-13 backfill brought it to **84/85**, so it is now a comparable
+both at **168/169 full months** (2012–2025 after the backfills; the amazon
+post-backfill retrain added 84 months, 2012–2018, and moved train to
+144 months/AOI ≤2023). Australia was 0/85 full months (one 5-day window per
+month); the 2026-11-14 backfill brought it to **84/85**, so it is now a comparable
 third AOI instead of a sparse stress test. The one partial month is the current
 NRT month, which stays excluded.
 
@@ -42,7 +43,7 @@ NRT month, which stays excluded.
   fallback, never a zero-width interval. For `method=stan`, estimated cells also
   carry the model's own log-scale band (`uncertainty_status="model_band"`),
   calibrated on the 2023 selection year. The artifact publishes both the
-  validation coverage (0.81) and the 2024-25 holdout coverage (0.72): the
+  validation coverage (0.806) and the 2024-25 holdout coverage (0.736): the
   nominal 80% band still undercovers on the holdout, and
   `/api/firms/stan-status` reports that number instead of quoting 80% as if it
   were measured on the test years.
@@ -88,9 +89,9 @@ the product:
 
 | role | method | served as | why |
 |---|---|---|---|
-| primary | `stan_safe_v1` | `method=stan` | best point estimate: 3,765.8 vs B2 4,411.8 and HTS 4,154.4 on the 72-month holdout; every AOI improves, but the 95% CI vs B2 [−1,452.9, +81.8] still includes 0 |
+| primary | `stan_safe_v1` | `method=stan` | best point estimate: 3,899.5 vs B2 4,462.6 and HTS 4,172.7 on the 72-month holdout; every AOI improves, but the 95% CI vs B2 [−1,184.4, +50.8] still includes 0 |
 | baseline | `b2_seasonal_ratio` | `method=stat` | reference every learned model must beat |
-| fallback | `hts_anchor_v1` | `method=hts`, STAN pre-2024 | stable anchor before the 12-month tile window exists; 4,154.4, CI vs B2 includes 0 |
+| fallback | `hts_anchor_v1` | `method=hts`, STAN pre-2024 | stable anchor before the 12-month tile window exists; 4,172.7, CI vs B2 includes 0 |
 
 The table below joins STAN/HTS onto the same 72 AOI-months via
 `evaluation.merge_artifact_methods` (run `python -m scripts.firms.unify_eval`),
@@ -105,7 +106,7 @@ The block below is generated from the evaluation artifact by
 by hand.
 
 <!-- BEGIN GENERATED METRICS -->
-_Generated from `evaluation_raw.json` · `eval-v4` · pair_table_hash `ba2843d649435d28`._
+_Generated from `evaluation_raw.json` · `eval-v4` · pair_table_hash `726b1040be18da40`._
 
 Candidate holdout years: `[2024, 2025]` · scored years: `[2024, 2025]` · excluded months (no 12-month context): `[]`.
 
@@ -114,10 +115,10 @@ Candidate holdout years: `[2024, 2025]` · scored years: `[2024, 2025]` · exclu
 | Method | MAE | WAPE | Bias | n |
 |---|---:|---:|---:|---:|
 | `b0_raw_modis` | 38119.8 | 0.774 | -38119.8 | 72 |
-| `b1_global_ratio` | 6386.6 | 0.130 | -682.6 | 72 |
-| `b2_seasonal_ratio` | 4411.8 | 0.090 | +1281.3 | 72 |
-| `stan_safe_v1` | 3765.8 | 0.077 | +1421.3 | 72 |
-| `hts_anchor_v1` | 4154.4 | 0.084 | +646.1 | 72 |
+| `b1_global_ratio` | 5853.6 | 0.119 | +306.9 | 72 |
+| `b2_seasonal_ratio` | 4462.6 | 0.091 | +1442.4 | 72 |
+| `stan_safe_v1` | 3899.5 | 0.079 | +1084.3 | 72 |
+| `hts_anchor_v1` | 4172.7 | 0.085 | +570.3 | 72 |
 
 _All scored AOIs meet the full-month coverage rule (>=80% of months with >=90% paired MODIS/VIIRS days)._
 
@@ -126,22 +127,22 @@ _All scored AOIs meet the full-month coverage rule (>=80% of months with >=90% p
 | Method | MAE | WAPE | Bias | n |
 |---|---:|---:|---:|---:|
 | `b0_raw_modis` | 38119.8 | 0.774 | -38119.8 | 72 |
-| `b1_global_ratio` | 6386.6 | 0.130 | -682.6 | 72 |
-| `b2_seasonal_ratio` | 4411.8 | 0.090 | +1281.3 | 72 |
-| `stan_safe_v1` | 3765.8 | 0.077 | +1421.3 | 72 |
-| `hts_anchor_v1` | 4154.4 | 0.084 | +646.1 | 72 |
+| `b1_global_ratio` | 5853.6 | 0.119 | +306.9 | 72 |
+| `b2_seasonal_ratio` | 4462.6 | 0.091 | +1442.4 | 72 |
+| `stan_safe_v1` | 3899.5 | 0.079 | +1084.3 | 72 |
+| `hts_anchor_v1` | 4172.7 | 0.085 | +570.3 | 72 |
 
 | AOI | coverage class | months ≥90% paired days | months |
 |---|---|---:|---:|
 | vietnam | full_month | 168 | 169 |
-| amazon | full_month | 84 | 85 |
+| amazon | full_month | 168 | 169 |
 | australia | full_month | 84 | 85 |
 
 | comparison | ΔMAE (A−B) | 95% bootstrap CI | P(A better) | n |
 |---|---:|---|---:|---:|
-| stan_vs_b2 | -646.0 | [-1452.9, +81.8] | 0.96 | 72 |
-| stan_vs_hts | -388.6 | [-939.0, +50.7] | 0.95 | 72 |
-| hts_vs_b2 | -257.4 | [-777.1, +266.2] | 0.83 | 72 |
+| stan_vs_b2 | -563.1 | [-1184.4, +50.8] | 0.96 | 72 |
+| stan_vs_hts | -273.2 | [-628.6, +15.0] | 0.97 | 72 |
+| hts_vs_b2 | -289.9 | [-835.4, +252.8] | 0.87 | 72 |
 
 _Bootstrap unit: AOI-month block; it is not a claim of independent hotspot observations._
 
@@ -149,21 +150,21 @@ _Bootstrap unit: AOI-month block; it is not a claim of independent hotspot obser
 
 | AOI | b0_raw_modis | b1_global_ratio | b2_seasonal_ratio | stan_safe_v1 | hts_anchor_v1 |
 |---|---:|---:|---:|---:|---:|
-| vietnam | 11112.1 | 3493.2 | 844.2 | 694.2 | 783.9 |
-| amazon | 32134.6 | 7095.9 | 4647.7 | 3391.4 | 4250.1 |
-| australia | 71112.8 | 8570.5 | 7743.6 | 7211.9 | 7429.3 |
+| vietnam | 11112.1 | 3493.2 | 844.2 | 726.7 | 783.9 |
+| amazon | 32134.6 | 5496.9 | 4800.0 | 3704.9 | 4304.9 |
+| australia | 71112.8 | 8570.5 | 7743.6 | 7266.8 | 7429.3 |
 <!-- END GENERATED METRICS -->
 
 How to read it:
 
 - The headline pool now includes all three AOIs: Australia was backfilled to
-  84/85 full months on 2026-11-13, so it is no longer a 5-day-window stress test.
+  84/85 full months on 2026-11-14, so it is no longer a 5-day-window stress test.
 - STAN is the point-estimate winner and improves every AOI over B2 and HTS, but
-  its 95% CI vs B2 `[-1,452.9, +81.8]` still includes 0. The API reports
+  its 95% CI vs B2 `[-1,184.4, +50.8]` still includes 0. The API reports
   `recommended_primary=stan_safe_v1` and `statistically_established=false`
   separately.
 - HTS is retained as the fallback (and as STAN's pre-2024 base). Its own gain
-  over B2 (4.4%) is also not statistically established.
+  over B2 (6.5%) is also not statistically established.
 - The bootstrap CI resamples AOI-month rows independently (2,000 draws), not
   hotspots and not whole years. Seasonal/year correlation can make it
   optimistic; it is not a year-block or region-year bootstrap. A year-block
@@ -180,9 +181,9 @@ How to read it:
   ≥20 MODIS and ≥20 VIIRS, 1,125 tiles.
 - Per-tile monthly log-ratio shrunk toward B2: `w = n/(n+3)`; sparse tiles fall
   back to the tile mean, then B2. One global level factor fit on 2023 (0.995).
-- **Result on the official 72 rows: MAE 4,218.8 vs B2 4,411.8 (−193.0, −4.4%)**;
-  Vietnam 795.7, Amazon 4,325.9, Australia 7,534.8 — all three improve.
-- CI **[−743.8, +358.6]**, P(better) 0.76. The gate (≥2% and CI upper < 0) is
+- **Result on the official 72 rows: MAE 4,172.7 vs B2 4,462.6 (−289.9, −6.5%)**;
+  Vietnam 783.9, Amazon 4,304.9, Australia 7,429.3 — all three improve.
+- CI **[−835.4, +252.8]**, P(better) 0.87. The gate (≥2% and CI upper < 0) is
   **not passed**, so this is a candidate/fallback, not a deployed win.
 - Artifact: `models/hts_anchor_raw.json`; monthly serving targets:
   `models/hts_series_raw.json` (`scripts.firms.build_hts_series`).
@@ -198,13 +199,13 @@ How to read it:
   `backend/app/firms/stan.py:47`), early stop on 2023 count MAE (the NLL made training
   collapse to epoch 1 after the full Australia backfill — fixed), refit `< 2024`,
   one level factor from 2023. Weights `models/stan_safe_raw.pt` (sha256 in JSON).
-- **Official 72: MAE 3,765.8 vs B2 4,411.8 (−14.6%), CI [−1,452.9, +81.8];
-  Vietnam 694.2, Amazon 3,391.4, Australia 7,211.9.** Best point estimate and
-  beats HTS (4,154.4) in every AOI, but the 95% CI still includes 0.
+- **Official 72: MAE 3,899.5 vs B2 4,462.6 (−12.6%, P(STAN better) 0.965), CI [−1,184.4, +50.8];
+  Vietnam 726.7, Amazon 3,704.9, Australia 7,266.8.** Best point estimate and
+  beats HTS (4,172.7) in every AOI, but the 95% CI still includes 0.
 - LOO: Vietnam 801.4 vs HTS 783.9, Amazon 4,510.9 vs 4,250.1, Australia
   7,493.2 vs 7,429.3. Region transfer is still not solved.
 - Predictive band: log-scale 80% band calibrated on the 2023 selection year;
-  validation coverage 0.81, 2024-25 holdout coverage 0.72 (measured
+  validation coverage 0.806, 2024-25 holdout coverage 0.736 (measured
   undercoverage on n=72 holdout months; the width is still fit on 2023 only —
   a coverage gap, not a point-estimate claim).
 - Ablations from the earlier run: FiLM is the main structural win (no-FiLM +13%);

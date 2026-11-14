@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Check, Copy, Database, Filter, Layers, MapPin } from "lucide-react";
 import { useLang } from "@/lib/i18n";
+import { api, type Aoi } from "@/lib/api";
 import { useResearchContext, type AoiId } from "@/lib/researchContext";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,11 @@ const AOI_LIST: Array<{ id: AoiId; key: string; fullKey: string }> = [
   { id: "australia", key: "aoi.australia_short", fullKey: "aoi.australia" },
 ];
 
+/** CLAIM-034: the 3 presets above stay the default; anything else in the
+ * server AOI registry (GET /api/firms/aois) is custom and listed under
+ * "More…" with its registry meta (dataset_ready/coverage_class/months). */
+const PRESET_AOI_IDS = new Set(["vietnam", "amazon", "australia"]);
+
 export function GlobalContextBar({
   onToggleFilters,
   isFiltersOpen = false,
@@ -27,6 +33,23 @@ export function GlobalContextBar({
   const { aoi, setAoi, dataFeed, setDataFeed, method, setMethod, updateParams } = useResearchContext();
 
   const [copied, setCopied] = useState(false);
+
+  // CLAIM-034: custom AOIs from the server registry (GET /api/firms/aois),
+  // never hardcoded. A registry failure falls back to presets-only.
+  const [registryAois, setRegistryAois] = useState<Aoi[]>([]);
+  const [moreOpen, setMoreOpen] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    api.aois().then((res) => {
+      if (!alive) return;
+      setRegistryAois((res.aois ?? []).filter((a) => !PRESET_AOI_IDS.has(a.id)));
+    }).catch(() => {
+      if (alive) setRegistryAois([]);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const currentAoi = (searchParams.get("aoi") as AoiId) || aoi || "vietnam";
   const currentData = searchParams.get("data") || dataFeed || "raw";
@@ -70,6 +93,66 @@ export function GlobalContextBar({
                 </button>
               );
             })}
+            {/* CLAIM-034: registry custom AOIs beyond the 3 presets. Labels
+                and meta (coverage_class/months/dataset_ready) come from the
+                GET /api/firms/aois entry, never from a hardcoded span. */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMoreOpen((v) => !v)}
+                aria-expanded={moreOpen}
+                aria-label={t("common.aoi_more")}
+                title={t("common.aoi_more")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-xs font-semibold transition min-h-[28px] flex items-center gap-1",
+                  registryAois.some((a) => a.id === currentAoi)
+                    ? "bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 font-bold shadow-sm"
+                    : "text-slate-400 hover:text-white hover:bg-slate-800/80"
+                )}
+              >
+                <span>{t("common.aoi_more")}{registryAois.length > 0 ? ` (${registryAois.length})` : ""}</span>
+              </button>
+              {moreOpen && (
+                <div
+                  role="menu"
+                  className="absolute left-0 top-full z-50 mt-1 min-w-[220px] max-h-[280px] overflow-y-auto rounded-lg border border-slate-700 bg-slate-900 p-1 shadow-xl"
+                >
+                  {registryAois.length === 0 ? (
+                    <p className="px-2.5 py-2 text-[11px] text-slate-400">
+                      {t("calendar.custom_aois_empty")}
+                    </p>
+                  ) : (
+                    registryAois.map((a) => {
+                      const active = currentAoi === a.id;
+                      return (
+                        <button
+                          key={a.id}
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setAoi(a.id as AoiId);
+                            setMoreOpen(false);
+                          }}
+                          aria-pressed={active}
+                          title={a.label}
+                          className={cn(
+                            "flex w-full flex-col gap-0.5 rounded-md px-2.5 py-1.5 text-left transition",
+                            active
+                              ? "bg-cyan-500/25 text-cyan-300 border border-cyan-500/40"
+                              : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                          )}
+                        >
+                          <span className="text-xs font-semibold">{a.label}</span>
+                          <span className="font-mono text-[10px] text-slate-400">
+                            {a.coverage_class ?? "—"} · {a.months ?? "—"} · {a.dataset_ready ? "✓" : "—"}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

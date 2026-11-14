@@ -45,12 +45,18 @@ def _require_aoi(aoi: str, data: str = "sample") -> None:
             "message": f"No raw FIRMS data on this server for aoi={aoi}. "
                        "Use data=sample for the synthetic demo, or fetch a month first.",
             "aoi": aoi})
-    raise HTTPException(400, f"Unknown aoi {aoi!r}; choose from {sorted(store.aoi_registry())}")
+    raise HTTPException(400, f"Unknown sample aoi {aoi!r}; register it via POST /aois "
+                             f"(requires admin) or use ?dataset=upload:<id> for an uploaded "
+                             f"session dataset, or a bbox+stat slice; "
+                             f"known presets: {sorted(store.aoi_registry())}")
 
 
 def _sample_records(limit: int = 500, aoi: str = "vietnam") -> list[dict]:
     if aoi not in store.aoi_registry():
-        raise HTTPException(400, f"Unknown aoi {aoi!r}; choose from {sorted(store.aoi_registry())}")
+        raise HTTPException(400, f"Unknown sample aoi {aoi!r}; register it via POST /aois "
+                                 f"(requires admin) or use ?dataset=upload:<id> for an uploaded "
+                                 f"session dataset, or a bbox+stat slice; "
+                                 f"known presets: {sorted(store.aoi_registry())}")
     try:
         return store.load_records(aoi, limit)
     except ValueError as e:
