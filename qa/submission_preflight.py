@@ -203,65 +203,107 @@ def verify_benchmark(root: Path) -> Check:
 
 
 
-def verify_model_alignment(root: Path) -> Check:
-    """Compare STAN's labelled *official* figures to eval-v4, not internal MAE.
 
-    Unlike retraining counters, both sources must describe the same scored
-    holdout when the team makes public numerical claims.
+def verify_model_alignment(root: Path) -> Check:
+    """Prove eval-v4 rows match the actually served STAN/HTS series.
+
+    stan_safe_raw.json#official and hts_anchor_raw.json metrics are produced
+    by model-specific evaluation protocols. They are not the same artifact as
+    the published served-series holdout, so comparing those summaries directly
+    is invalid. The public table must instead reconcile to series_raw outputs.
     """
-    eval_path = root / "backend/data/firms/models/evaluation_raw.json"
-    stan_path = root / "backend/data/firms/models/stan_safe_raw.json"
-    if not eval_path.is_file() or not stan_path.is_file():
+    paths = {
+        "evaluation": root / "backend/data/firms/models/evaluation_raw.json",
+        "stan_series": root / "backend/data/firms/models/stan_series_raw.json",
+        "hts_series": root / "backend/data/firms/models/hts_series_raw.json",
+        "stan_model": root / "backend/data/firms/models/stan_safe_raw.json",
+        "hts_model": root / "backend/data/firms/models/hts_anchor_raw.json",
+    }
+    missing = [name for name, path in paths.items() if not path.is_file()]
+    if missing:
         return Check("MODEL_ARTIFACT_ALIGNMENT", "BLOCKED",
-                     "One or both official model artifacts are missing", {})
+                     "Missing evaluation/serving/model artifacts",
+                     {"missing": missing})
     try:
-        initial = (digest(eval_path), digest(stan_path))
-        evaluation = json.loads(eval_path.read_text(encoding="utf-8"))
-        artifact = json.loads(stan_path.read_text(encoding="utf-8"))
-        metrics = evaluation["pooled"]["metrics"]
-        official = artifact["official"]
-        mapping = {
-            "stan_safe_v1": "metrics",
-            "b2_seasonal_ratio": "b2_metrics",
-            "hts_anchor_v1": "hts_metrics",
+        initial = {name: digest(path) for name, path in paths.items()}
+        data = {
+            name: json.loads(path.read_text(encoding="utf-8"))
+            for name, path in paths.items()
         }
-        mismatches: dict[str, dict[str, Any]] = {}
-        result: dict[str, dict[str, Any]] = {}
-        for model, group in mapping.items():
-            expected = metrics[model]
-            reported = official[group]
-            result[model] = {
-                "eval_mae": expected["mae"], "artifact_official_mae": reported["mae"],
-                "eval_wape": expected["wape"], "artifact_official_wape": reported["wape"],
+        evaluation = data["evaluation"]
+        stan_series = data["stan_series"]
+        hts_series = data["hts_series"]
+        lineage = {
+            name: data[name].get("dataset_sha256")
+            for name in ("stan_series", "hts_series", "stan_model", "hts_model")
+        }
+        mismatches: dict[str, Any] = {}
+        lineage_values = set(lineage.values())
+        if None in lineage_values or len(lineage_values) != 1:
+            mismatches["dataset_lineage"] = lineage
+        samples = evaluation.get("samples") or []
+        if not samples or len(samples) != int(evaluation.get("n_eval", -1)):
+            mismatches["sample_count"] = {
+                "manifest_n_eval": evaluation.get("n_eval"),
+                "actual_samples": len(samples),
             }
-            for field, tolerance in (("mae", 0.02), ("wape", 0.00001), ("bias", 0.02)):
-                gap = abs(float(expected[field]) - float(reported[field]))
-                if gap > tolerance:
-                    mismatches[model + "." + field] = {
-                        "eval": expected[field], "artifact_official": reported[field],
-                        "absolute_gap": round(gap, 6),
+        seen: set[str] = set()
+        missing_series = 0
+        for sample in samples:
+            aoi = sample.get("aoi")
+            ym = f"{int(sample['year']):04d}-{int(sample['month']):02d}"
+            sample_id = sample.get("id") or f"{aoi}:{ym}"
+            if sample_id in seen:
+                mismatches["duplicate:" + str(sample_id)] = "duplicate evaluation sample ID"
+                continue
+            seen.add(sample_id)
+            stan_row = ((stan_series.get("series") or {}).get(aoi) or {}).get(ym) or {}
+            hts_row = ((hts_series.get("series") or {}).get(aoi) or {}).get(ym) or {}
+            if not stan_row or not hts_row:
+                missing_series += 1
+                mismatches["missing:" + str(sample_id)] = "STAN/HTS serving series row missing"
+                continue
+            pairs = (
+                ("stan_safe_v1", sample.get("stan_safe_v1"), stan_row.get("target")),
+                ("hts_anchor_v1", sample.get("hts_anchor_v1"), hts_row.get("hts")),
+                ("viirs_ref", sample.get("viirs_ref"), hts_row.get("viirs")),
+                ("b2_seasonal_ratio", sample.get("b2_seasonal_ratio"), hts_row.get("b2")),
+            )
+            for field, expected, actual in pairs:
+                if expected is None or actual is None:
+                    mismatches[f"{sample_id}.{field}"] = {
+                        "expected": expected, "served_series": actual,
                     }
-            if int(expected["n"]) != int(reported["n"]):
-                mismatches[model + ".n"] = {
-                    "eval": expected["n"], "artifact_official": reported["n"],
-                }
-        if int(evaluation["n_eval"]) != int(official["metrics"]["n"]):
-            mismatches["n_eval"] = {
-                "eval": evaluation["n_eval"],
-                "artifact_official": official["metrics"]["n"],
-            }
-        if initial != (digest(eval_path), digest(stan_path)):
-            mismatches["snapshot"] = {"reason": "artifacts changed while being checked"}
+                    continue
+                gap = abs(float(expected) - float(actual))
+                # Series values are stored to 3 decimals; eval rows to 4.
+                if gap > 0.00051:
+                    mismatches[f"{sample_id}.{field}"] = {
+                        "expected": expected, "served_series": actual,
+                        "absolute_gap": round(gap, 7),
+                    }
+        final = {name: digest(path) for name, path in paths.items()}
+        if initial != final:
+            mismatches["snapshot"] = {"reason": "an artifact changed during verification"}
         return Check(
             "MODEL_ARTIFACT_ALIGNMENT", "BLOCKED" if mismatches else "PASS",
-            "Official model metrics reconcile with eval-v4 holdout"
-            if not mismatches else "Model official metrics disagree with evaluation; do not publish as final",
-            {"metrics": result, "mismatches": mismatches,
-             "eval_sha256": initial[0], "model_sha256": initial[1]},
+            "All evaluation samples reconcile to the deployed STAN/HTS series and tile-data lineage"
+            if not mismatches else "Published evaluation does not reconcile to served series or shared data lineage",
+            {
+                "evaluation_version": evaluation.get("evaluation_version"),
+                "eval_rows": len(samples), "unique_ids": len(seen),
+                "missing_series_rows": missing_series,
+                "dataset_lineage": lineage,
+                "sample_ids_sha256": hashlib.sha256(
+                    "\n".join(sorted(seen)).encode()
+                ).hexdigest(),
+                "mismatches": dict(list(mismatches.items())[:12]),
+                "artifact_sha256": initial,
+            },
         )
     except (OSError, ValueError, KeyError, TypeError) as exc:
         return Check("MODEL_ARTIFACT_ALIGNMENT", "BLOCKED",
-                     "Cannot reconcile model official metadata",
+                     "Cannot reconcile evaluation to served model series",
                      {"exception": type(exc).__name__})
 
 def verify_release(root: Path) -> Check:

@@ -300,6 +300,39 @@ def merge_artifact_methods(manifest: dict, model_dir: Path | None = None) -> dic
     return manifest
 
 
+def official_summary(manifest: dict) -> dict:
+    """Response-compatible official metrics derived from the unified eval manifest.
+
+    The model JSON sidecars also contain training/protocol-specific metrics.
+    Those are useful diagnostics, but they are not the served-series holdout
+    table and must never override this manifest in public API responses.
+    """
+    pooled = ((manifest.get("pooled") or {}).get("metrics") or {})
+    headline = (manifest.get("headline") or {}).get("metrics") or {}
+    per_aoi = {}
+    for aoi, info in (manifest.get("per_aoi") or {}).items():
+        metrics = info.get("metrics") or {}
+        per_aoi[aoi] = {
+            "stan": metrics.get("stan_safe_v1"),
+            "hts": metrics.get("hts_anchor_v1"),
+            "b2": metrics.get("b2_seasonal_ratio"),
+        }
+    return {
+        "n": manifest.get("n_eval"),
+        "metrics": pooled.get("stan_safe_v1"),
+        "hts_metrics": pooled.get("hts_anchor_v1"),
+        "b2_metrics": pooled.get("b2_seasonal_ratio"),
+        "comparisons": manifest.get("comparisons") or {},
+        "per_aoi": per_aoi,
+        "headline": headline.get("stan_safe_v1"),
+        "hts_headline": headline.get("hts_anchor_v1"),
+        "b2_headline": headline.get("b2_seasonal_ratio"),
+        "evaluation_version": manifest.get("evaluation_version"),
+        "dataset_sha256": manifest.get("dataset_sha256"),
+        "pair_table_hash": manifest.get("pair_table_hash"),
+        "eval_unit": manifest.get("eval_unit"),
+    }
+
 def primary_status(data: str = "raw", model_dir: Path | None = None) -> dict:
     """Which model the frozen holdout currently supports as the primary.
 

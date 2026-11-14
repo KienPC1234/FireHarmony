@@ -187,22 +187,9 @@ def firms_xray(aoi: str = Query("vietnam"),
     else:
         b1_log, b2_log = evaluation.ratios_from_train(pairs)
         ratio_source = "in_sample fallback (no manifest)"
+    # eval-v4 already contains the served STAN/HTS predictions on these
+    # exact AOI-month IDs. Never override it with model-training sidecars.
     metrics = dict(per.get("metrics") or {}) if per else {}
-    if data == "raw":
-        hp = MODEL_DIR / "hts_anchor_raw.json"
-        if hp.exists():
-            try:
-                _hm = json.loads(hp.read_text(encoding="utf-8"))
-                _row = ((_hm.get("per_aoi") or {}).get(aoi))
-                if _row:
-                    metrics["hts_anchor_v1"] = {k: v for k, v in _row.items()
-                                                if k in ("mae", "wape", "bias", "n")}
-            except (OSError, json.JSONDecodeError):
-                pass
-        _stm = _stan_meta("safe")
-        _strow = (((_stm or {}).get("official", {}).get("per_aoi") or {}).get(aoi) or {}).get("stan")
-        if _strow:
-            metrics["stan_safe_v1"] = _strow
     metrics = metrics or None
     months = []
     for (y, m), v in sorted(by_ym.items()):

@@ -20,13 +20,13 @@ for the NASA portal, public access and the actual presentation.
 
 Without `--soft-fail` the CLI exits 2 if any required evidence is blocked.
 A PASS on a checksum proves integrity of a *packaged artifact*, not its
-completeness or validity as Earth-observation ground truth. The evaluation
-check recomputes pooled MAE/WAPE on the saved holdout rows, compares STAN
-\`official\` metrics with eval-v4, and detects changes to evaluation files during
-verification. Internal training metrics use a different protocol and cannot
-replace official holdout results. This gate does **not** establish transfer
-performance, calibration, or superiority
-at the 95% confidence level. `0` detected hotspots and `null` missing
+completeness or validity as Earth-observation ground truth. The evaluation check recomputes pooled MAE/WAPE on saved holdout rows,
+verifies every eval-v4 sample against the deployed STAN and HTS serving series
+(including VIIRS reference and B2), checks their common tile-data lineage, and
+detects artifacts changing during verification. Model-sidecar training metrics
+use a different evaluation protocol and are not compared directly to the served
+series table. This gate does **not** establish transfer performance, calibration,
+or superiority at the 95% confidence level. `0` detected hotspots and `null` missing
 coverage must remain distinguishable in the submitted UI.
 
 Outputs are JSON evidence receipts. Treat references to unknown NASA Project

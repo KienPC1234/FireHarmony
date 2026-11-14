@@ -95,7 +95,7 @@ def _evaluation_facts(aoi: str, data: str) -> dict:
         "per_aoi": {aoi: per},
     }
     if stan_m:
-        off = stan_m.get("official") or {}
+        off = evaluation.official_summary(m)
         facts["stan_official"] = off
         facts["stan_headline"] = off.get("headline")
         facts["stan_vs_b2"] = off.get("comparisons", {}).get("stan_vs_b2")

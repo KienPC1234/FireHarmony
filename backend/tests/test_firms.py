@@ -817,6 +817,64 @@ def test_T09_xray_uses_unified_manifest_not_legacy():
         assert "b2_seasonal_ratio" in x["backtest_metrics"]
 
 
+def test_T09a_backtest_uses_unified_manifest_for_served_predictions():
+    """Published STAN/HTS rows and summaries come from eval-v4, not sidecars."""
+    from app.firms import evaluation
+    from app.main import _backtest_from_manifest
+
+    manifest = evaluation.load_manifest("raw")
+    assert manifest and manifest.get("n_eval") == 72
+    payload = _backtest_from_manifest(manifest, "amazon", "raw", 2)
+    sample = next(x for x in manifest["samples"] if x["aoi"] == "amazon")
+    first = payload["months"][0]
+    assert first["year"] == sample["year"] and first["month"] == sample["month"]
+    assert first["stan_pred"] == sample["stan_safe_v1"]
+    assert first["hts_pred"] == sample["hts_anchor_v1"]
+    assert payload["stan_official"]["metrics"] == manifest["pooled"]["metrics"]["stan_safe_v1"]
+    assert payload["stan"]["official"] == payload["stan_official"]
+    assert payload["hts"]["metrics"] == manifest["pooled"]["metrics"]["hts_anchor_v1"]
+    assert payload["hts"]["per_aoi"]["amazon"]["mae"] == (
+        manifest["per_aoi"]["amazon"]["metrics"]["hts_anchor_v1"]["mae"])
+
+
+def test_T09b_pipeline_facts_use_unified_manifest_for_official_metrics():
+    """Evidence/LLM facts cannot read stale model-sidecar holdout summaries."""
+    from app.firms import evaluation
+    from app.firms.pipeline import _evaluation_facts
+
+    manifest = evaluation.load_manifest("raw")
+    facts = _evaluation_facts("amazon", "raw")
+    expected = manifest["pooled"]["metrics"]["stan_safe_v1"]
+    assert facts["stan_official"]["metrics"] == expected
+    assert facts["stan_vs_b2"] == manifest["comparisons"]["stan_vs_b2"]
+    assert facts["stan_per_aoi"]["stan"] == (
+        manifest["per_aoi"]["amazon"]["metrics"]["stan_safe_v1"])
+
+
+def test_T09c_xray_raw_metrics_not_overridden_by_training_sidecars(monkeypatch):
+    """Raw X-Ray must publish the same AOI metrics as the eval-v4 backtest."""
+    from app.firms import evaluation
+    from app.routers import models
+
+    manifest = evaluation.load_manifest("raw")
+    assert manifest and manifest.get("n_eval") == 72
+    monkeypatch.setattr(
+        models, "_harmonize_stream",
+        lambda *args, **kwargs: {
+            "monthly": {"2024-01": {"modis": 100, "viirs": 250}},
+            "calendar": {"years": [2024],
+                         "matrix": [[250.0] + [None] * 11]},
+        },
+    )
+    response = client.get("/api/firms/xray", params={"aoi": "amazon", "data": "raw"})
+    assert response.status_code == 200
+    actual = response.json()["backtest_metrics"]
+    expected = manifest["per_aoi"]["amazon"]["metrics"]
+    assert actual["stan_safe_v1"] == expected["stan_safe_v1"]
+    assert actual["hts_anchor_v1"] == expected["hts_anchor_v1"]
+    assert actual["b2_seasonal_ratio"] == expected["b2_seasonal_ratio"]
+
+
 def test_T10_raw_absent_is_explicit_404(tmp_path, monkeypatch):
     import app.firms.store as store
     monkeypatch.setattr(store, "RAW_DIR", tmp_path)

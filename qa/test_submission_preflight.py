@@ -65,6 +65,43 @@ class SubmissionPreflightTests(unittest.TestCase):
         }
         return self.path("backend/data/firms/models/evaluation_raw.json", json.dumps(e))
 
+    def seed_alignment(self):
+        samples = [
+            {"id": "amazon:2024-01", "aoi": "amazon", "year": 2024, "month": 1,
+             "viirs_ref": 10.0, "b2_seasonal_ratio": 8.0,
+             "stan_safe_v1": 9.0, "hts_anchor_v1": 8.5},
+            {"id": "amazon:2024-02", "aoi": "amazon", "year": 2024, "month": 2,
+             "viirs_ref": 20.0, "b2_seasonal_ratio": 18.0,
+             "stan_safe_v1": 19.0, "hts_anchor_v1": 18.5},
+        ]
+        self.path("backend/data/firms/models/evaluation_raw.json", json.dumps({
+            "evaluation_version": "eval-v4", "n_eval": 2, "samples": samples,
+        }))
+        self.path("backend/data/firms/models/stan_series_raw.json", json.dumps({
+            "dataset_sha256": "shared-tile-sha",
+            "series": {"amazon": {
+                "2024-01": {"target": 9.0},
+                "2024-02": {"target": 19.0},
+            }},
+        }))
+        self.path("backend/data/firms/models/hts_series_raw.json", json.dumps({
+            "dataset_sha256": "shared-tile-sha",
+            "series": {"amazon": {
+                "2024-01": {"hts": 8.5, "b2": 8.0, "viirs": 10.0},
+                "2024-02": {"hts": 18.5, "b2": 18.0, "viirs": 20.0},
+            }},
+        }))
+        # Model-sidecar metrics use a distinct training protocol; deliberately
+        # different values must not invalidate the served-series evaluation.
+        self.path("backend/data/firms/models/stan_safe_raw.json", json.dumps({
+            "dataset_sha256": "shared-tile-sha",
+            "official": {"metrics": {"mae": 999.0}},
+        }))
+        self.path("backend/data/firms/models/hts_anchor_raw.json", json.dumps({
+            "dataset_sha256": "shared-tile-sha",
+            "metrics": {"mae": 888.0},
+        }))
+
     def test_correct_demo_pack_passes(self):
         self.seed_demo()
         result = verify_demo_pack(self.root)
@@ -102,33 +139,32 @@ class SubmissionPreflightTests(unittest.TestCase):
         self.assertEqual(result.status, "BLOCKED")
         self.assertIn("stan_safe_v1", result.evidence["mismatches"])
 
-    def test_official_stan_metadata_matches_evaluation(self):
-        self.seed_eval()
-        self.path("backend/data/firms/models/stan_safe_raw.json",
-                  json.dumps({"official": {
-                      "metrics": {"mae": 1, "wape": 2 / 30, "bias": 0, "n": 2},
-                      "b2_metrics": {"mae": 2, "wape": 4 / 30, "bias": -2, "n": 2},
-                      "hts_metrics": {"mae": 2, "wape": 4 / 30, "bias": -2, "n": 2},
-                  }}))
-        p = self.root / "backend/data/firms/models/evaluation_raw.json"
-        data = json.loads(p.read_text())
-        data["methods"].append("hts_anchor_v1")
-        for row in data["samples"]:
-            row["hts_anchor_v1"] = row["b2_seasonal_ratio"]
-        data["pooled"]["metrics"]["hts_anchor_v1"] = dict(
-            data["pooled"]["metrics"]["b2_seasonal_ratio"])
-        p.write_text(json.dumps(data))
-        self.assertEqual(verify_model_alignment(self.root).status, "PASS")
+    def test_served_series_aligns_to_eval_manifest(self):
+        self.seed_alignment()
+        result = verify_model_alignment(self.root)
+        self.assertEqual(result.status, "PASS")
+        self.assertEqual(result.evidence["eval_rows"], 2)
+        self.assertEqual(result.evidence["dataset_lineage"]["stan_model"], "shared-tile-sha")
 
-    def test_model_artifact_official_mae_mismatch_blocks_submission(self):
-        self.test_official_stan_metadata_matches_evaluation()
-        p = self.root / "backend/data/firms/models/stan_safe_raw.json"
+    def test_served_series_prediction_mismatch_blocks_submission(self):
+        self.seed_alignment()
+        p = self.root / "backend/data/firms/models/stan_series_raw.json"
         obj = json.loads(p.read_text())
-        obj["official"]["metrics"]["mae"] = 1.25
+        obj["series"]["amazon"]["2024-01"]["target"] = 9.5
         p.write_text(json.dumps(obj))
         result = verify_model_alignment(self.root)
         self.assertEqual(result.status, "BLOCKED")
-        self.assertIn("stan_safe_v1.mae", result.evidence["mismatches"])
+        self.assertIn("amazon:2024-01.stan_safe_v1", result.evidence["mismatches"])
+
+    def test_model_lineage_mismatch_blocks_submission(self):
+        self.seed_alignment()
+        p = self.root / "backend/data/firms/models/hts_anchor_raw.json"
+        obj = json.loads(p.read_text())
+        obj["dataset_sha256"] = "different-tile-sha"
+        p.write_text(json.dumps(obj))
+        result = verify_model_alignment(self.root)
+        self.assertEqual(result.status, "BLOCKED")
+        self.assertIn("dataset_lineage", result.evidence["mismatches"])
 
     def test_missing_artifacts_are_blockers(self):
         self.assertEqual(verify_demo_pack(self.root).status, "BLOCKED")

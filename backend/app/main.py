@@ -161,20 +161,72 @@ def _backtest_from_manifest(manifest: dict, aoi: str, data: str,
                             test_years: int) -> dict:
     per = (manifest.get("per_aoi") or {}).get(aoi) or {}
     samples = [s for s in manifest.get("samples", []) if s.get("aoi") == aoi]
-    # Model predictions are raw-data artifacts; the synthetic sample must not
-    # borrow raw STAN/HTS predictions that happen to share AOI-month IDs.
+    # The unified manifest is the source of truth for published metrics and
+    # predictions. Model-sidecar predictions use a separate training protocol.
     stan_meta = _stan_meta("safe") if data == "raw" else None
-    stan_preds = (stan_meta or {}).get("predictions") or {}
     hts_meta = _read_cached_meta(MODEL_DIR / "hts_anchor_raw.json") if data == "raw" else None
+    official = evaluation.official_summary(manifest) if data == "raw" else None
+    manifest_predictions = {
+        f"{sample['aoi']}:{int(sample['year'])}-{int(sample['month']):02d}": {
+            "stan": sample.get("stan_safe_v1"),
+            "hts": sample.get("hts_anchor_v1"),
+            "viirs_ref": sample.get("viirs_ref"),
+            "b2": sample.get("b2_seasonal_ratio"),
+        }
+        for sample in manifest.get("samples", [])
+    }
+    if stan_meta is not None and official is not None:
+        stan_meta = {
+            **stan_meta,
+            "official": official,
+            "training_comparisons": stan_meta.get("comparisons") or {},
+            "comparisons": official.get("comparisons") or {},
+            "predictions": {
+                key: {k: v for k, v in value.items() if k in ("stan", "hts", "viirs_ref")}
+                for key, value in manifest_predictions.items()
+            },
+        }
+    if hts_meta is not None and official is not None:
+        hts_metrics = official.get("hts_metrics") or {}
+        b2_metrics = official.get("b2_metrics") or {}
+        hts_mae, b2_mae = hts_metrics.get("mae"), b2_metrics.get("mae")
+        per_aoi_summary = official.get("per_aoi") or {}
+        hts_meta = {
+            **hts_meta,
+            "metrics": hts_metrics,
+            "b2_metrics": b2_metrics,
+            "hts_mae": hts_mae,
+            "b2_mae": b2_mae,
+            "mean_gain_vs_b2": (
+                (b2_mae - hts_mae) / b2_mae
+                if hts_mae is not None and b2_mae not in (None, 0) else None
+            ),
+            "headline": official.get("hts_headline"),
+            "per_aoi": {
+                name: {
+                    **(info.get("hts") or {}),
+                    "hts_mae": (info.get("hts") or {}).get("mae"),
+                    "b2_mae": (info.get("b2") or {}).get("mae"),
+                }
+                for name, info in per_aoi_summary.items()
+                if info.get("hts")
+            },
+            "training_comparisons": hts_meta.get("comparisons") or {},
+            "comparisons": {
+                "hts_vs_b2": (official.get("comparisons") or {}).get("hts_vs_b2"),
+            },
+            "predictions": {
+                key: {k: v for k, v in value.items() if k in ("hts", "b2", "viirs_ref")}
+                for key, value in manifest_predictions.items()
+            },
+        }
     rows = []
-    for s in samples:
-        sid = f"{aoi}:{int(s['year'])}-{int(s['month']):02d}"
-        entry = stan_preds.get(sid) or {}
-        rows.append({"year": s["year"], "month": s["month"],
-                     "modis": s["modis"], "viirs_ref": s["viirs_ref"],
-                     "stan_pred": entry.get("stan") or s.get("stan_safe_v1"),
-                     "hts_pred": entry.get("hts") or s.get("hts_anchor_v1"),
-                     "b2_pred": s.get("b2_seasonal_ratio")})
+    for sample in samples:
+        rows.append({"year": sample["year"], "month": sample["month"],
+                     "modis": sample["modis"], "viirs_ref": sample["viirs_ref"],
+                     "stan_pred": sample.get("stan_safe_v1"),
+                     "hts_pred": sample.get("hts_anchor_v1"),
+                     "b2_pred": sample.get("b2_seasonal_ratio")})
     return {
         "aoi": aoi, "data": data,
         "data_source": manifest.get("data_source"),
@@ -186,7 +238,7 @@ def _backtest_from_manifest(manifest: dict, aoi: str, data: str,
         "primary_gate": evaluation.primary_status(data, MODEL_DIR),
         "hts": hts_meta,
         "stan": stan_meta,
-        "stan_official": (stan_meta or {}).get("official"),
+        "stan_official": official if stan_meta is not None else None,
         "pooled_metrics": (manifest.get("pooled") or {}).get("metrics", {}),
         "pooled_full_month": manifest.get("pooled_full_month"),
         "headline": manifest.get("headline"),
