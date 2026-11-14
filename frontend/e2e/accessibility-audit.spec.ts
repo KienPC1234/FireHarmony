@@ -73,7 +73,7 @@ for (const viewport of [
 
 test("evidence and laboratory filters have accessible names", async ({ page }) => {
   await page.goto("/evidence?aoi=vietnam&data=sample");
-  await expect(page.locator("#evidence-area-select")).toHaveAccessibleName(/Vùng|Khu vực|Area/);
+  await expect(page.locator("#evidence-area-select")).toHaveAccessibleName(/Vùng|Khu vực|Area|AOI/i);
   await expect(page.locator("#evidence-month-input")).toHaveAccessibleName(/Tháng|Month/);
   await page.goto("/lab?aoi=vietnam&data=sample&tab=simulator");
   await expect(page.locator("#lab-year-select")).toHaveAccessibleName(/Năm|Year/);

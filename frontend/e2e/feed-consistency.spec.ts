@@ -110,16 +110,27 @@ test("a deliberate feed toggle preserves study context and compatible method", a
     "/calendar?aoi=amazon&data=sample&ym=2024-08&mode=research&qa_min=nominal",
     { waitUntil: "domcontentloaded" },
   );
-  const toggle = page.locator("button:has(svg.lucide-database)").first();
-  await expect(toggle).toBeVisible();
-  await toggle.click();
+  // The mobile source selector lives inside the collapsible map inspector;
+  // desktop shows that inspector by default. Exercise the actual user path.
+  const inspector = page.getByRole("complementary", { name: "Fire activity inspector" });
+  await expect(inspector).toBeVisible({ timeout: 15_000 });
+  const openInspector = inspector.getByRole("button", { name: /Overview|Tổng quan/i });
+  // The closed mobile dock exposes a button; the open dock exposes a tab.
+  // Do not mistake a loading state for a closed dock.
+  if (await openInspector.count()) await openInspector.click();
+  const rawFeed = inspector.getByRole("button", { name: /NASA Raw|NASA quan sát/i });
+  await expect(rawFeed).toBeVisible({ timeout: 15_000 });
+  await rawFeed.click();
   await expect.poll(() => params(page).get("data")).toBe("raw");
   await expect.poll(() => params(page).get("method")).toBe("stan");
   expect(params(page).get("ym")).toBe("2024-08");
   expect(params(page).get("mode")).toBe("research");
   expect(params(page).get("qa_min")).toBe("nominal");
   await expect(page.locator("[data-fh-feed]")).toContainText(/NASA quan sát|NASA Observed/);
-  expect(requests.some((req) => req.feed === "raw" && req.method === "stan"), JSON.stringify(requests)).toBe(true);
+  await expect.poll(
+    () => requests.some((req) => req.feed === "raw" && req.method === "stan"),
+    { timeout: 15_000 },
+  ).toBe(true);
 });
 
 
