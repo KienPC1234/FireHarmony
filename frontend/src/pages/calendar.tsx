@@ -1069,29 +1069,42 @@ function shiftIsoDate(iso: string, deltaDays: number): string {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modelConflict]);
 
-  useEffect(() => {
-    if (!emptyFilter) return;
-    let active = true;
-    const canFetchLive = Boolean(parseBboxNumbers(applied.bbox));
-    void notifyAlert({
-      icon: "info",
-      title: t("calendar.empty_filter_title"),
-      text: t("calendar.empty_filter_body"),
-      showCancelButton: canFetchLive,
-      confirmButtonText: canFetchLive ? t("calendar.fetch_live_btn") : t("calendar.clear_filter"),
-      cancelButtonText: t("calendar.clear_filter"),
-    }).then((res) => {
-      if (!active) return;
-      if (res.isConfirmed && canFetchLive) {
-        setEmptyFilter(null);
-        void handleFetchLiveFirms();
-      } else {
-        clearRestrictiveFilters();
-      }
-    });
-    return () => { active = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [emptyFilter]);
+  // A filtered 404 (or an explicitly empty successful response) is not a
+  // missing NASA feed. Keep the map available and expose local recovery
+  // actions without forcing a blocking alert dialog.
+  const emptyFilterBanner = emptyFilter ? (
+    <div
+      data-testid="empty-filter-banner"
+      role="status"
+      className="pointer-events-auto rounded-xl border border-amber-500/40 bg-[#0B1220]/95 p-4 text-sm shadow-2xl backdrop-blur-md"
+    >
+      <h2 className="font-bold text-amber-200">{t("calendar.empty_filter_title")}</h2>
+      <p className="mt-1.5 text-xs leading-relaxed text-slate-200">
+        {t("calendar.empty_filter_body")}
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={clearRestrictiveFilters}
+          className="rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/25"
+        >
+          {t("calendar.clear_filter")}
+        </button>
+        {parseBboxNumbers(applied.bbox) && (
+          <button
+            type="button"
+            onClick={() => {
+              setEmptyFilter(null);
+              void handleFetchLiveFirms();
+            }}
+            className="rounded-lg border border-cyan-500/50 bg-cyan-900 px-3 py-2 text-xs font-semibold text-white hover:bg-cyan-800"
+          >
+            {t("calendar.fetch_live_btn")}
+          </button>
+        )}
+      </div>
+    </div>
+  ) : null;
 
   if (error) return <ErrorState error={error} onRetry={() => setApplied({ ...applied })} />;
   if (rawUnavailable && !data) {
@@ -1162,6 +1175,11 @@ function shiftIsoDate(iso: string, deltaDays: number): string {
             onClearBbox={clearRestrictiveFilters}
             onSelect={(b, geom) => selectWorldBbox(b, geom)}
           />
+          {emptyFilterBanner && (
+            <div className="pointer-events-none absolute inset-x-3 top-3 z-[1400] sm:right-auto sm:w-[min(420px,calc(100%-24px))]">
+              {emptyFilterBanner}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1315,6 +1333,11 @@ function shiftIsoDate(iso: string, deltaDays: number): string {
             }
             unit={t("calendar.loading_elapsed")}
           />
+        </div>
+      )}
+      {emptyFilterBanner && (
+        <div className="pointer-events-none absolute inset-x-3 top-16 z-[1400] sm:right-auto sm:w-[min(420px,calc(100%-24px))]">
+          {emptyFilterBanner}
         </div>
       )}
       {/* 1. TOP HEADER & TELEMETRY STRIP */}
