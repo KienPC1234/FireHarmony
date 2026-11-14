@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import urllib.error
 import urllib.request
 
 
@@ -38,6 +39,57 @@ def _post(base: str, path: str, payload: dict) -> tuple[bool, str]:
         return False, str(e)
 
 
+
+
+def _investigate_probe(base: str, payload: dict) -> tuple[bool, str]:
+    """Test public CAPTCHA enforcement or exercise the unguarded local route.
+
+    Public protection is checked by requiring the exact missing-token
+    Turnstile response, not by treating every 403 as success. The protected
+    path's answer is intentionally *not* tested without a human token.
+    """
+    url = base.rstrip("/") + "/api/firms/captcha-config"
+    try:
+        with urllib.request.urlopen(url, timeout=20) as r:
+            if r.status != 200:
+                return False, f"captcha-config HTTP {r.status}"
+            config = json.loads(r.read(16_384))
+        if not isinstance(config, dict) or not isinstance(config.get("enabled"), bool):
+            return False, "captcha-config contract invalid"
+    except urllib.error.HTTPError as exc:
+        # Older frozen releases do not provide a CAPTCHA config endpoint.
+        if exc.code == 404:
+            return _post(base, "/api/firms/investigate", payload)
+        return False, f"captcha-config HTTP {exc.code}"
+    except (OSError, ValueError, TypeError) as exc:
+        return False, f"captcha-config unavailable ({type(exc).__name__})"
+
+    if not config["enabled"]:
+        return _post(base, "/api/firms/investigate", payload)
+    if not str(config.get("site_key") or "").strip():
+        return False, "captcha enabled but public site key missing"
+
+    body = json.dumps(payload).encode()
+    req = urllib.request.Request(
+        base.rstrip("/") + "/api/firms/investigate", data=body, method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return False, f"captcha enabled but unauthenticated POST returned HTTP {r.status}"
+    except urllib.error.HTTPError as exc:
+        try:
+            detail = json.loads(exc.read(8192))
+            code = detail.get("detail", {}).get("error_code")
+        except (ValueError, TypeError, AttributeError):
+            code = None
+        matched = exc.code == 403 and code == "turnstile_required"
+        status = "guard verified; response not tested" if matched else "unexpected error"
+        return matched, f"HTTP {exc.code} {code!r}; {status}"
+    except OSError as exc:
+        return False, f"investigate unavailable ({type(exc).__name__})"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default="http://127.0.0.1:8000")
@@ -59,11 +111,13 @@ def main() -> int:
         ("SPA /lab", _get(a.base, "/lab")[0], ""),
         ("logo", _get(a.base, "/logo.svg")[0], ""),
         ("manifest", _get(a.base, "/manifest.webmanifest")[0], ""),
-        ("investigate", _post(a.base, "/api/firms/investigate",
-                              {"question": "why anomalous?", "aoi": "vietnam",
-                               "data": "sample", "year": 2019, "month": 3,
-                               "use_llm": False})[0], ""),
     ]
+    investigator_ok, investigator_detail = _investigate_probe(
+        a.base,
+        {"question": "why anomalous?", "aoi": "vietnam",
+         "data": "sample", "year": 2019, "month": 3, "use_llm": False},
+    )
+    checks.append(("investigate", investigator_ok, investigator_detail))
     bad = 0
     for name, ok, detail in checks:
         print(("PASS " if ok else "FAIL ") + name + (f" · {detail}" if detail else ""))
