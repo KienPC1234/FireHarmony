@@ -259,9 +259,8 @@ export function CalendarPage() {
             message: detail?.message
               || (e instanceof Error ? e.message : t("calendar.raw_unavailable_body")),
           });
-          setDataFeed("sample");
-          setMethod("k_ratio");
-          setApplied((prev) => ({ ...prev, data: "sample", method: "k_ratio" }));
+          // Keep the selected observed feed. Only the explicit preview
+          // button may switch the user to synthetic sample data.
           return;
         }
         setError(e);
