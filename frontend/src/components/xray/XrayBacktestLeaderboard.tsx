@@ -12,8 +12,9 @@ interface XrayBacktestLeaderboardProps {
       month: number;
       modis: number;
       viirs_ref: number;
-      ml_pred: number;
-      ts_pred: number | null;
+      stan_pred: number | null;
+      hts_pred: number | null;
+      b2_pred: number;
     }>;
   } | null;
 }
@@ -67,16 +68,6 @@ const MODEL_SPECS = [
     tone: "good",
   },
   {
-    id: "spatial_hgb_v1",
-    name: { vi: "Spatial HGB: bối cảnh ô lân cận", en: "Spatial HGB: Neighbour-Tile Context" },
-    desc: {
-      vi: "HGB phần dư trên HTS với VIIRS cùng tháng của 8 ô lân cận. Thắng lớn khi tái dựng lịch sử, nhưng không dùng được cho dự báo (biến thể forecast-safe không thắng HTS).",
-      en: "Residual HGB on HTS using same-month VIIRS of 8 neighbouring tiles. Strong for historical reconstruction, not usable for forecasting (the forecast-safe variant does not beat HTS).",
-    },
-    badge: { vi: "Retrospective · không phải dự báo", en: "Retrospective · not a forecast" },
-    tone: "warn",
-  },
-  {
     id: "hts_anchor_v1",
     name: { vi: "HTS: neo mùa vụ theo ô 1°", en: "HTS: 1° Tile-Seasonal Anchor" },
     desc: {
@@ -85,16 +76,6 @@ const MODEL_SPECS = [
     },
     badge: { vi: "Candidate · CI chứa 0", en: "Candidate · CI includes 0" },
     tone: "warn",
-  },
-  {
-    id: "sf_lite_v1",
-    name: { vi: "SensorFormer: kiến trúc phục vụ duy nhất", en: "SensorFormer: single served architecture" },
-    desc: {
-      vi: "Neo mùa vụ B2 + phần dư học được. Gate đóng trên holdout hiện tại nên giá trị phục vụ là neo; phần dư không bật.",
-      en: "B2 seasonal anchor + learned residual. The gate is closed on the current holdout, so the served value is the anchor; the residual stays off.",
-    },
-    badge: { vi: "Gate đóng · anchor-only", en: "Gate OFF · anchor-only" },
-    tone: "accent",
   },
 ] as const;
 
@@ -251,14 +232,15 @@ export function XrayBacktestLeaderboard({ metrics, backtest }: XrayBacktestLeade
                   <th className="p-2">{vi ? "Thời gian" : "Period"}</th>
                   <th className="p-2 text-right">{vi ? "MODIS gốc" : "Raw MODIS"}</th>
                   <th className="p-2 text-right">{vi ? "VIIRS thực tế" : "Actual VIIRS"}</th>
-                  <th className="p-2 text-right">{vi ? "Dự đoán ML" : "ML Prediction"}</th>
+                  <th className="p-2 text-right">{vi ? "Dự đoán STAN" : "STAN Prediction"}</th>
                   <th className="p-2 text-right">{vi ? "Sai số dư" : "Residual Error"}</th>
                   <th className="p-2 text-center">{vi ? "Mức phù hợp" : "Agreement"}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/30">
                 {backtest.months.map((m, idx) => {
-                  const residual = m.ml_pred - m.viirs_ref;
+                  const pred = m.stan_pred ?? m.b2_pred;
+                  const residual = pred - m.viirs_ref;
                   const pctDiff = m.viirs_ref > 0
                     ? Math.abs(residual) / m.viirs_ref
                     : 0;
@@ -270,7 +252,7 @@ export function XrayBacktestLeaderboard({ metrics, backtest }: XrayBacktestLeade
                       </td>
                       <td className="p-2 text-right text-slate-400">{num(m.modis)}</td>
                       <td className="p-2 text-right font-semibold text-emerald-400">{num(m.viirs_ref)}</td>
-                      <td className="p-2 text-right font-semibold text-cyan-300">{num(Math.round(m.ml_pred))}</td>
+                      <td className="p-2 text-right font-semibold text-cyan-300">{num(Math.round(pred))}</td>
                       <td className="p-2 text-right text-slate-300">
                         {residual > 0 ? "+" : ""}{residual.toFixed(1)}
                       </td>

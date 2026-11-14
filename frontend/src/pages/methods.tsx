@@ -70,26 +70,6 @@ const METHOD_SPECS = [
     },
   },
   {
-    id: "sf_lite_v1",
-    name: { vi: "SensorFormer Lite (Nguyên mẫu nghiên cứu đối chứng)", en: "SensorFormer Lite (Comparator Benchmark)" },
-    category: { vi: "Mô hình chú ý đối chứng", en: "Attention Comparator" },
-    formula: "\\hat{y} = x_{modis} \\cdot k_m^{B2} \\cdot \\exp(\\Delta \\hat{r} \\cdot \\text{Gate})",
-    input: { vi: "Cửa sổ 12 tháng MODIS (log), pha tháng, tỷ lệ ban ngày/Terra, embedding vùng", en: "12-month MODIS window (log), month phase, day/Terra fractions, AOI embedding" },
-    target: { vi: "Phần dư trên neo B2: log(VIIRS/MODIS) - b2_log[tháng]", en: "Residual on the B2 anchor: log(VIIRS/MODIS) - b2_log[month]" },
-    assumptions: {
-      vi: "Sai lệch cảm biến có cấu trúc theo vùng và mùa; phần dư chỉ được bật khi vượt gate >=2% và CI < 0.",
-      en: "Sensor bias is structured by region and season; the residual is enabled only if it clears the >=2% gate with CI < 0.",
-    },
-    abstains: {
-      vi: "Không vượt qua gate an toàn (MAE 2.458 so với B2 2.387) -> Giữ nguyên làm mốc đối chứng so sánh cho STAN.",
-      en: "Did not clear safety gate (MAE 2,458 vs B2 2,387) -> Retained as comparator benchmark for STAN.",
-    },
-    failures: {
-      vi: "Attention thuần trên cửa sổ ngắn không nắm bắt được chu kỳ mùa tốt hơn B2; đóng vai trò bài học kiến trúc để thiết kế STAN.",
-      en: "Pure attention on short windows overfits seasonal variance; served as the motivating stepping stone for STAN.",
-    },
-  },
-  {
     id: "hts_anchor_v1",
     name: { vi: "HTS: Neo mùa vụ theo ô 1° (candidate)", en: "HTS: 1° Tile-Seasonal Anchor (candidate)" },
     category: { vi: "Phân cấp không gian - tháng", en: "Spatial-Monthly Hierarchy" },
@@ -105,27 +85,8 @@ const METHOD_SPECS = [
       en: "Sample has no 1° tiles → abstains (409). Missing raw months keep the statistical value.",
     },
     failures: {
-      vi: "MAE 2.230,7 vs B2 2.386,9 (−6,5%), cả 3 vùng giảm, nhưng CI [−362, +44] còn chứa 0.",
-      en: "MAE 2,230.7 vs B2 2,386.9 (−6.5%), all 3 AOIs improve, but CI [−362, +44] still includes 0.",
-    },
-  },
-  {
-    id: "spatial_hgb_v1",
-    name: { vi: "Spatial HGB: hồi quy phần dư theo ô lân cận (retrospective)", en: "Spatial HGB: Neighbour-Tile Residual (retrospective)" },
-    category: { vi: "Học có giám sát + bối cảnh không gian", en: "Supervised + Spatial Context" },
-    input: { vi: "HTS anchor + MODIS ô + VIIRS cùng tháng của 8 ô lân cận", en: "HTS anchor + tile MODIS + same-month VIIRS of 8 neighbouring tiles" },
-    target: { vi: "Phần dư log-ratio trên HTS, cộng ô-tháng lên AOI", en: "Log-ratio residual on HTS, summed from tiles to the AOI" },
-    assumptions: {
-      vi: "Cháy lan giữa các ô lân cận; VIIRS cùng tháng của ô bên cạnh đã được quan trắc khi tái dựng lịch sử.",
-      en: "Fire spreads across neighbouring tiles; same-month VIIRS in adjacent tiles is already observed when reconstructing history.",
-    },
-    abstains: {
-      vi: "Không dùng cho dự báo hay tháng thiếu VIIRS lân cận; biến thể forecast-safe không thắng HTS.",
-      en: "Not for forecasting or months without neighbouring VIIRS; the forecast-safe variant does not beat HTS.",
-    },
-    failures: {
-      vi: "MAE 1.313 vs B2 2.387 (−45%), cả 3 vùng và spatial holdout đều thắng; nhưng đây là nội suy không gian, không phải calibrate MODIS→VIIRS thuần.",
-      en: "MAE 1,313 vs B2 2,387 (−45%), wins all regions and the spatial holdout; but this is spatial imputation, not pure MODIS→VIIRS calibration.",
+      vi: "MAE 4.154,4 vs B2 4.411,8 (−5,8%), cả 3 vùng giảm, nhưng CI [−777,1, +266,2] còn chứa 0.",
+      en: "MAE 4,154.4 vs B2 4,411.8 (−5.8%), all 3 AOIs improve, but CI [−777.1, +266.2] still includes 0.",
     },
   },
   {
@@ -143,8 +104,8 @@ const METHOD_SPECS = [
       en: "Does not use same-month neighbour VIIRS. Months without a 12-month window fall back to HTS.",
     },
     failures: {
-      vi: "Official 72: MAE 2.128,7 vs B2 2.386,9 (−10,8%), CI [−534,8, −19,1]; thắng HTS ở cả 3 vùng nhưng CI so với HTS còn chứa 0. LOO: Việt Nam/Amazon thua HTS, Australia gần hoà.",
-      en: "Official 72: MAE 2,128.7 vs B2 2,386.9 (−10.8%), CI [−534.8, −19.1]; beats HTS in all 3 regions but the HTS CI includes 0. LOO: Vietnam/Amazon lose to HTS, Australia is a near-tie.",
+      vi: "Official 72: MAE 3.765,8 vs B2 4.411,8 (−14,6%, win 95,8%), thắng HTS ở cả 3 vùng; tuy nhiên CI [−1.452,9, +81,8] vẫn chứa 0 (chưa đạt ngưỡng thống kê tuyệt đối).",
+      en: "Official 72: MAE 3,765.8 vs B2 4,411.8 (−14.6%, 95.8% win), beats HTS in all 3 regions; however 95% CI [−1,452.9, +81.8] includes 0 (not statistically established alone).",
     },
   },
 ];
@@ -177,20 +138,8 @@ const BENCH_ROWS = [
   {
     id: "stan_safe_v1",
     label: { vi: "STAN: Mạng không-thời gian STAN (Chủ lực vận hành)", en: "STAN: Spatio-temporal network (Operational)" },
-    tag: { vi: "Chủ lực vận hành · MAE -10,8%", en: "Primary Operational · MAE -10.8%" },
+    tag: { vi: "Chủ lực vận hành · MAE -14,6%", en: "Primary Operational · MAE -14.6%" },
     tagClass: "bg-emerald-500/15 border-emerald-500/30 text-emerald-300 font-bold",
-  },
-  {
-    id: "spatial_hgb_v1",
-    label: { vi: "Spatial HGB: ô lân cận (retrospective)", en: "Spatial HGB: neighbour tiles (retrospective)" },
-    tag: { vi: "Retrospective · cần VIIRS lân cận", en: "Retrospective · needs neighbour VIIRS" },
-    tagClass: "bg-purple-500/15 border-purple-500/30 text-purple-300",
-  },
-  {
-    id: "sf_lite_v1",
-    label: { vi: "SensorFormer Lite (Nguyên mẫu cũ)", en: "SensorFormer Lite (Legacy Prototype)" },
-    tag: { vi: "Đối chứng · Gate đóng", en: "Comparator · Gate Closed" },
-    tagClass: "bg-slate-700/30 border-slate-600/40 text-slate-400",
   },
 ];
 
@@ -415,65 +364,61 @@ export function MethodsPage() {
                 </h3>
                 <p className="text-xs text-slate-300 leading-relaxed">
                   {vi
-                    ? "SensorFormer không dự đoán trực tiếp số vụ cháy từ con số không nhằm triệt tiêu hiện tượng hallucination và tránh giá trị âm. Mạng chỉ dự báo phần dư độ lệch so với hệ số mùa chuẩn B2:"
-                    : "SensorFormer avoids predicting raw fire counts from scratch to prevent hallucination and non-physical negative counts. It strictly predicts multiplicative log-ratio residuals against baseline B2:"}
+                    ? "STAN không dự đoán trực tiếp số vụ cháy từ con số không nhằm triệt tiêu hiện tượng hallucination và tránh giá trị âm. Mạng dự báo phần dư nhân tính theo phân phối Negative Binomial 2 trên neo HTS:"
+                    : "STAN avoids predicting raw fire counts from scratch to prevent hallucination and non-physical negative counts. It predicts bounded log-ratio residuals anchored on HTS with an NB2 count likelihood:"}
                 </p>
                 <div tabIndex={0}
                   className="rounded-xl border border-slate-800 bg-slate-900/80 p-3 text-cyan-300 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">
                   <div className="text-[11px] space-y-2 font-mono">
-                    <Latex math="\Delta \hat{r} = \log\left(\frac{y_{\text{viirs}}}{x_{\text{modis}}}\right) - \log\left(k_m^{\text{B2}}\right)" block />
-                    <Latex math="\hat{y} = x_{\text{modis}} \cdot k_m^{\text{B2}} \cdot \exp(\Delta \hat{r} \cdot \text{Gate})" block />
+                    <Latex math="\mu_{i,t} = \hat{y}^{\text{HTS}}_{i,t} \cdot \exp(\Delta \hat{r}_{i,t})" block />
+                    <Latex math="y_{i,t} \sim \text{NB2}(\mu_{i,t}, \alpha_{i,t})" block />
                   </div>
                 </div>
               </div>
               <div className="rounded-lg bg-cyan-950/30 border border-cyan-800/40 p-2.5 text-[11px] text-cyan-200 leading-snug">
                 {vi
-                  ? "Bảo toàn quy luật vật lý: Khi Gate = 0, mô hình thoái biến chính xác về neo B2, triệt tiêu hoàn toàn rủi ro ngoại suy sai lệch."
-                  : "Physical preservation: When Gate = 0, the model gracefully degrades to B2, eliminating catastrophic extrapolation risk."}
+                  ? "Bảo toàn quy luật vật lý: Phần dư bị chặn và co về neo HTS ở ô ít dữ liệu, tránh ngoại suy cực đoan."
+                  : "Physical preservation: Residuals are bounded and anchored to HTS on sparse tiles, preventing extreme extrapolation."}
               </div>
             </div>
 
-            {/* Card 2: Tensor Shape Pipeline & Attention */}
+            {/* Card 2: Tensor Shape Pipeline & Dilated TCN + FiLM */}
             <div className="rounded-2xl border border-slate-800 bg-[#0B1220] p-5 shadow-sm space-y-3.5 flex flex-col justify-between">
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs uppercase tracking-wider">
                   <Layers className="h-4 w-4" />
-                  <span>{vi ? "Luồng Tensor & Phân vị Monotone" : "Tensor Flow & Quantile Head"}</span>
+                  <span>{vi ? "Luồng Tensor & Dilated TCN + FiLM" : "Tensor Flow & Dilated TCN + FiLM"}</span>
                 </div>
                 <h3 className="text-sm font-bold text-white">
                   {vi ? "Kích thước Tensor qua từng lớp" : "Tensor Dimensions Across Layers"}
                 </h3>
                 <div className="space-y-2 text-xs font-mono text-slate-300">
                   <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
-                    <span className="text-slate-400 font-sans">{vi ? "1. Đầu vào (Cửa sổ 12T):" : "1. Input Window (12M):"}</span>
-                    <span className="text-white font-bold">[B, 12, 1]</span>
+                    <span className="text-slate-400 font-sans">{vi ? "1. Cửa sổ 12T + lân cận:" : "1. 12M Window + Neighbours:"}</span>
+                    <span className="text-white font-bold">[B, 12, C_in]</span>
                   </div>
                   <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
-                    <span className="text-slate-400 font-sans">{vi ? "2. Ghép đặc trưng phụ:" : "2. Feature Concatenation:"}</span>
-                    <span className="text-white font-bold">[B, 12, 4]</span>
-                  </div>
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
-                    <span className="text-slate-400 font-sans">{vi ? "3. Embedding không gian:" : "3. Spatial Embedding:"}</span>
+                    <span className="text-slate-400 font-sans">{vi ? "2. Dilated TCN (causal):" : "2. Dilated TCN (causal):"}</span>
                     <span className="text-white font-bold">[B, 12, 64]</span>
                   </div>
                   <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
-                    <span className="text-slate-400 font-sans">{vi ? "4. Multi-Head Attention:" : "4. Multi-Head Attention:"}</span>
-                    <span className="text-cyan-300 font-bold">[B, 12, 64] (4 heads)</span>
+                    <span className="text-slate-400 font-sans">{vi ? "3. Điều chế FiLM theo AOI/mùa:" : "3. FiLM AOI/Season Conditioning:"}</span>
+                    <span className="text-cyan-300 font-bold">gamma * h + beta</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-400 font-sans">{vi ? "5. Phân vị không giao cắt:" : "5. Quantiles Head:"}</span>
-                    <span className="text-emerald-300 font-bold">[B, 3] (P10, P50, P90)</span>
+                    <span className="text-slate-400 font-sans">{vi ? "4. Đầu ra NB2 & Phân vị:" : "4. NB2 & Interval Output:"}</span>
+                    <span className="text-emerald-300 font-bold">(mu, alpha) → [P10, P50, P90]</span>
                   </div>
                 </div>
                 <div tabIndex={0}
                   className="rounded-xl border border-slate-800 bg-slate-900/80 p-2.5 text-indigo-300 overflow-x-auto text-[11px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">
-                  <Latex math="\mathcal{L} = \sum_{q} \max(q u, (q-1) u) + \lambda \sum \max(0, \Delta q_{\text{cross}})" block />
+                  <Latex math="\mathcal{L}_{\text{NB2}} = -\log \Gamma(y + r) + \log \Gamma(r) - r\log p - y\log(1-p)" block />
                 </div>
               </div>
               <div className="rounded-lg bg-indigo-950/30 border border-indigo-800/40 p-2.5 text-[11px] text-indigo-200 leading-snug">
                 {vi
-                  ? "Cơ chế Attention phát hiện tương quan trễ theo mùa mà không bị triệt tiêu gradient như mô hình RNN/LSTM truyền thống."
-                  : "Self-attention captures non-local seasonal lag correlations without recurrent gradient vanishing typical of LSTM/RNNs."}
+                  ? "TCN giãn nở bắt chuỗi mùa 12 tháng mà không rò rỉ tương lai; tầng FiLM điều chỉnh đặc trưng theo từng vùng AOI."
+                  : "Causal dilated TCN captures 12-month seasonality without future leakage; FiLM layers condition features per AOI."}
               </div>
             </div>
 
@@ -482,35 +427,35 @@ export function MethodsPage() {
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider">
                   <ShieldCheck className="h-4 w-4" />
-                  <span>{vi ? "Cổng An toàn Thống kê" : "Statistical Circuit Breaker"}</span>
+                  <span>{vi ? "Cổng Kiểm định Holdout 2024-2025" : "2024-2025 Holdout Verification"}</span>
                 </div>
                 <h3 className="text-sm font-bold text-white">
-                  {vi ? "Tiêu chí kích hoạt Gate & Holdout 2024-2025" : "Gate Activation Criteria & Holdout Bench"}
+                  {vi ? "So sánh STAN, HTS & B2 (Raw Full)" : "STAN, HTS & B2 Benchmark (Raw Full)"}
                 </h3>
                 <p className="text-xs text-slate-300 leading-relaxed">
                   {vi
-                    ? "SensorFormer chỉ được phép can thiệp nếu cải thiện ít nhất 2% MAE so với B2 và khoảng tin cậy 95% Bootstrap không chứa 0:"
-                    : "SensorFormer is only enabled if it beats baseline B2 by at least 2% MAE and the 95% bootstrap CI strictly excludes zero:"}
+                    ? "STAN chỉ được dùng khi là forecast-safe (không dùng VIIRS cùng tháng ở ô lân cận) và cải thiện trên dữ liệu thực tế:"
+                    : "STAN is strictly forecast-safe (no same-month neighbour VIIRS) and evaluated on the full holdout across 3 AOIs:"}
                 </p>
                 <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-3 space-y-2 text-xs font-mono">
                   <div className="flex justify-between items-center text-slate-300 border-b border-slate-800 pb-1">
                     <span>B2 Baseline MAE:</span>
-                    <span className="font-bold text-emerald-400">2,386.9</span>
+                    <span className="font-bold text-slate-200">4,411.8</span>
                   </div>
                   <div className="flex justify-between items-center text-slate-300 border-b border-slate-800 pb-1">
-                    <span>SensorFormer MAE:</span>
-                    <span className="font-bold text-sky-400">2,458.5 (+3.0%)</span>
+                    <span>HTS Candidate MAE:</span>
+                    <span className="font-bold text-amber-400">4,154.4 (-5.8%)</span>
                   </div>
                   <div className="flex justify-between items-center text-slate-300">
-                    <span>HTS Candidate MAE:</span>
-                    <span className="font-bold text-amber-400">2,230.7 (-6.5%)</span>
+                    <span>STAN Operational MAE:</span>
+                    <span className="font-bold text-emerald-400">3,765.8 (-14.6%)</span>
                   </div>
                 </div>
               </div>
               <div className="rounded-lg bg-emerald-950/30 border border-emerald-800/40 p-2.5 text-[11px] text-emerald-200 leading-snug">
                 {vi
-                  ? "Kết luận: SensorFormer không vượt qua gate (Gate = 0), hệ thống phục vụ an toàn bằng neo B2. HTS tiếp tục là ứng viên do CI [-362, +44] còn cắt 0."
-                  : "Verdict: SensorFormer failed gate threshold (Gate = 0), safely serving B2. HTS remains candidate as CI [-362, +44] crosses zero."}
+                  ? "Kết luận: STAN thắng 95,8% số tháng (MAE -14,6%), nhưng 95% CI [-1.452,9; +81,8] vẫn chứa 0 nên luôn công bố kèm cờ trung thực."
+                  : "Verdict: STAN wins 95.8% of months (-14.6% MAE), while 95% CI [-1,452.9, +81.8] still includes 0 and is surfaced transparently."}
               </div>
             </div>
           </div>
@@ -584,8 +529,8 @@ export function MethodsPage() {
             {benchData === "sample" && (
               <p className="text-xs text-amber-300/90 leading-relaxed font-mono">
                 {vi
-                  ? "Bản ZIP sạch không kèm 820 MB raw NASA; bảng này chạy trên dữ liệu mẫu tất định. Chạy make data + rebuild_subset để bật raw."
-                  : "The clean ZIP omits the 820 MB raw NASA pull; this table runs on the deterministic sample. Run make data + rebuild_subset to enable raw."}
+                  ? "Bản ZIP sạch không kèm 1.4 GB raw NASA; bảng này chạy trên dữ liệu mẫu tất định. Chạy make data + rebuild_subset để bật raw."
+                  : "The clean ZIP omits the 1.4 GB raw NASA pull; this table runs on the deterministic sample. Run make data + rebuild_subset to enable raw."}
               </p>
             )}
           </div>
@@ -604,31 +549,18 @@ export function MethodsPage() {
               <tbody className="divide-y divide-slate-800/40">
                 {bench?.headline ? (
                   BENCH_ROWS.map((row) => {
-                    const m = row.id === "sf_lite_v1"
-                      ? bench.sf_lite?.headline
-                      : row.id === "hts_anchor_v1"
+                    const m = row.id === "hts_anchor_v1"
                       ? bench.hts?.headline
-                      : row.id === "spatial_hgb_v1"
-                      ? bench.spatial?.headline
                       : row.id === "stan_safe_v1"
                       ? bench.stan?.official?.headline
                       : bench.headline?.metrics[row.id];
                     if (!m) return null;
-                    const tag = row.id === "hgb_b2res_v4" && !bench.hgb_residual_enabled
-                      ? { vi: "Gate OFF · dùng B2", en: "Gate OFF · serves B2" }
-                      : row.id === "sf_lite_v1"
-                      ? (bench.sf_lite?.deployed
-                        ? { vi: "Gate PASS", en: "Gate PASS" }
-                        : { vi: "Gate OFF · không phục vụ", en: "Gate OFF · not served" })
-                      : row.id === "hts_anchor_v1"
+                    const tag = row.id === "hts_anchor_v1"
                       ? { vi: "Candidate · chưa vượt gate", en: "Candidate · gate not passed" }
-                      : row.id === "spatial_hgb_v1"
-                      ? { vi: "Retrospective · không dùng để dự báo", en: "Retrospective · not a forecast" }
                       : row.id === "stan_safe_v1"
                       ? { vi: "Chủ lực · forecast-safe", en: "Main · forecast-safe" }
                       : row.tag;
-                    const tone = (row.id === "sf_lite_v1" && !bench.sf_lite?.deployed)
-                      || row.id === "hts_anchor_v1"
+                    const tone = row.id === "hts_anchor_v1"
                       ? "bg-amber-500/15 border-amber-500/30 text-amber-300"
                       : row.tagClass;
                     return (
@@ -712,27 +644,6 @@ export function MethodsPage() {
                 {vi
                   ? "Raw-only: chọn method=hts trong Calendar khi dùng NASA raw. Sample trả 409 vì không có ô 1°. Không tự thay B2; badge candidate là bắt buộc."
                   : "Raw-only: choose method=hts in Calendar with NASA raw. Sample returns 409 (no 1° tiles). It never replaces B2 automatically; the candidate badge is required."}
-              </p>
-            </div>
-          )}
-
-          {bench?.sf_lite && (
-            <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 p-4 text-xs text-slate-300 leading-relaxed font-sans space-y-1">
-              <p className="font-bold text-sky-300">
-                {vi ? "SensorFormer Lite: kết quả thí nghiệm" : "SensorFormer Lite: experimental result"}
-              </p>
-              <p>
-                {vi
-                  ? `SensorFormer (neo + phần dư): MAE ${Math.round(bench.sf_lite.metrics.mae).toLocaleString()} so với neo ${Math.round(bench.sf_lite.b2_mae ?? 0).toLocaleString()}; mean gain ${((bench.sf_lite.mean_gain_vs_b2 ?? 0) * 100).toFixed(1)}%. `
-                  : `SensorFormer (anchor + residual): MAE ${Math.round(bench.sf_lite.metrics.mae).toLocaleString()} vs anchor ${Math.round(bench.sf_lite.b2_mae ?? 0).toLocaleString()}; mean gain ${((bench.sf_lite.mean_gain_vs_b2 ?? 0) * 100).toFixed(1)}%. `}
-                {bench.sf_lite.deployed
-                  ? (vi ? "Gate mở: phần dư được phép phục vụ." : "Gate open: the residual may be served.")
-                  : (vi ? "Gate đóng: chỉ phục vụ neo mùa vụ, phần dư không bật." : "Gate closed: only the seasonal anchor is served; the residual is off.")}
-              </p>
-              <p className="text-slate-400">
-                {vi
-                  ? `Khoảng 10-90%: coverage thực nghiệm ${(100 * (bench.sf_lite.coverage80 ?? 0)).toFixed(1)}% (mục tiêu 80%), độ rộng trung bình ${Math.round(bench.sf_lite.mean_interval_width ?? 0).toLocaleString()}, trung vị ${Math.round(bench.sf_lite.median_interval_width ?? 0).toLocaleString()}. Ablation: no_gate MAE ${Math.round(bench.sf_lite.ablation?.no_gate?.mae ?? 0).toLocaleString()}, no_attn MAE ${Math.round(bench.sf_lite.ablation?.no_attn?.mae ?? 0).toLocaleString()}.`
-                  : `10-90% band: empirical coverage ${(100 * (bench.sf_lite.coverage80 ?? 0)).toFixed(1)}% (target 80%), mean width ${Math.round(bench.sf_lite.mean_interval_width ?? 0).toLocaleString()}, median ${Math.round(bench.sf_lite.median_interval_width ?? 0).toLocaleString()}. Ablation: no_gate MAE ${Math.round(bench.sf_lite.ablation?.no_gate?.mae ?? 0).toLocaleString()}, no_attn MAE ${Math.round(bench.sf_lite.ablation?.no_attn?.mae ?? 0).toLocaleString()}.`}
               </p>
             </div>
           )}

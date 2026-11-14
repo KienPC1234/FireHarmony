@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -44,6 +44,9 @@ export function LabPage() {
 
   const aoi = sp.get("aoi") || "vietnam";
   const dsrc = sp.get("data") || "raw";
+  // Same filter keys as /calendar so Lab tools quote the same cells.
+  const qaMin = sp.get("qa_min") || "all";
+  const platformSet = sp.get("platform_set") || "all";
   const [year, setYear] = useState(2025);
   const [month, setMonth] = useState(3);
   const [sensors, setSensors] = useState<string[]>(["MODIS", "SNPP", "NOAA-20", "NOAA-21"]);
@@ -64,6 +67,9 @@ export function LabPage() {
   const [burned, setBurned] = useState("");
   const [protocolExpanded, setProtocolExpanded] = useState(false);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  // Monotonic request id: late responses from an older Run/preset click
+  // must not overwrite newer results.
+  const reqSeq = useRef(0);
 
   const updateUrl = (newTab: Tab, newAoi: string, newData: string) => {
     // Preserve research mode, month, method and date scope when switching lab tools.
@@ -96,7 +102,7 @@ export function LabPage() {
     updateUrl(tab, aoi, newData);
   };
 
-  // Invalidate cached data when AOI or Data Feed changes
+  // Invalidate cached data when AOI, feed or shared filters change
   useEffect(() => {
     setXrayData(null);
     setBacktestData(null);
@@ -104,7 +110,7 @@ export function LabPage() {
     setSpots(null);
     setSpatialRes(null);
     setCrossRes(null);
-  }, [aoi, dsrc]);
+  }, [aoi, dsrc, qaMin, platformSet]);
 
   // Auto-fetch active tab experiment data so judges never see blank dashed boxes
   useEffect(() => {
@@ -131,7 +137,7 @@ export function LabPage() {
         });
     } else if (tab === "simulator" && !sim) {
       setBusy(true);
-      api.simulate(aoi, dsrc, year, sensors)
+      api.simulate(aoi, dsrc, year, sensors, qaMin, platformSet)
         .then((res) => {
           if (active) setSim(res);
         })
@@ -143,7 +149,7 @@ export function LabPage() {
         });
     } else if (tab === "blindspots" && !spots) {
       setBusy(true);
-      api.blindSpots(aoi, dsrc, year, month)
+      api.blindSpots(aoi, dsrc, year, month, qaMin, platformSet)
         .then((res) => {
           if (active) setSpots(res);
         })
@@ -169,18 +175,26 @@ export function LabPage() {
     return () => {
       active = false;
     };
-  }, [tab, aoi, dsrc, year, month, sim, spots, spatialRes, sensors, xrayData, backtestData]);
+    // NOTE: result states (sim/spots/...) are intentionally NOT deps: the
+    // effect sets them, and listing them re-runs (and re-fetches) every time
+    // a response lands. qaMin/platformSet ARE deps: a filter change must refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, aoi, dsrc, year, month, sensors, qaMin, platformSet]);
 
   async function run() {
+    const seq = ++reqSeq.current;
     setBusy(true);
     setErr("");
     try {
       if (tab === "simulator") {
-        setSim(await api.simulate(aoi, dsrc, year, sensors));
+        const res = await api.simulate(aoi, dsrc, year, sensors, qaMin, platformSet);
+        if (reqSeq.current === seq) setSim(res);
       } else if (tab === "blindspots") {
-        setSpots(await api.blindSpots(aoi, dsrc, year, month));
+        const res = await api.blindSpots(aoi, dsrc, year, month, qaMin, platformSet);
+        if (reqSeq.current === seq) setSpots(res);
       } else if (tab === "spatial") {
-        setSpatialRes(await api.spatialCheck(aoi, dsrc, year, month));
+        const res = await api.spatialCheck(aoi, dsrc, year, month);
+        if (reqSeq.current === seq) setSpatialRes(res);
       } else if (tab === "cross") {
         const series = burned
           .trim()
@@ -190,19 +204,22 @@ export function LabPage() {
             return { year: y, month: m, burned_area: v };
           })
           .filter((r) => r.year && r.month && Number.isFinite(r.burned_area));
-        setCrossRes(await api.crossValidate({ aoi, data: dsrc, series }));
+        const res = await api.crossValidate({ aoi, data: dsrc, series });
+        if (reqSeq.current === seq) setCrossRes(res);
       } else if (tab === "xray" || tab === "replay") {
         const [xr, bt] = await Promise.all([
           api.xray(aoi, dsrc),
           api.backtest(aoi, dsrc),
         ]);
-        setXrayData(xr);
-        setBacktestData(bt);
+        if (reqSeq.current === seq) {
+          setXrayData(xr);
+          setBacktestData(bt);
+        }
       }
     } catch (e) {
-      setErr(describeError(e));
+      if (reqSeq.current === seq) setErr(describeError(e));
     } finally {
-      setBusy(false);
+      if (reqSeq.current === seq) setBusy(false);
     }
   }
 
@@ -217,12 +234,10 @@ export function LabPage() {
   }
 
   const handleSelectSensorPreset = (presetSensors: string[]) => {
+    // Clearing sim lets the auto-fetch effect (sensors dep) issue the single
+    // request with the new preset. A direct call here would double-fetch.
+    setSim(null);
     setSensors(presetSensors);
-    setBusy(true);
-    api.simulate(aoi, dsrc, year, presetSensors)
-      .then(setSim)
-      .catch((e) => setErr(describeError(e)))
-      .finally(() => setBusy(false));
   };
 
   // Task descriptions & questions for current tab
@@ -386,6 +401,11 @@ export function LabPage() {
             );
           })}
         </div>
+        <p className="text-xs text-slate-400 px-1">
+          {vi
+            ? TABS.find((t) => t.id === tab)?.hintVi
+            : TABS.find((t) => t.id === tab)?.hint}
+        </p>
       </div>
 
       {/* 4. Global Context Bar */}

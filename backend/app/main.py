@@ -1691,7 +1691,9 @@ def _backtest_from_manifest(manifest: dict, aoi: str, data: str,
                             test_years: int) -> dict:
     per = (manifest.get("per_aoi") or {}).get(aoi) or {}
     samples = [s for s in manifest.get("samples", []) if s.get("aoi") == aoi]
-    stan_meta = _stan_meta("safe")
+    # Model predictions are raw-data artifacts; the synthetic sample must not
+    # borrow raw STAN/HTS predictions that happen to share AOI-month IDs.
+    stan_meta = _stan_meta("safe") if data == "raw" else None
     stan_preds = (stan_meta or {}).get("predictions") or {}
     hts_meta = _read_cached_meta(MODEL_DIR / "hts_anchor_raw.json") if data == "raw" else None
     rows = []
@@ -1867,6 +1869,9 @@ def firms_xray(aoi: str = Query("vietnam"),
                          "backtest_metrics": metrics,
                          "primary_method_id": registry.PRIMARY,
                          "primary_gate": evaluation.primary_status(data, MODEL_DIR),
+                         "stan_trained": data == "raw" and _stan_meta("safe") is not None,
+                         "hts_trained": data == "raw" and (
+                             MODEL_DIR / "hts_anchor_raw.json").exists(),
                          "months": months})
 
 

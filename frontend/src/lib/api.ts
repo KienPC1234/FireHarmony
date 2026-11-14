@@ -40,18 +40,27 @@ async function readBody(res: Response): Promise<unknown> {
 
 async function request<T>(path: string, init?: RequestInitWithTimeout): Promise<T> {
   let res: Response;
-  const { timeoutMs = DEFAULT_TIMEOUT_MS, ...rest } = init ?? {};
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, signal: extSignal, ...rest } = init ?? {};
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const onExtAbort = () => controller.abort();
+  if (extSignal) {
+    if (extSignal.aborted) {
+      clearTimeout(timeoutId);
+      throw new ApiError(408, "Request cancelled.", extSignal.reason);
+    }
+    extSignal.addEventListener("abort", onExtAbort, { once: true });
+  }
   try {
     res = await fetch(`${BASE}${path}`, {
       ...rest,
-      signal: rest.signal ?? controller.signal,
+      signal: controller.signal,
       headers: { "Content-Type": "application/json", ...(rest.headers ?? {}) },
     });
   } catch (e: unknown) {
     const isAbort = (e as { name?: string })?.name === "AbortError";
     if (isAbort) {
+      if (extSignal?.aborted) throw new ApiError(408, "Request cancelled.", e);
       throw new ApiError(
         408,
         `Request timed out after ${Math.round(timeoutMs / 1000)}s. Try switching to sample data or narrower bounds.`,
@@ -61,16 +70,17 @@ async function request<T>(path: string, init?: RequestInitWithTimeout): Promise<
     throw new ApiError(0, "Cannot reach the API. Is the backend running on :8000?", e);
   } finally {
     clearTimeout(timeoutId);
+    extSignal?.removeEventListener("abort", onExtAbort);
   }
   const body = await readBody(res);
   if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`, body);
   return body as T;
 }
 
-const get = <T,>(path: string, timeoutMs?: number) =>
-  request<T>(path, { method: "GET", timeoutMs });
-const post = <T,>(path: string, body?: unknown, timeoutMs?: number) =>
-  request<T>(path, { method: "POST", body: JSON.stringify(body ?? {}), timeoutMs });
+const get = <T,>(path: string, timeoutMs?: number, signal?: AbortSignal) =>
+  request<T>(path, { method: "GET", timeoutMs, signal });
+const post = <T,>(path: string, body?: unknown, timeoutMs?: number, signal?: AbortSignal) =>
+  request<T>(path, { method: "POST", body: JSON.stringify(body ?? {}), timeoutMs, signal });
 
 export interface CalendarResponse {
   daily_cells: number;
@@ -272,25 +282,6 @@ export interface BacktestResponse {
   comparisons?: Record<string, ComparisonRow>;
   hgb_residual_enabled?: boolean;
   hgb_gate?: Record<string, unknown> | null;
-  sf_lite?: {
-    method_id: string;
-    deployed: boolean;
-    params: number;
-    metrics: MetricRow;
-    headline?: MetricRow | null;
-    per_aoi?: Record<string, MetricRow>;
-    comparisons?: Record<string, ComparisonRow>;
-    coverage80?: number;
-    median_interval_width?: number;
-    mean_interval_width?: number;
-    quantile_crossings?: number;
-    mean_gain_vs_b2?: number;
-    b2_mae?: number;
-    artifact_verified?: boolean;
-    ablation?: Record<string, MetricRow & { coverage80?: number; median_width?: number; mean_interval_width?: number; median_interval_width?: number }>;
-  } | null;
-  sf_lite_comparison?: ComparisonRow | null;
-  sf_lite_deployed?: boolean;
   hts?: {
     method_id: string;
     n_test: number;
@@ -358,9 +349,8 @@ export interface BacktestResponse {
     month: number;
     modis: number;
     viirs_ref: number;
-    ml_pred: number;
-    ts_pred: number | null;
-    sf_pred?: number | null;
+    stan_pred: number | null;
+    hts_pred: number | null;
     b2_pred: number;
   }>;
 }
@@ -382,19 +372,20 @@ export const api = {
   dataStatus: () => get<{ datasets: Array<{ aoi: string; sample_rows: number; sample_bytes: number; raw_ready?: boolean; dataset_ready?: boolean; raw_files?: number }>; raw_count: number; raw_files: Array<{ file: string; bytes: number }> }>("/api/firms/data-status"),
   htsStatus: () => get<{ trained: boolean; candidate?: boolean; served?: boolean; n_test?: number; hts_mae?: number; b2_mae?: number; mean_gain_vs_b2?: number; per_aoi?: Record<string, MetricRow>; comparisons?: Record<string, ComparisonRow>; gate?: { rule: string; passed: boolean }; series?: Record<string, unknown> }>("/api/firms/hts-status"),
   stanStatus: () => get<{ trained: boolean; candidate?: boolean; served?: boolean; safe?: Record<string, unknown>; retrospective?: Record<string, unknown> }>("/api/firms/stan-status"),
-  spatialStatus: () => get<{ trained: boolean; candidate?: boolean; served?: boolean; retrospective?: boolean; requires_neighbour_viirs?: boolean; headline?: MetricRow; b2_headline?: MetricRow; hts_headline?: MetricRow; safe_headline?: MetricRow; per_aoi?: Record<string, Record<string, MetricRow>>; comparisons?: Record<string, ComparisonRow>; spatial_holdout?: { held_tiles: number; spatial_mae: number; hts_mae: number } }>("/api/firms/spatial-status"),
   calendar: (
-    limit = 25000, bbox?: string, aoi = "vietnam", data = "sample",
+    limit = 25000, bbox?: string, aoi = "vietnam", data = "raw",
     method = "stat", dataset?: string, qa_min = "all", platform_set = "all",
     geometry?: string, from_date?: string, to_date?: string,
+    source_type = "all", signal?: AbortSignal,
   ) =>
-    get<CalendarResponse>(`/api/firms/calendar?limit=${limit}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}`, dataTimeout(data)),
+    get<CalendarResponse>(`/api/firms/calendar?limit=${limit}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}&source_type=${source_type}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}`, dataTimeout(data), signal),
   mapCells: (
-    ym: string, bbox?: string, aoi = "vietnam", data = "sample",
+    ym: string, bbox?: string, aoi = "vietnam", data = "raw",
     method = "stat", dataset?: string, qa_min = "all", platform_set = "all",
     geometry?: string, zoom = 6, from_date?: string, to_date?: string,
+    source_type = "all", signal?: AbortSignal,
   ) =>
-    get<MapCellsResponse>(`/api/firms/map-cells?ym=${ym}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}&zoom=${zoom}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}`, dataTimeout(data)),
+    get<MapCellsResponse>(`/api/firms/map-cells?ym=${ym}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}&source_type=${source_type}&zoom=${zoom}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}`, dataTimeout(data), signal),
   harmonize: (records: Record<string, unknown>[]) =>
     post<CalendarResponse>("/api/firms/harmonize", { records }),
   validate: (records: Record<string, unknown>[]) =>
@@ -412,17 +403,17 @@ export const api = {
   explainMonth: (body: { aoi: string; data: string; method: string; year: number; month: number; question?: string; qa_min?: string; platform_set?: string; use_llm?: boolean }) =>
     post<{ answer: string; llm_used: boolean; model?: string; evidence: Record<string, unknown>; suggestions: string[] }>(
       "/api/firms/explain-month", body, dataTimeout(body.data)),
-  simulate: (aoi: string, data: string, year: number, sensors?: string[]) =>
+  simulate: (aoi: string, data: string, year: number, sensors?: string[], qa_min = "all", platform_set = "all") =>
     get<SimResponse>(
-      `/api/firms/simulate?aoi=${aoi}&data=${data}&year=${year}${sensors?.length ? `&sensors=${encodeURIComponent(sensors.join(","))}` : ""}`, dataTimeout(data)),
-  blindSpots: (aoi: string, data: string, year: number, month: number) =>
+      `/api/firms/simulate?aoi=${aoi}&data=${data}&year=${year}&qa_min=${qa_min}&platform_set=${platform_set}${sensors?.length ? `&sensors=${encodeURIComponent(sensors.join(","))}` : ""}`, dataTimeout(data)),
+  blindSpots: (aoi: string, data: string, year: number, month: number, qa_min = "all", platform_set = "all") =>
     get<BlindSpotResponse>(
-      `/api/firms/blind-spots?aoi=${aoi}&data=${data}&year=${year}&month=${month}`, dataTimeout(data)),
+      `/api/firms/blind-spots?aoi=${aoi}&data=${data}&year=${year}&month=${month}&qa_min=${qa_min}&platform_set=${platform_set}`, dataTimeout(data)),
   investigate: (body: { question: string; aoi: string; data: string; method?: string; year?: number; month?: number; use_llm?: boolean }) =>
     post<{ answer: string; llm_used: boolean; tools_used: string[]; evidence: Record<string, unknown> | null; limitations: string[]; suggestions: string[]; citations: string[] }>(
       "/api/firms/investigate", body, dataTimeout(body.data)),
   investigateStream: async (
-    body: { question: string; aoi: string; data: string; method?: string; year?: number; month?: number; use_llm?: boolean },
+    body: { question: string; aoi: string; data: string; method?: string; year?: number; month?: number; use_llm?: boolean; qa_min?: string; platform_set?: string },
     callbacks: {
       onMeta?: (meta: {
         tools_used: string[];
@@ -495,26 +486,26 @@ export const api = {
       `/api/firms/spatial-check?aoi=${aoi}&data=${data}&year=${year}&month=${month}`, dataTimeout(data)),
   crossValidate: (body: { aoi: string; data: string; series: Array<{ year: number; month: number; burned_area: number }> }) =>
     post<CrossResponse>("/api/firms/cross-validate", body, dataTimeout(body.data)),
-  coverage: (aoi = "vietnam", data = "sample") =>
+  coverage: (aoi = "vietnam", data = "raw") =>
     get<Record<string, unknown>>(`/api/firms/coverage?aoi=${aoi}&data=${data}`, dataTimeout(data)),
   qaSummary: (aoi: string, data: string) =>
     get<{ sampled_rows: number; by_confidence: Record<string, number>; by_satellite: Record<string, number>; warnings: string[] }>(
       `/api/firms/qa-summary?aoi=${aoi}&data=${data}`, dataTimeout(data)),
   llmStatus: () => get<{ llm_available: boolean; provider: string; model: string; models: string[] }>(
     "/api/firms/llm-status"),
-  briefUrl: (bbox?: string, aoi = "vietnam", data = "sample", method = "stat", dataset?: string, qa_min = "all", platform_set = "all") =>
-    `${BASE}/api/firms/brief?aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}`,
+  briefUrl: (bbox?: string, aoi = "vietnam", data = "raw", method = "stat", dataset?: string, qa_min = "all", platform_set = "all", source_type = "all") =>
+    `${BASE}/api/firms/brief?aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}&source_type=${source_type}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}`,
   dlInfo: () => get<{ has_torch: boolean; models: Array<Record<string, string>> }>("/api/firms/dl-info"),
   exportDetectionsUrl: (
-    bbox?: string, aoi = "vietnam", data = "sample", dataset?: string,
+    bbox?: string, aoi = "vietnam", data = "raw", dataset?: string,
     qa_min = "all", platform_set = "all", geometry?: string,
-    from_date?: string, to_date?: string,
-  ) => `${BASE}/api/firms/export-detections?aoi=${aoi}&data=${data}&qa_min=${qa_min}&platform_set=${platform_set}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}`,
+    from_date?: string, to_date?: string, source_type = "all",
+  ) => `${BASE}/api/firms/export-detections?aoi=${aoi}&data=${data}&qa_min=${qa_min}&platform_set=${platform_set}&source_type=${source_type}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}`,
   exportUrl: (
-    limit = 25000, bbox?: string, aoi = "vietnam", data = "sample",
+    limit = 25000, bbox?: string, aoi = "vietnam", data = "raw",
     method = "stat", dataset?: string, qa_min = "all", platform_set = "all",
-    geometry?: string, from_date?: string, to_date?: string,
-  ) => `${BASE}/api/firms/export?limit=${limit}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}`,
+    geometry?: string, from_date?: string, to_date?: string, source_type = "all",
+  ) => `${BASE}/api/firms/export?limit=${limit}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}&source_type=${source_type}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}`,
   uploadDataset: async (file: File): Promise<UploadDatasetResponse> => {
     const form = new FormData();
     form.append("file", file);
@@ -528,12 +519,42 @@ export const api = {
     if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`, body);
     return body as UploadDatasetResponse;
   },
-  xray: (aoi = "vietnam", data = "sample") =>
-    get<{ aoi: string; data_source: string; units: string; backtest_metrics: Record<string, Record<string, number>> | null; ml_trained: boolean; ts_trained: boolean; ts_meta: Record<string, unknown> | null; months: Array<{ year: number; month: number; modis_raw: number; viirs_ref: number; adjusted_stat: number; adjusted_calendar: number | null; k_used: number }> }>(
+  xray: (aoi = "vietnam", data = "raw") =>
+    get<{ aoi: string; data_source: string; units: string; backtest_metrics: Record<string, Record<string, number>> | null; stan_trained: boolean; hts_trained: boolean; primary_method_id?: string; primary_gate?: Record<string, unknown>; months: Array<{ year: number; month: number; modis_raw: number; viirs_ref: number; adjusted_stat: number; adjusted_calendar: number | null; k_used: number }> }>(
       `/api/firms/xray?aoi=${aoi}&data=${data}`, dataTimeout(data)),
-  backtest: (aoi = "vietnam", data = "sample") =>
+  backtest: (aoi = "vietnam", data = "raw") =>
     get<BacktestResponse>(
       `/api/firms/backtest?aoi=${aoi}&data=${data}`, dataTimeout(data)),
+  /** Download a CSV export as a file instead of navigating to the URL, so a
+   * backend 502/timeout surfaces as an inline error instead of a blank page. */
+  downloadFile: async (url: string, filename: string, timeoutMs = RAW_TIMEOUT_MS): Promise<void> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    let res: Response;
+    try {
+      res = await fetch(url.startsWith("http") ? url : `${BASE}${url}`, { signal: controller.signal });
+    } catch (e: unknown) {
+      throw new ApiError(0, "Cannot reach the API. Is the backend running on :8000?", e);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    if (!res.ok) {
+      const text = (await res.text()).slice(0, 2000);
+      throw new ApiError(res.status, `${res.status} ${res.statusText}`, text);
+    }
+    const blob = await res.blob();
+    const objUrl = URL.createObjectURL(blob);
+    try {
+      const a = document.createElement("a");
+      a.href = objUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } finally {
+      setTimeout(() => URL.revokeObjectURL(objUrl), 5000);
+    }
+  },
 };
 
 export function describeError(e: unknown): string {

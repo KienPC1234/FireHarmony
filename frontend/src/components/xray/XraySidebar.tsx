@@ -10,8 +10,8 @@ interface XraySidebarProps {
   setData: (data: string) => void;
   dataSrcLabel: string;
   units: string;
-  mlTrained: boolean;
-  tsTrained: boolean;
+  stanTrained: boolean;
+  htsTrained: boolean;
   totalMonths: number;
   viewTab: "trajectory" | "transition" | "backtest";
   setViewTab: (tab: "trajectory" | "transition" | "backtest") => void;
@@ -45,8 +45,8 @@ export function XraySidebar({
   setData,
   dataSrcLabel,
   units,
-  mlTrained,
-  tsTrained,
+  stanTrained,
+  htsTrained,
   totalMonths,
   viewTab,
   setViewTab,
@@ -195,15 +195,15 @@ export function XraySidebar({
             </span>
           </div>
           <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 leading-relaxed text-slate-400">
-            <span>{t("xray.ml_status")}:</span>
-            <span className={mlTrained ? "text-emerald-400 font-bold" : "text-amber-400"}>
-              {mlTrained ? (vi ? "Sẵn sàng" : "Operational") : (vi ? "Dự phòng" : "Offline fallback")}
+            <span>{vi ? "STAN (chính)" : "STAN (primary)"}:</span>
+            <span className={stanTrained ? "text-emerald-400 font-bold" : "text-amber-400"}>
+              {stanTrained ? (vi ? "Sẵn sàng" : "Operational") : (vi ? "Cần retrain" : "Not trained")}
             </span>
           </div>
           <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 leading-relaxed text-slate-400">
-            <span>{t("xray.ts_status")}:</span>
-            <span className={tsTrained ? "text-emerald-400 font-bold" : "text-amber-400"}>
-              {tsTrained ? (vi ? "Đang bật" : "Active") : (vi ? "Dự phòng" : "Offline fallback")}
+            <span>{vi ? "HTS (fallback)" : "HTS (fallback)"}:</span>
+            <span className={htsTrained ? "text-emerald-400 font-bold" : "text-amber-400"}>
+              {htsTrained ? (vi ? "Sẵn sàng" : "Operational") : (vi ? "Cần retrain" : "Not trained")}
             </span>
           </div>
         </div>

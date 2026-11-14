@@ -69,11 +69,11 @@ export const TABS: Array<{
   },
   {
     id: "replay",
-    label: "Blind Sensor Replay",
-    labelVi: "Blind Sensor Replay",
+    label: "Test a Model",
+    labelVi: "Thử mô hình",
     icon: RotateCcw,
-    hint: "Predict VIIRS signal from MODIS blindfolded, then reveal VIIRS reference observations",
-    hintVi: "Dự đoán tín hiệu VIIRS từ MODIS trong trạng thái giấu kín, sau đó mở khóa dữ liệu VIIRS tham chiếu",
+    hint: "Pick STAN, HTS or the B2 baseline; VIIRS is hidden until Reveal, then audit the prediction month by month.",
+    hintVi: "Chọn STAN, HTS hoặc baseline B2; VIIRS bị ẩn đến khi bấm Reveal, sau đó kiểm tra dự đoán từng tháng.",
   },
   {
     id: "simulator",

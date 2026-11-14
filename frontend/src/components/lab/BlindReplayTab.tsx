@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   EyeOff,
   HelpCircle,
@@ -19,7 +19,7 @@ import {
 import { cn, num } from "@/lib/utils";
 import { useLang } from "@/lib/i18n";
 
-type ReplayModelKey = "stan" | "sf" | "hts" | "hgb" | "ts";
+type ReplayModelKey = "stan" | "hts" | "b2";
 
 interface BlindReplayTabProps {
   aoi: string;
@@ -32,11 +32,8 @@ interface BlindReplayTabProps {
       month: number;
       modis: number;
       viirs_ref: number;
-      ml_pred: number;
-      ts_pred: number | null;
-      sf_pred?: number | null;
-      stan_pred?: number | null;
-      hts_pred?: number | null;
+      stan_pred: number | null;
+      hts_pred: number | null;
       b2_pred: number;
     }>;
   } | null;
@@ -45,10 +42,17 @@ interface BlindReplayTabProps {
 
 export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabProps) {
   const { t } = useLang();
+  const isRaw = data === "raw";
 
   const [revealed, setRevealed] = useState(false);
   const [showFailuresOnly, setShowFailuresOnly] = useState(false);
   const [selectedModel, setSelectedModel] = useState<ReplayModelKey>("stan");
+
+  // The synthetic sample has no STAN/HTS artifacts; never leave a disabled
+  // model selected (it would silently fall back to B2 with the wrong label).
+  useEffect(() => {
+    if (!isRaw && selectedModel !== "b2") setSelectedModel("b2");
+  }, [isRaw, selectedModel]);
 
   const months = useMemo(() => backtest?.months ?? [], [backtest]);
 
@@ -58,14 +62,8 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
       let predVal = m.b2_pred;
       if (selectedModel === "stan") {
         predVal = m.stan_pred ?? m.b2_pred;
-      } else if (selectedModel === "sf") {
-        predVal = m.sf_pred ?? m.b2_pred;
       } else if (selectedModel === "hts") {
         predVal = m.hts_pred ?? m.b2_pred;
-      } else if (selectedModel === "hgb") {
-        predVal = m.ml_pred ?? m.b2_pred;
-      } else if (selectedModel === "ts") {
-        predVal = m.ts_pred ?? m.b2_pred;
       }
 
       const b2_anchor = m.b2_pred;
@@ -96,6 +94,15 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
   const failureCount = useMemo(() => {
     return chartData.filter((m) => m.isFailure).length;
   }, [chartData]);
+
+  const score = useMemo(() => {
+    if (!revealed || chartData.length === 0) return null;
+    const n = chartData.length;
+    const modelMae = chartData.reduce((sum, m) => sum + Math.abs(m.predicted - (m.viirs ?? 0)), 0) / n;
+    const b2Mae = chartData.reduce((sum, m) => sum + Math.abs(m.b2_anchor - (m.viirs ?? 0)), 0) / n;
+    const wins = chartData.filter((m) => !m.isFailure).length;
+    return { modelMae, b2Mae, wins, n, gain: b2Mae > 0 ? (b2Mae - modelMae) / b2Mae : 0 };
+  }, [chartData, revealed]);
 
   if (loading) {
     return (
@@ -189,6 +196,44 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
         </div>
       </div>
 
+      {/* How to read + blind-test scoreboard */}
+      <div className="rounded-2xl border border-slate-800 bg-[#0B1220] p-4 space-y-3 text-xs">
+        <h3 className="text-sm font-bold text-white">{t("replay.how_title")}</h3>
+        <ol className="grid gap-2 sm:grid-cols-2 text-slate-300 leading-relaxed list-decimal pl-5">
+          <li>{t("replay.how_1")}</li>
+          <li>{t("replay.how_2")}</li>
+          <li>{t("replay.how_3")}</li>
+          <li>{t("replay.how_4")}</li>
+        </ol>
+        {!isRaw && (
+          <p className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-2.5 text-amber-200">
+            {t("replay.raw_only")}
+          </p>
+        )}
+        {score && (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 font-mono">
+            <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
+              <div className="text-[10px] uppercase text-slate-400">{t("replay.score_model")}</div>
+              <div className="text-sm font-bold text-purple-300">{num(score.modelMae)}</div>
+            </div>
+            <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
+              <div className="text-[10px] uppercase text-slate-400">{t("replay.score_b2")}</div>
+              <div className="text-sm font-bold text-amber-300">{num(score.b2Mae)}</div>
+            </div>
+            <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
+              <div className="text-[10px] uppercase text-slate-400">{t("replay.score_gain")}</div>
+              <div className={cn("text-sm font-bold", score.gain > 0 ? "text-emerald-400" : "text-rose-400")}>
+                {(score.gain * 100).toFixed(1)}%
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
+              <div className="text-[10px] uppercase text-slate-400">{t("replay.score_wins")}</div>
+              <div className="text-sm font-bold text-cyan-300">{score.wins}/{score.n}</div>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Main Chart Canvas */}
       <div className="rounded-2xl border border-border/80 bg-slate-950/85 p-5 shadow-card backdrop-blur space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -205,66 +250,31 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-lg p-0.5">
               <span className="text-[11px] text-slate-400 px-1.5 font-mono">{t("replay.select_model")}</span>
-              <button
-                type="button"
-                onClick={() => setSelectedModel("stan")}
-                className={cn(
-                  "rounded px-2 py-1 text-xs font-semibold transition",
-                  selectedModel === "stan"
-                    ? "bg-purple-600 text-white shadow-sm"
-                    : "text-slate-400 hover:text-white",
-                )}
-              >
-                STAN
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedModel("sf")}
-                className={cn(
-                  "rounded px-2 py-1 text-xs font-semibold transition",
-                  selectedModel === "sf"
-                    ? "bg-purple-600 text-white shadow-sm"
-                    : "text-slate-400 hover:text-white",
-                )}
-              >
-                SensorFormer
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedModel("hts")}
-                className={cn(
-                  "rounded px-2 py-1 text-xs font-semibold transition",
-                  selectedModel === "hts"
-                    ? "bg-purple-600 text-white shadow-sm"
-                    : "text-slate-400 hover:text-white",
-                )}
-              >
-                HTS
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedModel("hgb")}
-                className={cn(
-                  "rounded px-2 py-1 text-xs font-semibold transition",
-                  selectedModel === "hgb"
-                    ? "bg-purple-600 text-white shadow-sm"
-                    : "text-slate-400 hover:text-white",
-                )}
-              >
-                HGB
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedModel("ts")}
-                className={cn(
-                  "rounded px-2 py-1 text-xs font-semibold transition",
-                  selectedModel === "ts"
-                    ? "bg-purple-600 text-white shadow-sm"
-                    : "text-slate-400 hover:text-white",
-                )}
-              >
-                Transformer
-              </button>
+              {([
+                ["stan", t("replay.model_stan")],
+                ["hts", t("replay.model_hts")],
+                ["b2", t("replay.model_b2")],
+              ] as const).map(([key, label]) => {
+                const disabled = !isRaw && key !== "b2";
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    disabled={disabled}
+                    title={disabled ? t("replay.raw_only") : undefined}
+                    onClick={() => setSelectedModel(key)}
+                    className={cn(
+                      "rounded px-2 py-1 text-xs font-semibold transition",
+                      selectedModel === key
+                        ? "bg-purple-600 text-white shadow-sm"
+                        : "text-slate-400 hover:text-white",
+                      disabled && "cursor-not-allowed opacity-40 hover:text-slate-400",
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
 
             {revealed && (
@@ -326,13 +336,9 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
                 name={
                   selectedModel === "stan"
                     ? t("replay.model_stan")
-                    : selectedModel === "sf"
-                    ? t("replay.model_sf")
                     : selectedModel === "hts"
                     ? t("replay.model_hts")
-                    : selectedModel === "hgb"
-                    ? t("replay.model_hgb")
-                    : t("replay.model_ts")
+                    : t("replay.model_b2")
                 }
                 stroke="#a855f7"
                 strokeWidth={2.5}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import {
   Activity,
@@ -16,6 +16,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { api, describeError } from "@/lib/api";
+import { backendMethod, type CalibMethod } from "@/lib/researchContext";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/lib/i18n";
 import { GlobalContextBar } from "@/components/GlobalContextBar";
@@ -52,9 +53,19 @@ export function InvestigatorPage() {
   const ymParam = sp.get("ym") || "2025-03";
 
   const [yearStr, monthStr] = ymParam.split("-");
-  const year = parseInt(yearStr, 10) || 2025;
-  const month = parseInt(monthStr, 10) || 3;
-  const method = "stat";
+  const rawYear = parseInt(yearStr, 10) || 2025;
+  const year = rawYear > 2025 ? 2025 : rawYear;
+  const month = rawYear > 2025 ? 12 : (parseInt(monthStr, 10) || 3);
+  const rawMethod = sp.get("method");
+  const method = data !== "raw"
+    ? "stat"
+    : rawMethod && ["stat", "hts", "stan"].includes(rawMethod)
+    ? rawMethod
+    : backendMethod((rawMethod as CalibMethod) || "stan");
+  // Same filter keys as /calendar so telemetry quotes the same cells.
+  const qaMin = sp.get("qa_min") || "all";
+  const platformSet = sp.get("platform_set") || "all";
+  const filterQuery = `qa_min=${qaMin}&platform_set=${platformSet}`;
 
   const [telemetry, setTelemetry] = useState<TelemetryState | null>(null);
   const [showArchIllustration, setShowArchIllustration] = useState(false);
@@ -62,8 +73,8 @@ export function InvestigatorPage() {
   useEffect(() => {
     let active = true;
     Promise.allSettled([
-      api.calendar(25000, undefined, aoi, data, method),
-      api.blindSpots(aoi, data, year, month),
+      api.calendar(25000, undefined, aoi, data, method, undefined, qaMin, platformSet),
+      api.blindSpots(aoi, data, year, month, qaMin, platformSet),
     ]).then(([calRes, spotRes]) => {
       if (!active) return;
       let zScore: number | null = null;
@@ -91,7 +102,7 @@ export function InvestigatorPage() {
     return () => {
       active = false;
     };
-  }, [aoi, data, method, year, month]);
+  }, [aoi, data, method, year, month, qaMin, platformSet]);
 
   const promptChips = [
     {
@@ -122,8 +133,8 @@ export function InvestigatorPage() {
       evidenceText: `${aoi.toUpperCase()} · ${ymParam} · Data: ${data.toUpperCase()} · Method: ${method.toUpperCase()}`,
       uncertainty: t("ai.intro_uncertainty"),
       actions: [
-        { label: t("ai.view_calendar_btn"), to: `/calendar?aoi=${aoi}&data=${data}` },
-        { label: t("ai.view_evidence_btn"), to: `/evidence?aoi=${aoi}&data=${data}&ym=${ymParam}` },
+        { label: t("ai.view_calendar_btn"), to: `/calendar?aoi=${aoi}&data=${data}&${filterQuery}` },
+        { label: t("ai.view_evidence_btn"), to: `/evidence?aoi=${aoi}&data=${data}&ym=${ymParam}&${filterQuery}` },
       ],
       via: "Deterministic Grounding Engine",
     },
@@ -131,6 +142,16 @@ export function InvestigatorPage() {
 
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const streamCtl = useRef<AbortController | null>(null);
+
+  // Abort an in-flight stream when leaving the page.
+  useEffect(() => () => {
+    streamCtl.current?.abort();
+  }, []);
+
+  const handleCancel = () => {
+    streamCtl.current?.abort();
+  };
 
   const handleSend = async (queryText?: string) => {
     const q = (queryText || input).trim();
@@ -152,6 +173,8 @@ export function InvestigatorPage() {
     ]);
     if (!queryText) setInput("");
     setBusy(true);
+    const ctl = new AbortController();
+    streamCtl.current = ctl;
 
     try {
       await api.investigateStream(
@@ -163,6 +186,8 @@ export function InvestigatorPage() {
           year,
           month,
           use_llm: true,
+          qa_min: qaMin,
+          platform_set: platformSet,
         },
         {
           onMeta: (meta) => {
@@ -214,6 +239,7 @@ export function InvestigatorPage() {
             );
           },
           onError: (err) => {
+            if ((err as { name?: string })?.name === "AbortError") return;
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === botMsgId
@@ -227,20 +253,30 @@ export function InvestigatorPage() {
             );
           },
         },
+        ctl.signal,
       );
     } catch (err) {
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === botMsgId
-            ? {
-                ...msg,
-                rawText: t("ai.engine_note", { err: describeError(err) }),
-                isStreaming: false,
-              }
-            : msg,
-        ),
-      );
+      if ((err as { name?: string })?.name === "AbortError") {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === botMsgId ? { ...msg, isStreaming: false } : msg,
+          ),
+        );
+      } else {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === botMsgId
+              ? {
+                  ...msg,
+                  rawText: t("ai.engine_note", { err: describeError(err) }),
+                  isStreaming: false,
+                }
+              : msg,
+          ),
+        );
+      }
     } finally {
+      if (streamCtl.current === ctl) streamCtl.current = null;
       setBusy(false);
     }
   };
@@ -461,6 +497,15 @@ export function InvestigatorPage() {
               <span>{t("ai.btn_send")}</span>
               <Send className="h-4 w-4" />
             </button>
+            {busy && (
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="inline-flex items-center justify-center rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-xs font-bold text-slate-200 hover:text-white transition min-h-[44px]"
+              >
+                {t("common.cancel")}
+              </button>
+            )}
           </form>
         </div>
 
@@ -607,7 +652,7 @@ export function InvestigatorPage() {
               </Link>
 
               <Link
-                to={`/lab?tab=xray&aoi=${aoi}&data=${data}`}
+                to={`/lab?tab=xray&aoi=${aoi}&data=${data}&${filterQuery}`}
                 className="flex items-center justify-between rounded-xl border border-slate-700 bg-slate-900/80 p-3 text-xs font-semibold text-slate-200 hover:bg-slate-800 hover:text-white transition min-h-[44px]"
               >
                 <div className="flex items-center gap-2">

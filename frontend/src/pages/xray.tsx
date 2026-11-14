@@ -150,8 +150,8 @@ export function XrayPage() {
               setData={handleSetData}
               dataSrcLabel={xr.data_source}
               units={xr.units}
-              mlTrained={xr.ml_trained}
-              tsTrained={xr.ts_trained}
+              stanTrained={xr.stan_trained}
+              htsTrained={xr.hts_trained}
               totalMonths={xr.months.length}
               viewTab={viewTab}
               setViewTab={setViewTab}
