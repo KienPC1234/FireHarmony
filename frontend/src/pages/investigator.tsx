@@ -1,17 +1,25 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import {
+  Activity,
   ArrowRight,
   CalendarDays,
+  ChevronDown,
+  ChevronUp,
   FileCheck2,
+  Gauge,
   MessagesSquare,
+  Radio,
   Satellite,
   Send,
+  ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 import { api, describeError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/lib/i18n";
 import { GlobalContextBar } from "@/components/GlobalContextBar";
+import { ReasoningPipelineIllustration } from "@/components/illustrations";
 
 interface ChatMessage {
   id: string;
@@ -26,9 +34,16 @@ interface ChatMessage {
   isStreaming?: boolean;
 }
 
+interface TelemetryState {
+  zScore: number | null;
+  pairedCoverageRatio: number | null;
+  kRatio: number | null;
+  coDays: number | null;
+  coverageClass: string | null;
+}
+
 export function InvestigatorPage() {
-  const { lang, t } = useLang();
-  const vi = lang === "vi";
+  const { t } = useLang();
 
   const [sp] = useSearchParams();
   const aoi = sp.get("aoi") || "vietnam";
@@ -38,30 +53,63 @@ export function InvestigatorPage() {
   const [yearStr, monthStr] = ymParam.split("-");
   const year = parseInt(yearStr, 10) || 2025;
   const month = parseInt(monthStr, 10) || 3;
-  const method = "stat"; // SensorFormer anchor-only (residual gate OFF)
+  const method = "stat";
 
-  // 3 context-driven prompt chips
+  const [telemetry, setTelemetry] = useState<TelemetryState | null>(null);
+  const [showArchIllustration, setShowArchIllustration] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    Promise.allSettled([
+      api.calendar(25000, undefined, aoi, data, method),
+      api.blindSpots(aoi, data, year, month),
+    ]).then(([calRes, spotRes]) => {
+      if (!active) return;
+      let zScore: number | null = null;
+      let kRatio: number | null = null;
+      if (calRes.status === "fulfilled") {
+        const cal = calRes.value;
+        const yIdx = cal.calendar.years.indexOf(year);
+        const mIdx = cal.calendar.months.indexOf(month);
+        if (yIdx >= 0 && mIdx >= 0 && cal.calendar.anomalies[yIdx]?.[mIdx] !== undefined) {
+          zScore = cal.calendar.anomalies[yIdx][mIdx];
+        }
+        kRatio = cal.ratios?.[`${month}`] ?? 2.18;
+      }
+      let pairedCoverageRatio: number | null = null;
+      let coDays: number | null = null;
+      let coverageClass: string | null = null;
+      if (spotRes.status === "fulfilled") {
+        const spData = spotRes.value;
+        pairedCoverageRatio = spData.paired_coverage_ratio;
+        coverageClass = spData.coverage_class;
+        coDays = spData.status_counts?.both ?? spData.status_counts?.co_observed ?? null;
+      }
+      setTelemetry({ zScore, pairedCoverageRatio, kRatio, coDays, coverageClass });
+    });
+    return () => {
+      active = false;
+    };
+  }, [aoi, data, method, year, month]);
+
   const promptChips = [
     {
       id: "anomalous",
-      label: vi ? "Vì sao tháng này bất thường?" : "Why is this month anomalous?",
-      query: vi
-        ? `Vì sao tháng ${ymParam} tại khu vực ${aoi} được xếp loại là bất thường trên calendar?`
-        : `Why is ${ymParam} in ${aoi} classified as an anomalous fire month?`,
+      tag: "ANOMALY ISOLATION",
+      label: t("ai.chip_anomaly"),
+      query: t("ai.query_anomaly", { ym: ymParam, aoi: aoi.toUpperCase() }),
     },
     {
       id: "transition",
-      label: vi ? "Bước nhảy 2012 do sensor hay do cháy?" : "2012 jump: sensor or real fire?",
-      query: vi
-        ? "Bước nhảy số điểm nóng năm 2012 là do đám cháy gia tăng hay do sự chuyển đổi từ MODIS sang VIIRS?"
-        : "Is the 2012 surge in hotspots caused by actual wildfire expansion or the MODIS to VIIRS transition?",
+      tag: "SENSOR DRIFT 2012",
+      label: t("ai.chip_transition"),
+      query: t("ai.query_transition"),
     },
     {
       id: "coverage",
-      label: vi ? "Tháng nào thiếu dữ liệu đối chiếu?" : "Which months lack paired coverage?",
-      query: vi
-        ? `Những giai đoạn nào tại ${aoi} chưa đủ độ phủ đối chiếu song song giữa hai cảm biến?`
-        : `Which periods in ${aoi} have insufficient paired observation coverage?`,
+      tag: "DATA INTEGRITY",
+      label: t("ai.chip_coverage"),
+      query: t("ai.query_coverage", { aoi: aoi.toUpperCase() }),
     },
   ];
 
@@ -69,16 +117,12 @@ export function InvestigatorPage() {
     {
       id: "intro",
       role: "assistant",
-      finding: vi
-        ? "Chào mừng đến với AI Scientific Investigator. Mọi số liệu và suy luận ở đây được gắn chặt với dữ liệu quan sát MODIS và VIIRS đã kiểm chứng, không tự sinh số liệu giả."
-        : "Welcome to the AI Scientific Investigator. All findings and figures are grounded in verified MODIS and VIIRS telemetry without hallucinated values.",
+      finding: t("ai.intro_finding"),
       evidenceText: `${aoi.toUpperCase()} · ${ymParam} · Data: ${data.toUpperCase()} · Method: ${method.toUpperCase()}`,
-      uncertainty: vi
-        ? "Điểm nóng là phát hiện nhiệt vệ tinh, không đồng nhất trực tiếp với số vụ cháy hay diện tích cháy thực tế."
-        : "Hotspots represent thermal detections, not individual ground fires or total burned area.",
+      uncertainty: t("ai.intro_uncertainty"),
       actions: [
-        { label: vi ? "Xem trong Calendar" : "View in Calendar", to: `/calendar?aoi=${aoi}&data=${data}` },
-        { label: vi ? "Kiểm tra bằng chứng" : "Inspect Evidence", to: `/evidence?aoi=${aoi}&data=${data}&ym=${ymParam}` },
+        { label: t("ai.view_calendar_btn"), to: `/calendar?aoi=${aoi}&data=${data}` },
+        { label: t("ai.view_evidence_btn"), to: `/evidence?aoi=${aoi}&data=${data}&ym=${ymParam}` },
       ],
       via: "Deterministic Grounding Engine",
     },
@@ -127,17 +171,16 @@ export function InvestigatorPage() {
                   ? {
                       ...msg,
                       evidenceText: meta.evidence
-                        ? vi
-                          ? `Dẫn xuất từ ${Object.keys(meta.evidence).length} trường dữ liệu kiểm toán qua công cụ [${meta.tools_used.join(", ")}].`
-                          : `Derived from ${Object.keys(meta.evidence).length} audit fields via tools [${meta.tools_used.join(", ")}].`
-                        : vi
-                        ? `Xác thực từ dữ liệu viễn thám chuẩn hóa.`
-                        : `Verified from standardized telemetry observations.`,
+                        ? t("ai.derived_fields", {
+                            count: Object.keys(meta.evidence).length,
+                            tools: meta.tools_used.join(", "),
+                          })
+                        : t("ai.derived_verified"),
                       uncertainty: meta.limitations?.length ? meta.limitations.join(" ") : undefined,
                       actions: [
-                        { label: vi ? "Xem trong Calendar" : "View in Calendar", to: `/calendar?aoi=${aoi}&data=${data}` },
-                        { label: vi ? "Đối soát trong Sensor Lab" : "Sensor Lab", to: `/lab?tab=xray&aoi=${aoi}&data=${data}` },
-                        { label: vi ? "Xem sổ chứng cứ" : "Evidence Ledger", to: `/evidence?aoi=${aoi}&data=${data}&ym=${ymParam}` },
+                        { label: t("ai.view_calendar_btn"), to: `/calendar?aoi=${aoi}&data=${data}` },
+                        { label: t("ai.view_lab_btn"), to: `/lab?tab=xray&aoi=${aoi}&data=${data}` },
+                        { label: t("ai.view_evidence_btn"), to: `/evidence?aoi=${aoi}&data=${data}&ym=${ymParam}` },
                       ],
                     }
                   : msg,
@@ -175,9 +218,7 @@ export function InvestigatorPage() {
                 msg.id === botMsgId
                   ? {
                       ...msg,
-                      rawText: vi
-                        ? `Lỗi kết nối phân tích: ${describeError(err)}.`
-                        : `Analysis connection note: ${describeError(err)}.`,
+                      rawText: t("ai.conn_error", { err: describeError(err) }),
                       isStreaming: false,
                     }
                   : msg,
@@ -192,9 +233,7 @@ export function InvestigatorPage() {
           msg.id === botMsgId
             ? {
                 ...msg,
-                rawText: vi
-                  ? `Hệ thống phân tích: ${describeError(err)}. Nhấp vào các liên kết bên phải để xem trực tiếp số liệu tính toán.`
-                  : `Analysis engine note: ${describeError(err)}. Use the evidence stack on the right to inspect computed metrics directly.`,
+                rawText: t("ai.engine_note", { err: describeError(err) }),
                 isStreaming: false,
               }
             : msg,
@@ -205,12 +244,26 @@ export function InvestigatorPage() {
     }
   };
 
+  const zVal = telemetry?.zScore ?? null;
+  const isExtreme = zVal !== null && zVal >= 2.0;
+  const isElevated = zVal !== null && zVal >= 1.0 && zVal < 2.0;
+  const gaugeColor = isExtreme
+    ? "bg-rose-500"
+    : isElevated
+    ? "bg-amber-500"
+    : "bg-emerald-500";
+  const gaugeTextColor = isExtreme
+    ? "text-rose-400"
+    : isElevated
+    ? "text-amber-400"
+    : "text-emerald-400";
+
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6 max-w-7xl mx-auto w-full space-y-6 pb-24">
-      {/* 1. Top Header */}
+      {/* 1. Top Header Banner */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-[#111C2E] p-4 sm:p-5 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-950/60 shadow-sm">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-950/60 shadow-sm">
             <MessagesSquare className="h-5 w-5 text-cyan-400" />
           </div>
           <div>
@@ -241,25 +294,34 @@ export function InvestigatorPage() {
       {/* 2. Global Context Bar */}
       <GlobalContextBar />
 
-      {/* 3. Main 2-Panel Layout (Chat 60% vs Evidence Stack 40%) */}
+      {/* 3. Main 2-Panel Layout (Chat 60% vs Grounding Telemetry Stack 40%) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Chat Stream & Prompts (7 cols on lg = ~60%) */}
+        {/* Left Column: Chat Stream & Interactive Scenarios (7 cols on lg = ~58%) */}
         <div className="lg:col-span-7 space-y-4">
-          {/* Context-driven Prompt Chips (Exactly 3) */}
-          <div className="space-y-1.5">
-            <span className="text-xs font-semibold text-slate-400 px-1">
-              {t("ai.context_inquiries")}
-            </span>
-            <div className="flex flex-wrap gap-2">
+          {/* Context-driven Inquiries: Visual Cards */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                {t("ai.context_inquiries")}
+              </span>
+              <span className="text-xs font-mono text-cyan-400">3 Presets</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               {promptChips.map((p) => (
                 <button
                   key={p.id}
                   type="button"
                   disabled={busy}
                   onClick={() => handleSend(p.query)}
-                  className="rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs font-medium text-slate-200 hover:border-cyan-500/40 hover:text-white transition disabled:opacity-50 min-h-[38px] text-left"
+                  className="rounded-xl border border-slate-700/80 bg-slate-900/90 hover:border-cyan-500/50 hover:bg-slate-850 p-3 text-left transition disabled:opacity-50 min-h-[72px] flex flex-col justify-between group"
                 >
-                  {p.label}
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-cyan-400 group-hover:text-cyan-300">
+                    {p.tag}
+                  </span>
+                  <span className="text-xs font-medium text-slate-200 group-hover:text-white leading-snug line-clamp-2">
+                    {p.label}
+                  </span>
                 </button>
               ))}
             </div>
@@ -280,8 +342,18 @@ export function InvestigatorPage() {
                   )}
                 >
                   <div className="flex items-center justify-between border-b border-slate-800 pb-2 text-xs font-mono">
-                    <span className="font-bold text-slate-400 uppercase">
-                      {isUser ? t("ai.user_query") : t("ai.bot_name")}
+                    <span className="font-bold text-slate-400 uppercase flex items-center gap-1.5">
+                      {isUser ? (
+                        <>
+                          <Radio className="h-3.5 w-3.5 text-cyan-400" />
+                          <span>{t("ai.user_query")}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
+                          <span>{t("ai.bot_name")}</span>
+                        </>
+                      )}
                     </span>
                     {m.via && <span className="text-cyan-400">{m.via}</span>}
                   </div>
@@ -298,8 +370,8 @@ export function InvestigatorPage() {
 
                   {m.finding && (
                     <div className="space-y-1">
-                      <div className="font-bold text-white text-sm">
-                        {t("ai.finding_heading")}
+                      <div className="font-bold text-white text-sm flex items-center gap-2">
+                        <span>{t("ai.finding_heading")}</span>
                       </div>
                       <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
                         {m.finding}
@@ -312,8 +384,9 @@ export function InvestigatorPage() {
 
                   {m.evidenceText && (
                     <div className="space-y-1 pt-2 border-t border-slate-800">
-                      <div className="font-bold text-cyan-300 text-xs">
-                        {t("ai.evidence_heading")}
+                      <div className="font-bold text-cyan-300 text-xs flex items-center gap-1.5">
+                        <ShieldCheck className="h-3.5 w-3.5 text-cyan-400" />
+                        <span>{t("ai.evidence_heading")}</span>
                       </div>
                       <p className="font-mono text-xs text-slate-300 bg-slate-950 p-2.5 rounded-lg border border-slate-800">
                         {m.evidenceText}
@@ -323,8 +396,9 @@ export function InvestigatorPage() {
 
                   {m.uncertainty && (
                     <div className="space-y-1 pt-2 border-t border-slate-800">
-                      <div className="font-bold text-amber-300 text-xs">
-                        {t("ai.uncertainty_heading")}
+                      <div className="font-bold text-amber-300 text-xs flex items-center gap-1.5">
+                        <Activity className="h-3.5 w-3.5 text-amber-400" />
+                        <span>{t("ai.uncertainty_heading")}</span>
                       </div>
                       <p className="text-slate-400 text-xs leading-relaxed">{m.uncertainty}</p>
                     </div>
@@ -380,51 +454,133 @@ export function InvestigatorPage() {
           </form>
         </div>
 
-        {/* Right Column: Active Evidence Stack (5 cols on lg = ~40%) */}
+        {/* Right Column: Live Telemetry & Scientific Grounding Stack (5 cols on lg = ~42%) */}
         <div className="lg:col-span-5 space-y-4">
+          {/* Card 1: Monthly Anomaly Meter & Telemetry Gauge */}
           <div className="rounded-2xl border border-slate-800 bg-[#111C2E] p-5 shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
-                <FileCheck2 className="h-4 w-4 text-cyan-400" />
-                <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                  {t("ai.evidence_ledger_title")}
+                <Gauge className="h-4 w-4 text-cyan-400" />
+                <h2 className="text-xs font-mono font-bold text-white uppercase tracking-wider">
+                  {t("ai.telemetry_inspector_title")}
                 </h2>
               </div>
-              <span className="font-mono text-xs text-slate-400">
+              <span className="font-mono text-xs text-cyan-400 bg-cyan-950/40 border border-cyan-500/30 px-2 py-0.5 rounded">
                 {ymParam}
               </span>
             </div>
 
-            {/* Context Facts Summary */}
-            <div className="space-y-3 font-mono text-xs">
-              <div className="flex justify-between items-center py-1.5 border-b border-slate-800/60">
-                <span className="text-slate-400 font-sans">{t("ai.study_area")}</span>
-                <span className="text-white font-bold">{aoi.toUpperCase()}</span>
+            {/* Anomaly Gauge Section */}
+            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-300 font-medium">
+                  {t("ai.anomaly_meter_title")}
+                </span>
+                <span className={cn("text-xs font-mono font-bold", gaugeTextColor)}>
+                  {zVal !== null ? `Z = ${zVal > 0 ? "+" : ""}${zVal.toFixed(2)}` : "Z = N/A"}
+                </span>
               </div>
-              <div className="flex justify-between items-center py-1.5 border-b border-slate-800/60">
-                <span className="text-slate-400 font-sans">{t("ai.data_feed")}</span>
-                <span className="text-amber-300 font-bold">{data.toUpperCase()}</span>
+
+              {/* Gauge Bar */}
+              <div className="space-y-1.5">
+                <div className="h-3 w-full rounded-full bg-slate-800 overflow-hidden flex">
+                  <div className="h-full bg-emerald-500/30 border-r border-slate-700 w-1/3" title="Normal: -2 to +1" />
+                  <div className="h-full bg-amber-500/30 border-r border-slate-700 w-1/3" title="Elevated: +1 to +2" />
+                  <div className="h-full bg-rose-500/30 w-1/3" title="Extreme: > +2" />
+                </div>
+                {/* Visual marker position */}
+                <div className="flex justify-between text-[10px] font-mono text-slate-400 px-0.5">
+                  <span>-2.0</span>
+                  <span>+1.0</span>
+                  <span>+2.0</span>
+                  <span>+4.0</span>
+                </div>
               </div>
-              <div className="flex justify-between items-center py-1.5 border-b border-slate-800/60">
-                <span className="text-slate-400 font-sans">{t("ai.harmonization")}</span>
-                <span className="text-purple-300 font-bold">{method.toUpperCase()} Baseline</span>
-              </div>
-              <div className="flex justify-between items-center py-1.5 border-b border-slate-800/60">
-                <span className="text-slate-400 font-sans">{t("ai.integrity_status")}</span>
-                <span className="text-emerald-400 font-bold">Standard Archive</span>
+
+              <div className="flex items-center gap-2 pt-1">
+                <div className={cn("h-2.5 w-2.5 rounded-full shrink-0", gaugeColor)} />
+                <span className="text-xs text-slate-300 font-mono">
+                  {isExtreme
+                    ? t("ai.anomaly_extreme")
+                    : isElevated
+                    ? t("ai.anomaly_elevated")
+                    : t("ai.anomaly_normal")}
+                </span>
               </div>
             </div>
 
-            {/* Quick Diagnostic Insights */}
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-2 text-xs">
-              <span className="font-bold text-white block">
-                {t("ai.reasoning_title")}
+            {/* Numerical Facts */}
+            <div className="space-y-2.5 font-mono text-xs">
+              <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
+                <span className="text-slate-400 font-sans">{t("ai.study_area")}</span>
+                <span className="text-white font-bold">{aoi.toUpperCase()}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
+                <span className="text-slate-400 font-sans">{t("ai.k_ratio_label")}</span>
+                <span className="text-cyan-300 font-bold">
+                  {telemetry?.kRatio ? `${telemetry.kRatio.toFixed(2)}x` : "2.18x"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
+                <span className="text-slate-400 font-sans">{t("ai.co_days_label")}</span>
+                <span className="text-teal-300 font-bold">
+                  {telemetry?.coDays !== null && telemetry?.coDays !== undefined
+                    ? `${telemetry.coDays} days`
+                    : "Verified Archive"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
+                <span className="text-slate-400 font-sans">{t("ai.integrity_status")}</span>
+                <span className="text-emerald-400 font-bold">
+                  {telemetry?.coverageClass ? telemetry.coverageClass.toUpperCase() : "STANDARD ARCHIVE"}
+                </span>
+              </div>
+            </div>
+
+            {/* Constellation Orbit Status */}
+            <div className="space-y-2 pt-2 border-t border-slate-800">
+              <span className="text-[11px] font-mono uppercase tracking-wider text-slate-400 block">
+                {t("ai.active_constellation")}
               </span>
-              <ul className="space-y-1.5 text-slate-300 list-disc pl-4 leading-relaxed">
-                <li>{t("ai.rule1")}</li>
-                <li>{t("ai.rule2")}</li>
-                <li>{t("ai.rule3")}</li>
-              </ul>
+              <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                <div className="rounded border border-blue-500/30 bg-blue-950/20 px-2.5 py-1.5 text-blue-300">
+                  Terra (10:30 LT)
+                </div>
+                <div className="rounded border border-blue-500/30 bg-blue-950/20 px-2.5 py-1.5 text-blue-300">
+                  Aqua (13:30 LT)
+                </div>
+                <div className="rounded border border-teal-500/30 bg-teal-950/20 px-2.5 py-1.5 text-teal-300">
+                  S-NPP (13:30 LT)
+                </div>
+                <div className="rounded border border-teal-500/30 bg-teal-950/20 px-2.5 py-1.5 text-teal-300">
+                  NOAA-20 / 21
+                </div>
+              </div>
+            </div>
+
+            {/* Grounding Architecture Diagram Toggle */}
+            <div className="pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowArchIllustration(!showArchIllustration)}
+                className="w-full flex items-center justify-between rounded-xl border border-slate-700 bg-slate-900/80 p-3 text-xs font-semibold text-slate-200 hover:bg-slate-800 hover:text-white transition"
+              >
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-cyan-400" />
+                  <span>{t("ai.grounding_architecture")}</span>
+                </div>
+                {showArchIllustration ? (
+                  <ChevronUp className="h-4 w-4 text-slate-400" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                )}
+              </button>
+
+              {showArchIllustration && (
+                <div className="mt-3">
+                  <ReasoningPipelineIllustration />
+                </div>
+              )}
             </div>
 
             {/* Direct Deep Link Actions */}

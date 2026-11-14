@@ -6,17 +6,23 @@ import {
   CheckCircle2,
   Database,
   FileUp,
+  Globe2,
+  Layers,
   Radio,
   Scale,
   ShieldAlert,
+  Sparkles,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useLang } from "@/lib/i18n";
 import { ErrorState } from "@/components/states";
+import {
+  ConstellationOrbitIllustration,
+  MultiScaleHarmonizationIllustration,
+} from "@/components/illustrations";
 
 export function HomePage() {
-  const { lang } = useLang();
-  const vi = lang === "vi";
+  const { t } = useLang();
 
   const [dataStats, setDataStats] = useState<{
     raw_count: number;
@@ -34,25 +40,21 @@ export function HomePage() {
   const hasRawData = (dataStats?.raw_count ?? 0) > 0;
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 max-w-6xl mx-auto w-full space-y-10 pb-24">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 max-w-6xl mx-auto w-full space-y-12 pb-24">
       {/* 1. Hero Console */}
       <section className="relative overflow-hidden rounded-2xl border border-slate-800 bg-[#111C2E] p-6 sm:p-10 shadow-sm">
         <div className="relative z-10 max-w-3xl space-y-4">
           <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3.5 py-1 text-xs font-semibold text-cyan-300">
             <Radio className="h-3.5 w-3.5 text-cyan-400" />
-            <span>NASA Space Apps Challenge 2026 · Earth Science</span>
+            <span>{t("home.kicker")}</span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white leading-tight">
-            {vi
-              ? "Một calendar cháy duy nhất cho hai thế hệ vệ tinh."
-              : "One fire calendar for two satellite generations."}
+            {t("home.hero_title")}
           </h1>
 
           <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-2xl">
-            {vi
-              ? "MODIS và VIIRS ghi nhận điểm nóng với năng lực quan trắc khác nhau. Khám phá chuỗi dữ liệu 25 năm, so sánh sai khác cảm biến và kiểm chứng tính toàn vẹn của bằng chứng quan sát."
-              : "MODIS and VIIRS detect hotspots with different optical capabilities. Explore 25 years of history, inspect sensor discrepancies, and verify observation integrity."}
+            {t("home.hero_desc")}
           </p>
 
           {/* Action CTAs */}
@@ -61,7 +63,7 @@ export function HomePage() {
               to={hasRawData ? "/calendar?data=raw&aoi=vietnam" : "/calendar?data=sample&aoi=vietnam"}
               className="inline-flex items-center gap-2 rounded-xl bg-orange-600 px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-orange-500 transition active:scale-95 min-h-[44px]"
             >
-              <span>{vi ? "Khám phá dữ liệu" : "Explore Data"}</span>
+              <span>{t("home.cta_explore")}</span>
               <ArrowRight className="h-4 w-4" />
             </Link>
 
@@ -69,38 +71,88 @@ export function HomePage() {
               to="/lab?tab=replay"
               className="inline-flex items-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-950/40 px-5 py-3 text-sm font-semibold text-cyan-200 hover:bg-cyan-900/50 transition min-h-[44px]"
             >
-              <span>{vi ? "Thử kiểm chứng cảm biến" : "Test Sensor Validation"}</span>
+              <span>{t("home.cta_test_lab")}</span>
             </Link>
 
             <div className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/80 px-3.5 py-2.5 text-xs font-mono text-slate-300 min-h-[44px]">
               <Database className="h-4 w-4 text-cyan-400" />
               <span>
                 {hasRawData
-                  ? `NASA Observed (${dataStats?.raw_count} files indexed)`
-                  : "Synthetic Feed (Offline verified sample)"}
+                  ? t("home.feed_observed", { count: dataStats?.raw_count ?? 0 })
+                  : t("home.feed_synthetic")}
               </span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 2. Interactive Footprint Illustration */}
+      {/* 2. Scientific Telemetry KPI Ribbon */}
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4.5 space-y-1">
+          <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono font-bold uppercase">
+            <CalendarDays className="h-4 w-4" />
+            <span>2000 - 2025</span>
+          </div>
+          <div className="text-xl font-extrabold text-white">{t("home.kpi_years_label")}</div>
+          <p className="text-xs text-slate-400 leading-snug">{t("home.kpi_years_sub")}</p>
+        </div>
+
+        <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4.5 space-y-1">
+          <div className="flex items-center gap-2 text-orange-400 text-xs font-mono font-bold uppercase">
+            <Globe2 className="h-4 w-4" />
+            <span>3 TARGET AOIS</span>
+          </div>
+          <div className="text-xl font-extrabold text-white">{t("home.kpi_biomes_label")}</div>
+          <p className="text-xs text-slate-400 leading-snug">{t("home.kpi_biomes_sub")}</p>
+        </div>
+
+        <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4.5 space-y-1">
+          <div className="flex items-center gap-2 text-purple-400 text-xs font-mono font-bold uppercase">
+            <Layers className="h-4 w-4" />
+            <span>5 SATELLITES</span>
+          </div>
+          <div className="text-xl font-extrabold text-white">{t("home.kpi_satellites_label")}</div>
+          <p className="text-xs text-slate-400 leading-snug">{t("home.kpi_satellites_sub")}</p>
+        </div>
+
+        <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4.5 space-y-1">
+          <div className="flex items-center gap-2 text-emerald-400 text-xs font-mono font-bold uppercase">
+            <Sparkles className="h-4 w-4" />
+            <span>ZERO HALLUCINATION</span>
+          </div>
+          <div className="text-xl font-extrabold text-white">{t("home.kpi_grounding_label")}</div>
+          <p className="text-xs text-slate-400 leading-snug">{t("home.kpi_grounding_sub")}</p>
+        </div>
+      </section>
+
+      {/* 3. Constellation Orbital Architecture Illustration */}
+      <section className="space-y-4">
+        <div className="space-y-1">
+          <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
+            {t("home.orbit_section_title")}
+          </span>
+          <p className="text-sm text-slate-300">
+            {t("home.orbit_section_desc")}
+          </p>
+        </div>
+        <ConstellationOrbitIllustration
+          activeSensors={["MODIS", "SNPP", "NOAA-20", "NOAA-21"]}
+        />
+      </section>
+
+      {/* 4. Spatial Resolution Footprint & Historical Calibration */}
       <section className="rounded-2xl border border-slate-800 bg-[#111C2E] p-6 sm:p-8 shadow-sm space-y-6">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-800 pb-4">
           <div className="space-y-1 max-w-2xl">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-400">
               <ShieldAlert className="h-4 w-4" />
-              <span>{vi ? "Vấn đề cốt lõi" : "The Core Problem"}</span>
+              <span>{t("home.core_problem_kicker")}</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-              {vi
-                ? "Sự thay đổi cảm biến không nhất thiết là sự thay đổi của đám cháy."
-                : "A change in the sensor is not necessarily a change in fire activity."}
+              {t("home.core_problem_title")}
             </h2>
             <p className="text-sm text-slate-300 leading-relaxed">
-              {vi
-                ? "MODIS (pixel 1 km) và VIIRS (pixel 375 m) có năng lực phát hiện khác nhau. Việc cộng dồn trực tiếp hai thế hệ cảm biến có thể làm lệch chuỗi nếu ghép trực tiếp mà không chuẩn hóa."
-                : "MODIS (1 km pixel) and VIIRS (375 m pixel) differ in spatial resolution. A direct merge distorts the time series without proper calibration."}
+              {t("home.core_problem_desc")}
             </p>
           </div>
 
@@ -116,7 +168,7 @@ export function HomePage() {
                   : "text-slate-400 hover:text-white"
               }`}
             >
-              {vi ? "Cộng gộp thô (Naive)" : "Naive Direct Merge"}
+              {t("home.mode_naive")}
             </button>
             <button
               type="button"
@@ -128,121 +180,68 @@ export function HomePage() {
                   : "text-slate-400 hover:text-white"
               }`}
             >
-              {vi ? "Chuỗi hiệu chuẩn" : "Calibrated Signal"}
+              {t("home.mode_harmonized")}
             </button>
           </div>
         </div>
 
-        {/* Footprint Comparison Grid */}
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Spatial Footprint Comparison */}
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-xs uppercase tracking-wider text-slate-300">
-                {vi ? "So sánh kích thước pixel hình học" : "Geometric Pixel Footprint Comparison"}
-              </span>
-              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-xs font-mono text-amber-300">
-                DEMONSTRATION
-              </span>
-            </div>
-
-            <div className="flex items-center justify-around py-4">
-              {/* MODIS 1km Box */}
-              <div className="flex flex-col items-center gap-2">
-                <div className="relative flex h-28 w-28 items-center justify-center rounded-lg border-2 border-dashed border-blue-500 bg-blue-500/10">
-                  <span className="font-mono text-xs font-bold text-blue-300">1 km x 1 km</span>
-                </div>
-                <div className="text-center font-mono text-xs">
-                  <div className="font-bold text-blue-400">MODIS (Terra/Aqua)</div>
-                  <div className="text-slate-400">100 ha / pixel</div>
-                </div>
-              </div>
-
-              {/* Difference Arrow */}
-              <div className="flex flex-col items-center text-slate-400 font-mono text-xs gap-1">
-                <span>7x diện tích</span>
-                <ArrowRight className="h-4 w-4 text-cyan-400" />
-                <span>độ nhạy cao hơn</span>
-              </div>
-
-              {/* VIIRS 375m Box */}
-              <div className="flex flex-col items-center gap-2">
-                <div className="grid grid-cols-2 gap-1.5 h-28 w-28 items-center justify-center p-2 rounded-lg border border-teal-500/40 bg-teal-950/20">
-                  <div className="flex h-10 w-10 items-center justify-center rounded border border-teal-400 bg-teal-500/20 font-mono text-xs text-teal-300 font-bold">
-                    375m
-                  </div>
-                  <div className="flex h-10 w-10 items-center justify-center rounded border border-teal-400/50 bg-teal-500/10 font-mono text-xs text-teal-300">
-                    375m
-                  </div>
-                  <div className="flex h-10 w-10 items-center justify-center rounded border border-teal-400/50 bg-teal-500/10 font-mono text-xs text-teal-300">
-                    375m
-                  </div>
-                  <div className="flex h-10 w-10 items-center justify-center rounded border border-teal-400/50 bg-teal-500/10 font-mono text-xs text-teal-300">
-                    375m
-                  </div>
-                </div>
-                <div className="text-center font-mono text-xs">
-                  <div className="font-bold text-teal-400">VIIRS (S-NPP / NOAA)</div>
-                  <div className="text-slate-400">14 ha / pixel</div>
-                </div>
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-400 leading-relaxed border-t border-slate-800 pt-3">
-              {vi
-                ? "Ghi chú: Sơ đồ minh họa độ phân giải hình học của cảm biến, không phải kết quả đếm điểm nóng thực tế. VIIRS phát hiện được các điểm nhiệt diện tích nhỏ hơn MODIS."
-                : "Note: Geometric pixel resolution demonstration only, not hotspot detection counts. VIIRS identifies smaller fire thermal points than MODIS."}
-            </p>
+        {/* Multi-Scale Harmonization SVG + Time Series Impact Grid */}
+        <div className="grid gap-6 lg:grid-cols-12">
+          {/* Spatial Grid Illustration: 7 cols */}
+          <div className="lg:col-span-7">
+            <MultiScaleHarmonizationIllustration />
           </div>
 
-          {/* Interactive Multi-Decadal Signal */}
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-xs uppercase tracking-wider text-slate-300">
-                {vi ? "Ảnh hưởng lên chuỗi lịch sử" : "Historical Time Series Impact"}
-              </span>
-              <span
-                className={`rounded-full px-2.5 py-0.5 text-xs font-mono border ${
-                  interactiveMode === "naive"
-                    ? "border-rose-500/30 bg-rose-500/10 text-rose-300"
-                    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                }`}
-              >
-                {interactiveMode === "naive"
-                  ? (vi ? "BƯỚC NHẢY CẢM BIẾN" : "SENSOR STEP ARTIFACT")
-                  : (vi ? "CHUỖI HIỆU CHUẨN" : "CALIBRATED RECORD")}
-              </span>
-            </div>
-
-            {/* Illustrative bars */}
-            <div className="space-y-3 py-2 font-mono text-xs">
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-400">2002 - 2011 (MODIS Era):</span>
-                  <span className="font-bold text-blue-300">
-                    {interactiveMode === "naive" ? (vi ? "Chỉ tính MODIS" : "MODIS counts only") : (vi ? "Thang chuẩn hóa" : "Calibrated scale")}
-                  </span>
-                </div>
-                <div className="h-3.5 w-full rounded bg-slate-800 overflow-hidden">
-                  <div
-                    className="h-full bg-blue-500 transition-all duration-500"
-                    style={{ width: interactiveMode === "naive" ? "35%" : "85%" }}
-                  />
-                </div>
+          {/* Interactive Multi-Decadal Signal: 5 cols */}
+          <div className="lg:col-span-5 rounded-xl border border-slate-800 bg-slate-900/60 p-5 space-y-4 flex flex-col justify-between">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-xs uppercase tracking-wider text-slate-300">
+                  {t("home.ts_impact_title")}
+                </span>
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-mono border ${
+                    interactiveMode === "naive"
+                      ? "border-rose-500/30 bg-rose-500/10 text-rose-300"
+                      : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                  }`}
+                >
+                  {interactiveMode === "naive"
+                    ? t("home.badge_step_artifact")
+                    : t("home.badge_calibrated_record")}
+                </span>
               </div>
 
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-400">2012 - 2025 (VIIRS Era):</span>
-                  <span className="font-bold text-teal-300">
-                    {interactiveMode === "naive" ? (vi ? "Cộng thô MODIS + VIIRS" : "Unadjusted sum") : (vi ? "Thang đo đồng nhất" : "Unified baseline")}
-                  </span>
+              {/* Dynamic Bars */}
+              <div className="space-y-3 py-2 font-mono text-xs">
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-400">{t("home.modis_era_label")}</span>
+                    <span className="font-bold text-blue-300">
+                      {interactiveMode === "naive" ? t("home.modis_only") : t("home.modis_calibrated")}
+                    </span>
+                  </div>
+                  <div className="h-3.5 w-full rounded bg-slate-800 overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 transition-all duration-500"
+                      style={{ width: interactiveMode === "naive" ? "35%" : "85%" }}
+                    />
+                  </div>
                 </div>
-                <div className="h-3.5 w-full rounded bg-slate-800 overflow-hidden">
-                  <div
-                    className="h-full bg-teal-500 transition-all duration-500"
-                    style={{ width: "90%" }}
-                  />
+
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-400">{t("home.viirs_era_label")}</span>
+                    <span className="font-bold text-teal-300">
+                      {interactiveMode === "naive" ? t("home.viirs_unadjusted") : t("home.viirs_unified")}
+                    </span>
+                  </div>
+                  <div className="h-3.5 w-full rounded bg-slate-800 overflow-hidden">
+                    <div
+                      className="h-full bg-teal-500 transition-all duration-500"
+                      style={{ width: "90%" }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -256,17 +255,13 @@ export function HomePage() {
             >
               {interactiveMode === "naive" ? (
                 <span>
-                  <strong>{vi ? "Biến động giả:" : "Artificial Artifact:"}</strong>{" "}
-                  {vi
-                    ? "Khác biệt cảm biến có thể làm lệch chuỗi nếu ghép trực tiếp. Bước nhảy xuất hiện năm 2012 do bổ sung dữ liệu VIIRS chứ không phải đám cháy tăng đột biến."
-                    : "Direct concatenation creates an artificial step-change in 2012 when VIIRS launched, confusing sensor changes with environmental trends."}
+                  <strong>{t("home.artifact_bold")}</strong>{" "}
+                  {t("home.artifact_desc")}
                 </span>
               ) : (
                 <span>
-                  <strong>{vi ? "Chỉ số hiệu chuẩn:" : "Calibrated Index:"}</strong>{" "}
-                  {vi
-                    ? "Chuẩn hóa theo tỷ lệ thực nghiệm giữa hai cảm biến giúp bảo toàn khả năng so sánh liên năm một cách nhất quán."
-                    : "Empirical ratio calibration adjusts the historical scale to restore consistent comparability across satellite generations."}
+                  <strong>{t("home.calibrated_bold")}</strong>{" "}
+                  {t("home.calibrated_desc")}
                 </span>
               )}
             </div>
@@ -274,14 +269,14 @@ export function HomePage() {
         </div>
       </section>
 
-      {/* 3. Explore a Question (3 Action Cards) */}
+      {/* 5. Explore a Question (3 Action Cards) */}
       <section className="space-y-4">
         <div className="space-y-1">
           <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
-            {vi ? "Khám phá theo tác vụ" : "Explore a Question"}
+            {t("home.explore_kicker")}
           </span>
           <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-            {vi ? "Ba câu hỏi khoa học bạn có thể kiểm chứng ngay" : "Three Questions You Can Investigate"}
+            {t("home.explore_title")}
           </h2>
         </div>
 
@@ -295,17 +290,15 @@ export function HomePage() {
                 <CalendarDays className="h-5 w-5" />
               </div>
               <h3 className="font-bold text-white text-base mb-1.5 flex items-center justify-between">
-                <span>{vi ? "Khi nào điểm nóng bất thường?" : "When Are Hotspots Anomalous?"}</span>
+                <span>{t("home.q1_title")}</span>
                 <ArrowRight className="h-4 w-4 text-slate-500 group-hover:text-cyan-400 transition" />
               </h3>
               <p className="text-xs text-slate-300 leading-relaxed">
-                {vi
-                  ? "Xem ma trận 25 năm x 12 tháng với chỉ số robust z-score, phát hiện tháng cháy cao bất thường độc lập với thời điểm phóng vệ tinh."
-                  : "Inspect the 25-year matrix with robust z-scores to isolate truly unusual fire months free from sensor timing bias."}
+                {t("home.q1_desc")}
               </p>
             </div>
             <span className="text-xs font-semibold text-cyan-400 pt-3 flex items-center gap-1">
-              {vi ? "Mở Fire Calendar" : "Open Fire Calendar"} &rarr;
+              {t("home.q1_btn")} &rarr;
             </span>
           </Link>
 
@@ -318,17 +311,15 @@ export function HomePage() {
                 <Scale className="h-5 w-5" />
               </div>
               <h3 className="font-bold text-white text-base mb-1.5 flex items-center justify-between">
-                <span>{vi ? "Hai cảm biến khác nhau thế nào?" : "How Do Sensors Differ?"}</span>
+                <span>{t("home.q2_title")}</span>
                 <ArrowRight className="h-4 w-4 text-slate-500 group-hover:text-amber-400 transition" />
               </h3>
               <p className="text-xs text-slate-300 leading-relaxed">
-                {vi
-                  ? "Phân tích Sensor X-Ray, chạy Blind Sensor Replay trên tập holdout đóng băng và thử nghiệm các cấu hình vệ tinh."
-                  : "Explore Sensor X-Ray, run Blind Sensor Replay across frozen holdouts, and test satellite observation choices."}
+                {t("home.q2_desc")}
               </p>
             </div>
             <span className="text-xs font-semibold text-amber-400 pt-3 flex items-center gap-1">
-              {vi ? "Mở Sensor Lab" : "Open Sensor Lab"} &rarr;
+              {t("home.q2_btn")} &rarr;
             </span>
           </Link>
 
@@ -341,80 +332,70 @@ export function HomePage() {
                 <CheckCircle2 className="h-5 w-5" />
               </div>
               <h3 className="font-bold text-white text-base mb-1.5 flex items-center justify-between">
-                <span>{vi ? "Tôi có thể tin kết luận này không?" : "Can We Trust This Conclusion?"}</span>
+                <span>{t("home.q3_title")}</span>
                 <ArrowRight className="h-4 w-4 text-slate-500 group-hover:text-emerald-400 transition" />
               </h3>
               <p className="text-xs text-slate-300 leading-relaxed">
-                {vi
-                  ? "Kiểm tra sổ bằng chứng Evidence Ledger để xem ma trận ngày quan trắc, tỷ lệ dữ liệu khả dụng và cảnh báo khi thiếu thông tin."
-                  : "Inspect the Evidence Ledger matrix to check daily observation availability, coverage criteria, and missing-data flags."}
+                {t("home.q3_desc")}
               </p>
             </div>
             <span className="text-xs font-semibold text-emerald-400 pt-3 flex items-center gap-1">
-              {vi ? "Mở Evidence Ledger" : "Open Evidence Ledger"} &rarr;
+              {t("home.q3_btn")} &rarr;
             </span>
           </Link>
         </div>
       </section>
 
-      {/* 4. How the Analysis Works (3 Concise Steps) */}
+      {/* 6. Three-Stage Scientific Pipeline */}
       <section className="space-y-4">
         <div className="space-y-1">
           <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
-            {vi ? "Quy trình phân tích" : "How It Works"}
+            {t("home.three_steps_title")}
           </span>
           <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-            {vi ? "Ba bước xử lý khoa học" : "Three Processing Stages"}
+            {t("home.three_steps_title")}
           </h2>
         </div>
 
         <div className="grid gap-4 md:grid-cols-3 font-mono text-xs">
-          <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4 space-y-2">
+          <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4.5 space-y-2">
             <div className="text-cyan-400 font-bold text-sm">
-              01. {vi ? "THU THẬP & CHUẨN HÓA" : "COLLECT & STANDARDIZE"}
+              {t("home.step1_title")}
             </div>
             <p className="font-sans text-xs text-slate-300 leading-relaxed">
-              {vi
-                ? "Đồng bộ dữ liệu MODIS C6.1 và VIIRS 375m về cùng một lược đồ kiểm soát chất lượng QA và phân loại điểm nhiệt trên đất liền."
-                : "Ingest and standardize MODIS C6.1 and VIIRS 375m records into a unified strict schema with QA quality control."}
+              {t("home.step1_desc")}
             </p>
           </div>
 
-          <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4 space-y-2">
+          <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4.5 space-y-2">
             <div className="text-cyan-400 font-bold text-sm">
-              02. {vi ? "ĐỐI CHIẾU & HIỆU CHỈNH" : "COMPARE & ADJUST"}
+              {t("home.step2_title")}
             </div>
             <p className="font-sans text-xs text-slate-300 leading-relaxed">
-              {vi
-                ? "Tính toán tỷ lệ thực nghiệm k trên các ngày có quan trắc song song; hiệu chỉnh thang đo thời kỳ MODIS về mức tương đương VIIRS."
-                : "Compute empirical k-ratios from paired co-observation days; calibrate early MODIS counts to VIIRS equivalent scale."}
+              {t("home.step2_desc")}
             </p>
           </div>
 
-          <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4 space-y-2">
+          <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4.5 space-y-2">
             <div className="text-cyan-400 font-bold text-sm">
-              03. {vi ? "KIỂM CHỨNG BẰNG CHỨNG" : "VERIFY EVIDENCE"}
+              {t("home.step3_title")}
             </div>
             <p className="font-sans text-xs text-slate-300 leading-relaxed">
-              {vi
-                ? "Gắn nhãn rõ ràng từng ô dữ liệu quan trắc hay ước lượng; từ chối suy luận khi không đủ ngày dữ liệu đối chiếu hợp lệ."
-                : "Tag every cell as observed or estimated; abstain from conclusions when comparable paired coverage is insufficient."}
+              {t("home.step3_desc")}
             </p>
           </div>
         </div>
       </section>
 
-      {/* 5. Calibrated Study Areas */}
+      {/* 7. Calibrated Study Areas */}
       <section className="rounded-2xl border border-slate-800 bg-[#111C2E] p-6 sm:p-8 shadow-sm space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
           <div>
             <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
-              {vi ? "Ba khu vực nghiên cứu chuẩn hóa" : "Calibrated Study Areas"}
+              {t("home.study_areas_title")}
             </h2>
             <p className="text-xs text-slate-400">
-              {vi
-                ? "Dữ liệu được chuẩn bị sẵn cho ba hệ sinh thái và bối cảnh cháy khác biệt."
-                : "Pre-calibrated datasets across three distinct fire ecosystems."}
+              {t("home.study_areas_sub")}
             </p>
           </div>
           <span className="font-mono text-xs text-cyan-400">3 Calibrated AOIs</span>
@@ -424,15 +405,13 @@ export function HomePage() {
           {/* Vietnam */}
           <div className="rounded-xl border border-cyan-500/30 bg-slate-900/60 p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-200">Việt Nam</span>
+              <span className="font-bold text-slate-200">{t("home.aoi_vn_name")}</span>
               <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-mono text-emerald-300">
                 Full Record
               </span>
             </div>
             <p className="text-xs text-slate-300">
-              {vi
-                ? "Tây Nguyên & Duyên hải Nam Trung Bộ. Mùa khô rõ rệt tháng 12 đến tháng 4."
-                : "Central Highlands & Mekong agricultural burning with high seasonal contrast (Dec-Apr dry season)."}
+              {t("home.aoi_vn_desc")}
             </p>
             <div className="space-y-1 font-mono text-xs text-slate-400 pt-1">
               <div>BBox: 104°E - 109°E, 10°N - 16°N</div>
@@ -441,7 +420,7 @@ export function HomePage() {
               to="/calendar?aoi=vietnam"
               className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-950/40 py-2.5 text-xs font-semibold text-cyan-200 hover:bg-cyan-900/50 transition min-h-[40px]"
             >
-              <span>{vi ? "Mở Calendar Việt Nam" : "Open Vietnam Calendar"}</span>
+              <span>{t("home.open_vn_cal")}</span>
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -449,15 +428,13 @@ export function HomePage() {
           {/* Amazon */}
           <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-200">Amazon</span>
+              <span className="font-bold text-slate-200">{t("home.aoi_amz_name")}</span>
               <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-mono text-emerald-300">
                 Peak 2019
               </span>
             </div>
             <p className="text-xs text-slate-300">
-              {vi
-                ? "Nam bồn địa Amazon và vùng chuyển tiếp Cerrado. Mùa khô tháng 7 đến tháng 10."
-                : "Southern Basin / Cerrado deforestation and severe drought burning seasons (Jul-Oct peak)."}
+              {t("home.aoi_amz_desc")}
             </p>
             <div className="space-y-1 font-mono text-xs text-slate-400 pt-1">
               <div>BBox: 70°W - 50°W, 12°S - 3°N</div>
@@ -466,7 +443,7 @@ export function HomePage() {
               to="/calendar?aoi=amazon"
               className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition min-h-[40px]"
             >
-              <span>{vi ? "Mở Calendar Amazon" : "Open Amazon Calendar"}</span>
+              <span>{t("home.open_amz_cal")}</span>
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -474,15 +451,13 @@ export function HomePage() {
           {/* Australia */}
           <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-200">Australia</span>
+              <span className="font-bold text-slate-200">{t("home.aoi_aus_name")}</span>
               <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs font-mono text-amber-300">
                 Black Summer
               </span>
             </div>
             <p className="text-xs text-slate-300">
-              {vi
-                ? "Đông Nam nước Úc với đợt cháy thảm họa Black Summer 2019-2020."
-                : "Southeast mega-fire territory with transparent partial-data disclosures."}
+              {t("home.aoi_aus_desc")}
             </p>
             <div className="space-y-1 font-mono text-xs text-slate-400 pt-1">
               <div>BBox: 113°E - 153°E, 39°S - 12°S</div>
@@ -491,82 +466,74 @@ export function HomePage() {
               to="/calendar?aoi=australia"
               className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition min-h-[40px]"
             >
-              <span>{vi ? "Mở Calendar Úc" : "Open Australia Calendar"}</span>
+              <span>{t("home.open_aus_cal")}</span>
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
         </div>
       </section>
 
-      {/* 6. Advanced Research Tools Section (CSV Import) */}
+      {/* 8. Advanced Research Tools Section (CSV Import) */}
       <section className="rounded-2xl border border-slate-800 bg-[#111C2E] p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400">
             <FileUp className="h-4 w-4 text-cyan-400" />
-            <span>{vi ? "Công cụ nghiên cứu nâng cao" : "Advanced Research Tools"}</span>
+            <span>{t("home.adv_tools_title")}</span>
           </div>
-          <span className="text-xs text-slate-400">{vi ? "Tùy chọn tải dữ liệu" : "Data Import Options"}</span>
+          <span className="text-xs text-slate-400">{t("home.data_import_sub")}</span>
         </div>
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
           <div className="space-y-1">
             <div className="font-bold text-white text-sm">
-              {vi ? "Nhập tệp dữ liệu FIRMS của bạn" : "Import Custom FIRMS CSV"}
+              {t("home.import_csv_title")}
             </div>
             <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
-              {vi
-                ? "Bạn có file CSV tải từ NASA FIRMS Area API? Mở trang Phương pháp & Dữ liệu để tải lên và phân tích trực tiếp theo quy trình chuẩn."
-                : "Download CSV from the NASA FIRMS Area API and upload it in Methods & Data for automated schema parsing and harmonization."}
+              {t("home.import_csv_desc")}
             </p>
           </div>
           <Link
             to="/methods"
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 px-4 py-2.5 text-xs font-semibold text-white transition shrink-0 min-h-[40px]"
           >
-            <span>{vi ? "Đến mục Nhập CSV" : "Go to CSV Tools"}</span>
+            <span>{t("home.go_csv_tools")}</span>
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </section>
 
-      {/* 7. Scientific Boundaries & Limits */}
+      {/* 9. Scientific Boundaries & Limits */}
       <section className="rounded-2xl border border-amber-500/30 bg-amber-950/10 p-6 sm:p-8 space-y-3">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-300">
           <ShieldAlert className="h-4 w-4" />
-          <span>{vi ? "Giới hạn khoa học & Điều chúng tôi không tuyên bố" : "Scientific Boundaries & What We Do Not Claim"}</span>
+          <span>{t("home.boundaries_title")}</span>
         </div>
 
         <div className="grid gap-4 md:grid-cols-3 text-xs text-slate-300 leading-relaxed">
           <div className="space-y-1.5">
             <div className="font-bold text-white">
-              {vi ? "Lượt điểm nóng != Số vụ cháy thực" : "Hotspots != Fire Incidents"}
+              {t("home.bound1_title")}
             </div>
             <p className="text-slate-400">
-              {vi
-                ? "Điểm nóng là các phát hiện nhiệt từ cảm biến vệ tinh, không phải số vụ cháy thực tế riêng lẻ. Một đám cháy lớn có thể tạo nhiều điểm nóng."
-                : "Hotspots are satellite thermal detections, not confirmed individual fire incidents. Multiple detections can come from one large fire."}
+              {t("home.bound1_desc")}
             </p>
           </div>
 
           <div className="space-y-1.5">
             <div className="font-bold text-white">
-              {vi ? "Không có điểm nóng != Không có cháy" : "Missing != Absence of Fire"}
+              {t("home.bound2_title")}
             </div>
             <p className="text-slate-400">
-              {vi
-                ? "Không phát hiện điểm nóng không đồng nghĩa với không có cháy. Mây mù dày hoặc góc quét có thể che khuất ngọn lửa. Dữ liệu thiếu không được quy về 0."
-                : "Zero detections in a cell does not prove an absence of fire. Heavy cloud cover or orbital timing gaps can prevent detection."}
+              {t("home.bound2_desc")}
             </p>
           </div>
 
           <div className="space-y-1.5">
             <div className="font-bold text-white">
-              {vi ? "Số ước lượng != Số đo thực địa" : "Estimates != Ground Truth"}
+              {t("home.bound3_title")}
             </div>
             <p className="text-slate-400">
-              {vi
-                ? "Chỉ số hoạt động đã hiệu chỉnh là ước lượng thống kê thực nghiệm phục vụ nghiên cứu xu hướng, không dùng cho điều phối cứu hỏa tác chiến."
-                : "Sensor-adjusted activity indexes are empirical statistical estimates for historical trend analysis, not real-time firefighting dispatch telemetry."}
+              {t("home.bound3_desc")}
             </p>
           </div>
         </div>

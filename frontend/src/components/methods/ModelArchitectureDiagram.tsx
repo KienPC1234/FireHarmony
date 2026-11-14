@@ -178,8 +178,7 @@ const ARCH_NODES_DATA: Record<string, NodePayload> = {
 };
 
 function CustomArchNode({ data }: NodeProps) {
-  const { lang } = useLang();
-  const vi = lang === "vi";
+  const { t } = useLang();
   const node = ARCH_NODES_DATA[data.id as string];
   if (!node) return null;
 
@@ -197,34 +196,38 @@ function CustomArchNode({ data }: NodeProps) {
   return (
     <div
       className={cn(
-        "rounded-xl border p-3 shadow-xl backdrop-blur-md transition-all text-xs w-[250px]",
+        "rounded-xl border p-3.5 shadow-xl backdrop-blur-md transition-all text-xs w-[260px] min-h-[160px] flex flex-col justify-between",
         toneBorder,
         node.active && "ring-1 ring-cyan-400 shadow-cyan-500/20",
       )}
     >
       <Handle type="target" position={Position.Left} className="!bg-cyan-400 !w-2.5 !h-2.5" />
-      <div className="flex items-center justify-between gap-1 mb-1.5">
-        <span className="font-mono text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-          {vi ? node.categoryVi : node.categoryEn}
-        </span>
-        {node.badge && (
-          <span
-            className={cn(
-              "px-1.5 py-0.5 rounded text-[9px] font-mono font-extrabold border",
-              node.badgeTone === "emerald"
-                ? "border-emerald-400 bg-emerald-950/60 text-emerald-300"
-                : node.badgeTone === "amber"
-                ? "border-amber-400 bg-amber-950/60 text-amber-300"
-                : "border-cyan-400 bg-cyan-950/60 text-cyan-300",
-            )}
-          >
-            {node.badge}
+      <div>
+        <div className="flex items-center justify-between gap-1 mb-1.5">
+          <span className="font-mono text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+            {t(`diagram.node_${node.id}_cat`)}
           </span>
-        )}
-      </div>
+          {node.badge && (
+            <span
+              className={cn(
+                "px-1.5 py-0.5 rounded text-[9px] font-mono font-extrabold border shrink-0",
+                node.badgeTone === "emerald"
+                  ? "border-emerald-400 bg-emerald-950/60 text-emerald-300"
+                  : node.badgeTone === "amber"
+                  ? "border-amber-400 bg-amber-950/60 text-amber-300"
+                  : "border-cyan-400 bg-cyan-950/60 text-cyan-300",
+              )}
+            >
+              {node.badge}
+            </span>
+          )}
+        </div>
 
-      <div className="font-bold text-white text-xs leading-snug">{vi ? node.titleVi : node.titleEn}</div>
-      <div className="font-mono text-[10px] text-slate-400 mt-1">{node.shape}</div>
+        <div className="font-bold text-white text-xs leading-snug">
+          {t(`diagram.node_${node.id}_title`)}
+        </div>
+        <div className="font-mono text-[10px] text-slate-400 mt-1">{node.shape}</div>
+      </div>
 
       {node.formula && (
         <div className="mt-2 pt-1.5 border-t border-slate-700/60 overflow-hidden text-[11px] text-cyan-300 font-sans">
@@ -245,55 +248,55 @@ const INITIAL_NODES: Node[] = [
   {
     id: "modis_input",
     type: "archNode",
-    position: { x: 30, y: 30 },
+    position: { x: 40, y: 30 },
     data: { id: "modis_input" },
   },
   {
     id: "covariates_input",
     type: "archNode",
-    position: { x: 30, y: 150 },
+    position: { x: 40, y: 250 },
     data: { id: "covariates_input" },
   },
   {
     id: "aoi_embedding",
     type: "archNode",
-    position: { x: 30, y: 270 },
+    position: { x: 40, y: 470 },
     data: { id: "aoi_embedding" },
   },
   {
     id: "tokenizer",
     type: "archNode",
-    position: { x: 340, y: 150 },
+    position: { x: 370, y: 250 },
     data: { id: "tokenizer" },
   },
   {
     id: "b2_anchor",
     type: "archNode",
-    position: { x: 650, y: 40 },
+    position: { x: 700, y: 30 },
     data: { id: "b2_anchor" },
   },
   {
     id: "transformer_core",
     type: "archNode",
-    position: { x: 650, y: 250 },
+    position: { x: 700, y: 250 },
     data: { id: "transformer_core" },
   },
   {
     id: "hts_anchor",
     type: "archNode",
-    position: { x: 650, y: 430 },
+    position: { x: 700, y: 470 },
     data: { id: "hts_anchor" },
   },
   {
     id: "gate_controller",
     type: "archNode",
-    position: { x: 960, y: 150 },
+    position: { x: 1030, y: 250 },
     data: { id: "gate_controller" },
   },
   {
     id: "output_telemetry",
     type: "archNode",
-    position: { x: 1270, y: 150 },
+    position: { x: 1360, y: 250 },
     data: { id: "output_telemetry" },
   },
 ];
@@ -375,8 +378,7 @@ const INITIAL_EDGES: Edge[] = [
 ];
 
 export function ModelArchitectureDiagram() {
-  const { lang } = useLang();
-  const vi = lang === "vi";
+  const { t } = useLang();
 
   const [selectedNodeId, setSelectedNodeId] = useState<string>("b2_anchor");
   const selectedNode = ARCH_NODES_DATA[selectedNodeId] ?? ARCH_NODES_DATA.b2_anchor;
@@ -395,12 +397,10 @@ export function ModelArchitectureDiagram() {
           <BrainCircuit className="h-5 w-5 text-cyan-400" />
           <div>
             <h3 className="font-bold text-white text-sm">
-              {vi ? "Sơ đồ tương tác mạng nơ-ron SensorFormer & Luồng B2" : "Interactive SensorFormer Neural Architecture"}
+              {t("diagram.banner_title")}
             </h3>
             <p className="text-slate-400 text-xs">
-              {vi
-                ? "Trực quan hóa trực tiếp với @xyflow/react: Kéo, phóng to/thu nhỏ, nhấp vào nút để kiểm tra toán học và tensor."
-                : "Interactive @xyflow/react graph: Pan, zoom, click nodes to inspect formulas and tensor dimensions."}
+              {t("diagram.banner_desc")}
             </p>
           </div>
         </div>
@@ -408,25 +408,25 @@ export function ModelArchitectureDiagram() {
         <div className="flex items-center gap-2 font-mono text-[11px]">
           <span className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 font-bold">
             <CheckCircle2 className="h-3.5 w-3.5" />
-            <span>OPERATIONAL: B2 ACTIVE</span>
+            <span>{t("diagram.b2_active_pill")}</span>
           </span>
           <span className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-950/60 border border-amber-500/40 text-amber-300 font-bold">
             <Lock className="h-3.5 w-3.5" />
-            <span>GATE: TRIP TO B2</span>
+            <span>{t("diagram.gate_pill")}</span>
           </span>
         </div>
       </div>
 
       {/* React Flow Interactive Graph Canvas */}
-      <div className="h-[440px] w-full rounded-2xl border border-slate-800 bg-[#060B13] overflow-hidden shadow-2xl relative">
+      <div className="h-[620px] w-full rounded-2xl border border-slate-800 bg-[#060B13] overflow-hidden shadow-2xl relative">
         <ReactFlow
           nodes={INITIAL_NODES}
           edges={INITIAL_EDGES}
           nodeTypes={nodeTypes}
           onNodeClick={onNodeClick}
           fitView
-          fitViewOptions={{ padding: 0.2 }}
-          minZoom={0.5}
+          fitViewOptions={{ padding: 0.15 }}
+          minZoom={0.4}
           maxZoom={1.8}
           proOptions={{ hideAttribution: true }}
           className="bg-[#060B13]"
@@ -454,10 +454,10 @@ export function ModelArchitectureDiagram() {
             </div>
             <div>
               <span className="text-[11px] font-mono uppercase text-slate-400 block tracking-wider">
-                {vi ? selectedNode.categoryVi : selectedNode.categoryEn}
+                {t(`diagram.node_${selectedNode.id}_cat`)}
               </span>
               <h4 className="text-sm font-bold text-white">
-                {vi ? selectedNode.titleVi : selectedNode.titleEn}
+                {t(`diagram.node_${selectedNode.id}_title`)}
               </h4>
             </div>
           </div>
@@ -481,7 +481,7 @@ export function ModelArchitectureDiagram() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
           <div className="rounded-xl bg-slate-900/60 p-3.5 border border-slate-800 space-y-1">
             <span className="text-slate-400 text-xs block font-sans">
-              {vi ? "Công thức toán học:" : "Mathematical Formulation:"}
+              {t("diagram.math_form_label")}
             </span>
             <div className="text-cyan-300 font-bold text-xs block overflow-x-auto no-scrollbar font-sans py-1">
               {selectedNode.formula ? (
@@ -494,7 +494,7 @@ export function ModelArchitectureDiagram() {
 
           <div className="rounded-xl bg-slate-900/60 p-3.5 border border-slate-800 space-y-1">
             <span className="text-slate-400 text-xs block font-sans">
-              {vi ? "Kích thước Tensor:" : "Tensor Dimensions:"}
+              {t("diagram.tensor_shape_label")}
             </span>
             <span className="text-white font-bold text-xs block font-mono">
               {selectedNode.shape ?? "N/A"}
@@ -503,10 +503,10 @@ export function ModelArchitectureDiagram() {
 
           <div className="rounded-xl bg-slate-900/60 p-3.5 border border-slate-800 space-y-1">
             <span className="text-slate-400 text-xs block font-sans">
-              {vi ? "Vai trò khoa học:" : "Scientific Role:"}
+              {t("diagram.science_desc_label")}
             </span>
             <span className="text-slate-200 text-xs font-sans block leading-relaxed">
-              {vi ? selectedNode.descVi : selectedNode.descEn}
+              {t(`diagram.node_${selectedNode.id}_desc`)}
             </span>
           </div>
         </div>

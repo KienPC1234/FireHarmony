@@ -7,8 +7,7 @@ interface ConstellationProps {
 }
 
 export function ConstellationOrbitIllustration({ activeSensors, className }: ConstellationProps) {
-  const { lang } = useLang();
-  const vi = lang === "vi";
+  const { t } = useLang();
 
   const hasModis = activeSensors.includes("MODIS");
   const hasSnpp = activeSensors.includes("SNPP");
@@ -22,12 +21,10 @@ export function ConstellationOrbitIllustration({ activeSensors, className }: Con
         <div>
           <h3 className="text-sm font-bold text-white flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
-            {vi ? "Kiến trúc quỹ đạo vệ tinh & Vệt quan sát (Swath)" : "Constellation Orbital Architecture & Swath Coverage"}
+            {t("illustrations.orbit_title")}
           </h3>
           <p className="text-xs text-slate-400">
-            {vi
-              ? "Quỹ đạo cực đồng bộ Mặt Trời (705 km & 824 km) quét buổi sáng và buổi chiều"
-              : "Sun-synchronous polar orbits (705 km & 824 km) across morning and afternoon overpasses"}
+            {t("illustrations.orbit_desc")}
           </p>
         </div>
 
@@ -35,11 +32,11 @@ export function ConstellationOrbitIllustration({ activeSensors, className }: Con
         <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
           <span className="inline-flex items-center gap-1.5 rounded-md border border-sky-500/30 bg-sky-950/40 px-2.5 py-1 text-sky-300">
             <span className="h-2 w-2 rounded-full bg-sky-400" />
-            {vi ? "Quỹ đạo 824 km: VIIRS Tandem (13:30 LT)" : "Orbit 824 km: VIIRS Tandem (13:30 LT)"}
+            {t("illustrations.orbit_pill_viirs")}
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-950/40 px-2.5 py-1 text-amber-300">
             <span className="h-2 w-2 rounded-full bg-amber-400" />
-            {vi ? "Quỹ đạo 705 km: MODIS Cực (10:30 & 13:30 LT)" : "Orbit 705 km: MODIS Polar (10:30 & 13:30 LT)"}
+            {t("illustrations.orbit_pill_modis")}
           </span>
         </div>
       </div>
@@ -136,9 +133,7 @@ export function ConstellationOrbitIllustration({ activeSensors, className }: Con
 
         {/* Ground Surface Reference Line */}
         <text x="480" y="342" textAnchor="middle" fill="#94a3b8" fontSize="12" fontFamily="monospace">
-          {vi
-            ? "Bề mặt Trái Đất & Vệt mục tiêu đồng quan sát (104°E - 109°E)"
-            : "Earth Surface & Co-Observation Target Swath (104°E - 109°E)"}
+          {t("illustrations.ground_surface")}
         </text>
 
         {/* SATELLITE 1: MODIS (Terra & Aqua) - x = 250, y = 145 */}
@@ -287,17 +282,16 @@ export function ConstellationOrbitIllustration({ activeSensors, className }: Con
 }
 
 export function MultiScaleHarmonizationIllustration({ className }: { className?: string }) {
-  const { lang } = useLang();
-  const vi = lang === "vi";
+  const { t } = useLang();
 
   return (
     <div className={cn("rounded-2xl border border-border/80 bg-slate-950/80 p-5 shadow-card backdrop-blur", className)}>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-3 mb-3">
         <h3 className="text-sm font-bold text-white flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-orange-400" />
-          {vi ? "Chuẩn hóa không gian & Chia lưới điểm ảnh (1000 m vs 375 m)" : "Spatial Harmonization & Pixel Sub-Gridding (1000 m vs 375 m)"}
+          {t("illustrations.multiscale_title")}
         </h3>
-        <span className="font-mono text-xs text-cyan-400">{vi ? "Tỷ lệ k = MODIS / VIIRS" : "Ratio k = MODIS / VIIRS"}</span>
+        <span className="font-mono text-xs text-cyan-400">{t("illustrations.multiscale_ratio")}</span>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 items-center">
@@ -305,12 +299,12 @@ export function MultiScaleHarmonizationIllustration({ className }: { className?:
           {/* MODIS Coarse Cell */}
           <rect x="20" y="20" width="120" height="120" rx="4" fill="#0f172a" stroke="#f59e0b" strokeWidth="2" strokeDasharray="4 4" />
           <text x="80" y="16" textAnchor="middle" fill="#f59e0b" fontSize="11" fontWeight="bold">
-            {vi ? "Ô MODIS (1000 m)" : "MODIS Cell (1000 m)"}
+            {t("illustrations.modis_cell")}
           </text>
           <circle cx="80" cy="80" r="18" fill="#f59e0b" fillOpacity="0.8" />
           <text x="80" y="84" textAnchor="middle" fill="#0f172a" fontSize="10" fontWeight="bold">FRP</text>
           <text x="80" y="156" textAnchor="middle" fill="#94a3b8" fontSize="10">
-            {vi ? "Ngưỡng phát hiện thô" : "Coarse detection threshold"}
+            {t("illustrations.coarse_threshold")}
           </text>
 
           {/* Arrow */}
@@ -321,7 +315,7 @@ export function MultiScaleHarmonizationIllustration({ className }: { className?:
           {/* VIIRS Fine Sub-Cells */}
           <g transform="translate(190, 20)">
             <text x="60" y="-4" textAnchor="middle" fill="#f97316" fontSize="11" fontWeight="bold">
-              {vi ? "Lưới VIIRS (375 m)" : "VIIRS Grid (375 m)"}
+              {t("illustrations.viirs_grid")}
             </text>
             {[0, 1, 2].map((r) =>
               [0, 1, 2].map((c) => {
@@ -344,23 +338,19 @@ export function MultiScaleHarmonizationIllustration({ className }: { className?:
               }),
             )}
             <text x="60" y="136" textAnchor="middle" fill="#94a3b8" fontSize="11">
-              {vi ? "Nhiều điểm cháy độc lập được phân giải" : "Multiple discrete sub-fires resolved"}
+              {t("illustrations.sub_fires_resolved")}
             </text>
           </g>
         </svg>
 
         <div className="space-y-2.5 text-xs text-slate-300 leading-relaxed">
           <p>
-            <strong className="text-white">{vi ? "Tại sao không cộng trực tiếp?" : "Why can't counts be directly merged?"}</strong>{" "}
-            {vi
-              ? "Một ô nhiệt MODIS 1000m chỉ ghi nhận 1 hotspot tổng thể, trong khi cảm biến VIIRS I-band 375m cùng lúc tách được tới 3 đến 7 cụm cháy độc lập."
-              : "A single 1000m MODIS thermal pixel reports 1 aggregated hotspot, whereas 375m VIIRS I-band resolves 3 to 7 discrete sub-fires within that footprint."}
+            <strong className="text-white">{t("illustrations.why_no_merge")}</strong>{" "}
+            {t("illustrations.why_no_merge_body")}
           </p>
           <p>
-            <strong className="text-white">{vi ? "Cơ chế hiệu chỉnh:" : "Harmonization mechanism:"}</strong>{" "}
-            {vi
-              ? "Ở giai đoạn trước năm 2012 (chỉ có MODIS), hệ thống tự động upscale theo hệ số k thực nghiệm được hiệu chỉnh trong giai đoạn quan sát kép (2012-2025), giữ cho chuỗi thời gian liên tục mà không sinh đỉnh nhảy nhân tạo."
-              : "Pre-2012 records (MODIS-only) are upscaled by the empirical ratio k derived during the co-observed baseline (2012-2025), preserving multi-decadal trend continuity without an artificial jump."}
+            <strong className="text-white">{t("illustrations.mechanism")}</strong>{" "}
+            {t("illustrations.mechanism_body")}
           </p>
         </div>
       </div>
@@ -369,34 +359,33 @@ export function MultiScaleHarmonizationIllustration({ className }: { className?:
 }
 
 export function ReasoningPipelineIllustration({ className }: { className?: string }) {
-  const { lang } = useLang();
-  const vi = lang === "vi";
+  const { t } = useLang();
 
   const steps = [
     {
       num: "01",
-      title: vi ? "Thu thập hai cảm biến" : "Dual Feed Ingestion",
-      desc: vi ? "MODIS 1km + VIIRS 375m quy chuẩn về một schema chung" : "MODIS 1km + VIIRS 375m normalized to unified schema",
+      title: t("illustrations.step1_title"),
+      desc: t("illustrations.step1_desc"),
     },
     {
       num: "02",
-      title: vi ? "Lọc cờ chất lượng QA" : "QA Flag & Filter",
-      desc: vi ? "Loại bỏ quét hỏng, góc quan sát lệch và dị thường hình học" : "Geometry anomalies & corrupted scans quarantined",
+      title: t("illustrations.step2_title"),
+      desc: t("illustrations.step2_desc"),
     },
     {
       num: "03",
-      title: vi ? "Hiệu chỉnh thang đo k" : "Empirical k Scaling",
-      desc: vi ? "Tỷ lệ hoạt động k tính trên các tháng đồng quan sát tại AOI" : "Activity ratio k calculated across overlapping AOI months",
+      title: t("illustrations.step3_title"),
+      desc: t("illustrations.step3_desc"),
     },
     {
       num: "04",
-      title: vi ? "Z-Score MAD bền vững" : "MAD Robust Z-Score",
-      desc: vi ? "Động cơ dị thường 1.4826 x MAD miễn nhiễm với cháy cực đoan" : "1.4826 x MAD anomaly engine immune to extreme fire skew",
+      title: t("illustrations.step4_title"),
+      desc: t("illustrations.step4_desc"),
     },
     {
       num: "05",
-      title: vi ? "Suy luận có căn cứ" : "Grounded Synthesis",
-      desc: vi ? "AI giải thích có dẫn chứng trực tiếp từ dữ liệu đo đạc" : "AI audit backed by multi-sensor telemetry evidence",
+      title: t("illustrations.step5_title"),
+      desc: t("illustrations.step5_desc"),
     },
   ];
 
@@ -405,10 +394,10 @@ export function ReasoningPipelineIllustration({ className }: { className?: strin
       <div className="flex items-center justify-between border-b border-border/40 pb-2.5">
         <h3 className="text-sm font-bold text-white flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-cyan-400" />
-          {vi ? "Kiến trúc Chuẩn hóa & Suy luận Dị thường" : "Harmonization & Anomaly Reasoning Architecture"}
+          {t("illustrations.reasoning_title")}
         </h3>
         <span className="font-mono text-xs text-cyan-400">
-          {vi ? "Đường dẫn chứng cứ tất định" : "Deterministic Evidence Path"}
+          {t("illustrations.deterministic_path")}
         </span>
       </div>
 
