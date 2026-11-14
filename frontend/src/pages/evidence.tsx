@@ -77,55 +77,70 @@ export function EvidencePage() {
     return () => { alive = false; };
   }, []);
 
-  const [spots, setSpots] = useState<BlindSpotResponse | null>(null);
-  const [coverage, setCoverage] = useState<Record<string, unknown> | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<unknown>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
-  const [selectedDay, setSelectedDay] = useState<{
+  // A response is only valid for its exact AOI, feed, period, filters, and
+  // retry attempt. Never render an earlier sample response under a RAW badge.
+  const requestKey = JSON.stringify([
+    aoi, data, year, month, qaMin, platformSet, dataset ?? null, reloadNonce,
+  ]);
+  const [snapshot, setSnapshot] = useState<{
+    key: string;
+    spots: BlindSpotResponse | null;
+    coverage: Record<string, unknown> | null;
+    error: unknown;
+    loading: boolean;
+  } | null>(null);
+  const current = snapshot?.key === requestKey ? snapshot : null;
+  const spots = current?.spots ?? null;
+  const coverage = current?.coverage ?? null;
+  const error = current?.error ?? null;
+  const loading = current?.loading ?? true;
+
+  const [selectedDayState, setSelectedDay] = useState<{
+    requestKey: string;
     day: number;
     modisReq: boolean;
     viirsReq: boolean;
     modisDetect: number;
     viirsDetect: number;
   } | null>(null);
+  const selectedDay =
+    selectedDayState?.requestKey === requestKey && spots ? selectedDayState : null;
 
   useEffect(() => {
     setSelectedDay(null);
-  }, [aoi, year, month]);
+  }, [requestKey]);
 
   useEffect(() => {
-    if (aoi === "custom" && !dataset) {
-      setSpots(null);
-      setCoverage(null);
-      setError(null);
-      setLoading(false);
-      return;
-    }
     let active = true;
-    setLoading(true);
-    setError(null);
+    if (aoi === "custom" && !dataset) {
+      setSnapshot({ key: requestKey, spots: null, coverage: null, error: null, loading: false });
+      return () => { active = false; };
+    }
+    setSnapshot({ key: requestKey, spots: null, coverage: null, error: null, loading: true });
 
-    Promise.all([
-      api.blindSpots(aoi, data, year, month, qaMin, platformSet, dataset).catch((err) => {
-        if (active) {
-          setError(err);
-          notifyToast({ icon: "error", title: describeError(err) });
-        }
-        return null;
-      }),
-      dataset ? Promise.resolve(null) : api.coverage(aoi, data).catch(() => null),
+    Promise.allSettled([
+      api.blindSpots(aoi, data, year, month, qaMin, platformSet, dataset),
+      dataset ? Promise.resolve(null) : api.coverage(aoi, data),
     ]).then(([spotRes, covRes]) => {
       if (!active) return;
-      if (spotRes) setSpots(spotRes);
-      setCoverage(covRes as Record<string, unknown> | null);
-      setLoading(false);
+      const failure = spotRes.status === "rejected" ? spotRes.reason : null;
+      if (failure) {
+        notifyToast({ icon: "error", title: describeError(failure) });
+      }
+      setSnapshot({
+        key: requestKey,
+        spots: spotRes.status === "fulfilled" ? spotRes.value : null,
+        coverage: covRes.status === "fulfilled" ? covRes.value as Record<string, unknown> | null : null,
+        error: failure,
+        loading: false,
+      });
     });
 
     return () => {
       active = false;
     };
-  }, [aoi, data, year, month, qaMin, platformSet, dataset, reloadNonce]);
+  }, [aoi, data, year, month, qaMin, platformSet, dataset, reloadNonce, requestKey]);
 
   const handleAoiChange = (newAoi: string) => {
     setSp((prev) => {
@@ -494,6 +509,7 @@ export function EvidencePage() {
                             type="button"
                             onClick={() =>
                               setSelectedDay({
+                                requestKey,
                                 day: i + 1,
                                 modisReq: Boolean(active),
                                 viirsReq: Boolean(days[i]?.viirs_requested),
@@ -536,6 +552,7 @@ export function EvidencePage() {
                             type="button"
                             onClick={() =>
                               setSelectedDay({
+                                requestKey,
                                 day: i + 1,
                                 modisReq: Boolean(days[i]?.modis_requested),
                                 viirsReq: Boolean(active),
