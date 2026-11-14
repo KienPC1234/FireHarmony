@@ -30,6 +30,7 @@ outputs/
 backend/data/firms/raw/
 backend/data/firms/demo_pack/raw/
 backend/data/firms/*.parquet
+backend/data/firms/parquet/
 
 # ===== HF cache =====
 .cache/huggingface/

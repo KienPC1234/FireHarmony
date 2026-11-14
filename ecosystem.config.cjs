@@ -62,7 +62,7 @@ module.exports = {
       name: "alphacentauriab",
       cwd: backend,
       script: path.join(root, ".venv", "bin", "python"),
-      args: "-m uvicorn app.main:app --host 0.0.0.0 --port 8000",
+      args: "-m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2",
       interpreter: "none",
       exec_mode: "fork",
       instances: 1,
