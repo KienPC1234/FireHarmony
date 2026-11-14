@@ -24,8 +24,8 @@ venv:
 fetch:  ## download real FIRMS CSVs (needs FIRMS_MAP_KEY; vars: AOI_BBOX SOURCES DAYS AOI)
 	cd $(BACKEND) && ../$(PY) -m scripts.firms.fetch_firms --bbox "$${AOI_BBOX:-104,10,109,16}" --days $${DAYS:-5} --sources "$${SOURCES:-VIIRS_SNPP_NRT,MODIS_NRT}" --aoi "$${AOI:-custom}"
 
-fetch-missing:  ## fetch only manifest-missing days (vars: AOI START_YEAR END_YEAR)
-	cd $(BACKEND) && ../$(PY) -m scripts.firms.fetch_missing --aoi "$${AOI:-vietnam}" --start-year "$${START_YEAR:-2019}" --end-year "$${END_YEAR:-2025}" --workers 2
+fetch-missing:  ## fetch only manifest-missing days (vars: AOI START_YEAR END_YEAR BBOX SOURCES MAX_REQUESTS DELAY DRY_RUN)
+	cd $(BACKEND) && ../$(PY) -m scripts.firms.fetch_missing --aoi "$${AOI:-vietnam}" --start-year "$${START_YEAR:-2019}" --end-year "$${END_YEAR:-2025}" --workers 2 $${BBOX:+--bbox $$BBOX} $${SOURCES:+--sources $$SOURCES} $${MAX_REQUESTS:+--max-requests $$MAX_REQUESTS} $${DELAY:+--delay $$DELAY} $${DRY_RUN:+--dry-run}
 
 ingest:  ## ingest a FIRMS CSV server-side (vars: FILE AOI=custom SOURCE=file)
 	curl -fsS -X POST "http://127.0.0.1:$(PORT)/api/firms/ingest?aoi=$${AOI:-custom}&source=$${SOURCE:-file}" -F "file=@$(FILE)"

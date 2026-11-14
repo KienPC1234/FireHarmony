@@ -683,7 +683,7 @@ export function CalendarPage() {
           </button>
 
           <Link
-            to={`/xray?aoi=${applied.aoi}&data=${applied.data}`}
+            to={{ pathname: "/xray", search: search.toString() }}
             className="hidden sm:inline-flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-1 text-xs font-semibold text-slate-300 hover:text-white transition min-h-[30px]"
           >
             <ScanEye className="h-3.5 w-3.5 text-cyan-400" />

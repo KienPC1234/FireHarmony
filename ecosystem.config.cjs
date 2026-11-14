@@ -25,7 +25,24 @@ function loadEnv(file) {
       const index = line.indexOf("=")
       const key = line.slice(0, index).trim()
       let value = line.slice(index + 1).trim()
-      value = value.replace(/\s+#.*$/, "").replace(/^["']|["']$/g, "")
+      // Strip inline comments only when '#' is outside single/double quotes.
+      let stripped = ""
+      let quote = null
+      for (let i = 0; i < value.length; i++) {
+        const ch = value[i]
+        if (quote) {
+          if (ch === quote) quote = null
+          stripped += ch
+        } else if (ch === '"' || ch === "'") {
+          quote = ch
+          stripped += ch
+        } else if (ch === "#" && (i === 0 || /\s/.test(value[i - 1]))) {
+          break
+        } else {
+          stripped += ch
+        }
+      }
+      value = stripped.trim().replace(/^["']|["']$/g, "")
       if (key) out[key] = value
     }
   } catch {
@@ -55,7 +72,7 @@ module.exports = {
       // for torch when CrossSensorCalibrator trains on overlap months.
       // Raw stat calendar now peaks ~1.1 GB; raw ML/TS still materialise the
       // full fused cell list for monthly rescaling, so keep headroom above 4 GB.
-      max_memory_restart: "8G",
+      max_memory_restart: process.env.MAX_MEMORY_RESTART || "8G",
       restart_delay: 2000,
       kill_timeout: 5000,
       time: true,
