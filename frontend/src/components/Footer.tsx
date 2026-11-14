@@ -17,7 +17,7 @@ export function Footer() {
     <footer className="border-t border-slate-800 bg-[#080E18] text-slate-400 text-xs shrink-0 z-30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {/* Top Section: Team Brand & Mission */}
-        <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 pb-6 border-b border-slate-800/80">
+        <div data-ui-review="overview-048" className="flex flex-col md:flex-row md:items-start justify-between gap-7 pb-7 border-b border-slate-800/80">
           <div className="space-y-2 max-w-md">
             <div className="flex items-center gap-2">
               <span className="font-bold text-white text-base tracking-tight">FireHarmony</span>
@@ -31,12 +31,12 @@ export function Footer() {
           </div>
 
           {/* Quick Nav Links */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 text-xs">
+          <div className="grid min-w-0 grid-cols-2 gap-x-6 gap-y-7 text-xs sm:grid-cols-3">
             <div className="space-y-2">
-              <span className="font-bold text-white uppercase tracking-wider text-[11px] block font-mono">
+              <span className="font-bold text-white uppercase tracking-normal text-[11px] block font-sans leading-6 break-words">
                 {t("footer.col_platform")}
               </span>
-              <ul className="space-y-1.5 font-sans">
+              <ul className="space-y-2 font-sans leading-relaxed break-words">
                 <li>
                   <Link to="/calendar" className="hover:text-cyan-300 transition flex items-center gap-1.5">
                     <CalendarDays className="h-3 w-3" />
@@ -59,10 +59,10 @@ export function Footer() {
             </div>
 
             <div className="space-y-2">
-              <span className="font-bold text-white uppercase tracking-wider text-[11px] block font-mono">
+              <span className="font-bold text-white uppercase tracking-normal text-[11px] block font-sans leading-6 break-words">
                 {t("footer.col_science")}
               </span>
-              <ul className="space-y-1.5 font-sans">
+              <ul className="space-y-2 font-sans leading-relaxed break-words">
                 <li>
                   <Link to="/investigator" className="hover:text-cyan-300 transition flex items-center gap-1.5">
                     <MessagesSquare className="h-3 w-3" />
@@ -85,10 +85,10 @@ export function Footer() {
             </div>
 
             <div className="space-y-2 col-span-2 sm:col-span-1">
-              <span className="font-bold text-white uppercase tracking-wider text-[11px] block font-mono">
+              <span className="font-bold text-white uppercase tracking-normal text-[11px] block font-sans leading-6 break-words">
                 {t("footer.col_provenance")}
               </span>
-              <ul className="space-y-1.5 font-sans">
+              <ul className="space-y-2 font-sans leading-relaxed break-words">
                 <li>
                   <a
                     href="https://earthdata.nasa.gov/data/tools/firms"

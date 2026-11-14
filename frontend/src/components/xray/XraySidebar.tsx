@@ -75,20 +75,22 @@ export function XraySidebar({
                 type="button"
                 onClick={() => setAoi(item.id)}
                 className={cn(
-                  "w-full text-left rounded-xl p-2.5 transition-colors duration-150 border flex items-center justify-between min-h-[44px]",
+                  "w-full min-w-0 text-left rounded-xl p-3 transition-colors duration-150 border flex items-start min-h-[64px]",
                   active
                     ? "border-cyan-500/50 bg-cyan-500/10 text-cyan-200 shadow-sm"
                     : "border-slate-800 bg-slate-900/40 text-slate-400 hover:text-slate-200 hover:bg-slate-900/80",
                 )}
               >
-                <div>
-                  <div className="font-semibold text-xs text-white flex items-center gap-1.5">
-                    <span>{vi ? item.name.vi : item.name.en}</span>
-                    {active && <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />}
+                <div className="min-w-0 w-full space-y-1.5">
+                  <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-0.5">
+                    <span className="min-w-0 font-semibold text-xs leading-5 text-white break-words">
+                      {vi ? item.name.vi : item.name.en}
+                      {active && <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-cyan-400 align-middle animate-pulse" />}
+                    </span>
+                    <span className="font-mono text-[10px] leading-5 text-slate-400 whitespace-nowrap">{item.coords}</span>
                   </div>
-                  <div className="text-xs text-slate-400 truncate max-w-[190px]">{vi ? item.desc.vi : item.desc.en}</div>
+                  <div className="text-xs leading-relaxed text-slate-400 break-words">{vi ? item.desc.vi : item.desc.en}</div>
                 </div>
-                <span className="font-mono text-xs text-slate-500">{item.coords}</span>
               </button>
             );
           })}
@@ -105,7 +107,7 @@ export function XraySidebar({
               type="button"
               onClick={() => setData("sample")}
               className={cn(
-                "rounded-md py-1.5 text-center text-xs font-semibold transition-colors duration-150 min-h-[36px]",
+                "min-w-0 rounded-md px-1.5 py-2 text-center text-[11px] leading-4 font-semibold transition-colors duration-150 min-h-[40px] break-words",
                 data === "sample"
                   ? "bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 shadow-sm"
                   : "text-slate-400 hover:text-white",
@@ -117,7 +119,7 @@ export function XraySidebar({
               type="button"
               onClick={() => setData("raw")}
               className={cn(
-                "rounded-md py-1.5 text-center text-xs font-semibold transition-colors duration-150 min-h-[36px]",
+                "min-w-0 rounded-md px-1.5 py-2 text-center text-[11px] leading-4 font-semibold transition-colors duration-150 min-h-[40px] break-words",
                 data === "raw"
                   ? "bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-sm"
                   : "text-slate-400 hover:text-white",
@@ -181,24 +183,24 @@ export function XraySidebar({
         </div>
 
         {/* Telemetry Hardware Specs Card */}
-        <div className="border-t border-slate-800 pt-3 space-y-2 text-xs font-mono">
-          <div className="flex items-center justify-between text-slate-400">
-            <span>{t("xray.units")}:</span>
-            <span className="text-slate-200 font-semibold">{units}</span>
+        <div data-ui-review="xray-units" className="border-t border-slate-800 pt-3 space-y-3 text-xs font-mono">
+          <div className="space-y-1.5 text-slate-400">
+            <span className="block font-sans font-semibold leading-5">{t("xray.units")}</span>
+            <span className="block text-slate-200 font-sans font-medium leading-relaxed break-words" title={units}>{units}</span>
           </div>
-          <div className="flex items-center justify-between text-slate-400">
+          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 leading-relaxed text-slate-400">
             <span>{t("xray.total_months")}:</span>
             <span className="text-slate-200">
               {vi ? `${totalMonths} cặp tháng` : `${totalMonths} monthly pairs`}
             </span>
           </div>
-          <div className="flex items-center justify-between text-slate-400">
+          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 leading-relaxed text-slate-400">
             <span>{t("xray.ml_status")}:</span>
             <span className={mlTrained ? "text-emerald-400 font-bold" : "text-amber-400"}>
               {mlTrained ? (vi ? "Sẵn sàng" : "Operational") : (vi ? "Dự phòng" : "Offline fallback")}
             </span>
           </div>
-          <div className="flex items-center justify-between text-slate-400">
+          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 leading-relaxed text-slate-400">
             <span>{t("xray.ts_status")}:</span>
             <span className={tsTrained ? "text-emerald-400 font-bold" : "text-amber-400"}>
               {tsTrained ? (vi ? "Đang bật" : "Active") : (vi ? "Dự phòng" : "Offline fallback")}

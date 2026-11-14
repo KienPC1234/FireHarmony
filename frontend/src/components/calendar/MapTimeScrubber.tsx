@@ -96,10 +96,10 @@ export function MapTimeScrubber({
   };
 
   return (
-    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[400] max-w-[94vw] sm:max-w-2xl w-full">
+    <div data-ui-review="calendar-scrubber" className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[400] w-[min(94%,672px)] max-w-full">
       <div className="rounded-2xl border border-slate-800/90 bg-[#0B1220]/95 backdrop-blur-md p-2.5 shadow-2xl space-y-2 text-xs">
         {/* Controls row */}
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           {/* Year selector with prev/next */}
           <div className="flex items-center gap-1 bg-slate-900/90 border border-slate-800 rounded-xl px-1.5 py-1">
             <button
@@ -140,7 +140,7 @@ export function MapTimeScrubber({
           </div>
 
           {/* Current Period Label */}
-          <div className="flex items-center gap-2 font-mono">
+          <div className="flex min-w-0 items-center gap-2 font-mono">
             <span className="text-slate-400 hidden sm:inline text-[11px]">
               {t("calendar.timeline_period")}
             </span>

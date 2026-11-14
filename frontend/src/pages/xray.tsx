@@ -48,27 +48,43 @@ export function XrayPage() {
   }, [aoi, data]);
 
   const handleSetAoi = (newAoi: string) => {
-    setSp({ aoi: newAoi, data });
+    setSp((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("aoi", newAoi);
+      next.set("data", data);
+      return next;
+    });
   };
 
   const handleSetData = (newData: string) => {
-    setSp({ aoi, data: newData });
+    setSp((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("aoi", aoi);
+      next.set("data", newData);
+      return next;
+    });
   };
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6 max-w-7xl mx-auto w-full space-y-6 pb-24 animate-fade-up">
       {/* 1. Top Banner & Control Deck */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-[#111C2E] p-4 sm:p-5 shadow-sm">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2.5">
+        <div className="min-w-0 space-y-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-2">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-950/60 shadow-inner">
               <ScanEye className="h-5 w-5 text-cyan-400" />
             </div>
             <h1 className="text-xl font-bold tracking-tight text-white">
               {t("xray.title")}
             </h1>
-            <span className="font-mono text-xs font-semibold uppercase px-2.5 py-0.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-300">
-              {xr?.data_source ?? data.toUpperCase()}
+            <span
+              title={xr?.data_source ?? data.toUpperCase()}
+              aria-label={xr?.data_source ?? data.toUpperCase()}
+              className="shrink-0 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-sans font-semibold leading-4 text-cyan-300"
+            >
+              {(xr?.data_source ?? data).toLowerCase().includes("synthetic") || data === "sample"
+                ? t("common.synthetic_feed")
+                : t("common.observed_feed")}
             </span>
           </div>
           <p className="text-xs text-slate-300 max-w-3xl leading-relaxed">
@@ -77,7 +93,7 @@ export function XrayPage() {
         </div>
 
         {/* Global tab navigation pills */}
-        <div className="flex items-center rounded-xl border border-slate-800 bg-slate-900/90 p-1 text-xs">
+        <div className="flex max-w-full flex-wrap items-center gap-1 rounded-xl border border-slate-800 bg-slate-900/90 p-1 text-xs">
           <button
             type="button"
             onClick={() => setViewTab("trajectory")}

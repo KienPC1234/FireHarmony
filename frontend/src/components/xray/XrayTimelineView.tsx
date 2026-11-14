@@ -77,40 +77,40 @@ export function XrayTimelineView({ months, units }: XrayTimelineViewProps) {
     <div className="space-y-5 animate-fade-in">
       {/* Telemetry Indicator Badges */}
       {summary && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-xl border border-border/70 bg-slate-950/80 p-3.5 backdrop-blur space-y-1">
-            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400">
-              <span>{vi ? "Hệ số k trung bình" : "Mean Scaling (k)"}</span>
+        <div data-ui-review="xray-metrics" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="min-w-0 rounded-xl border border-border/70 bg-slate-950/80 p-4 backdrop-blur space-y-2">
+            <div className="flex items-start justify-between gap-1.5 text-[11px] font-semibold uppercase tracking-normal leading-5 text-slate-400">
+              <span className="min-w-0 flex-1 break-words">{vi ? "Hệ số k trung bình" : "Mean Scaling (k)"}</span>
               <TrendingUp className="h-3.5 w-3.5 text-cyan-400" />
             </div>
-            <p className="font-mono text-2xl font-black text-cyan-300">{summary.avgK}x</p>
+            <p className="font-mono text-xl sm:text-2xl font-black leading-snug break-words text-cyan-300">{summary.avgK}x</p>
             <p className="text-xs text-slate-400">{vi ? "MODIS phóng đại theo 1/k" : "MODIS upscaled by 1/k"}</p>
           </div>
 
-          <div className="rounded-xl border border-border/70 bg-slate-950/80 p-3.5 backdrop-blur space-y-1">
-            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400">
-              <span>{vi ? "Sai số tuyệt đối MAE" : "Holdout MAE"}</span>
+          <div className="min-w-0 rounded-xl border border-border/70 bg-slate-950/80 p-4 backdrop-blur space-y-2">
+            <div className="flex items-start justify-between gap-1.5 text-[11px] font-semibold uppercase tracking-normal leading-5 text-slate-400">
+              <span className="min-w-0 flex-1 break-words">{vi ? "Sai số tuyệt đối MAE" : "Holdout MAE"}</span>
               <Activity className="h-3.5 w-3.5 text-orange-400" />
             </div>
-            <p className="font-mono text-2xl font-black text-orange-300">±{summary.meanAbsError}</p>
+            <p className="font-mono text-xl sm:text-2xl font-black leading-snug break-words text-orange-300">±{summary.meanAbsError}</p>
             <p className="text-xs text-slate-400">{vi ? "Độ lệch dư phát hiện tháng" : "Monthly detection residual"}</p>
           </div>
 
-          <div className="rounded-xl border border-border/70 bg-slate-950/80 p-3.5 backdrop-blur space-y-1">
-            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400">
-              <span>{vi ? "Độ lệch thiên vị Mean Bias" : "Mean Bias Error"}</span>
+          <div className="min-w-0 rounded-xl border border-border/70 bg-slate-950/80 p-4 backdrop-blur space-y-2">
+            <div className="flex items-start justify-between gap-1.5 text-[11px] font-semibold uppercase tracking-normal leading-5 text-slate-400">
+              <span className="min-w-0 flex-1 break-words">{vi ? "Độ lệch thiên vị Mean Bias" : "Mean Bias Error"}</span>
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
             </div>
-            <p className="font-mono text-2xl font-black text-emerald-300">{summary.meanBias}</p>
+            <p className="font-mono text-xl sm:text-2xl font-black leading-snug break-words text-emerald-300">{summary.meanBias}</p>
             <p className="text-xs text-slate-400">{vi ? "Hiệu chuẩn căn tâm 0" : "Zero-centered calibration"}</p>
           </div>
 
-          <div className="rounded-xl border border-border/70 bg-slate-950/80 p-3.5 backdrop-blur space-y-1">
-            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400">
-              <span>{vi ? "Tương đồng tổng thể" : "Volume Parity"}</span>
+          <div className="min-w-0 rounded-xl border border-border/70 bg-slate-950/80 p-4 backdrop-blur space-y-2">
+            <div className="flex items-start justify-between gap-1.5 text-[11px] font-semibold uppercase tracking-normal leading-5 text-slate-400">
+              <span className="min-w-0 flex-1 break-words">{vi ? "Tương đồng tổng thể" : "Volume Parity"}</span>
               <Activity className="h-3.5 w-3.5 text-cyan-400" />
             </div>
-            <p className="font-mono text-2xl font-black text-white">{summary.harmonizedParity}</p>
+            <p className="font-mono text-xl sm:text-2xl font-black leading-snug break-words text-white">{summary.harmonizedParity}</p>
             <p className="text-xs text-slate-400">{vi ? "Chuỗi hiệu chuẩn vs VIIRS chuẩn" : "Harmonized vs VIIRS Reference"}</p>
           </div>
         </div>
