@@ -84,7 +84,7 @@ export function XrayPage() {
                 <th>method</th><th>MAE</th><th>WAPE</th><th>bias</th>
               </tr></thead>
               <tbody>
-                {(["b0_raw_modis", "b1_global_ratio", "b2_seasonal_ratio", "ml", "transformer"] as const).map((k) => (
+                {(["b0_raw_modis", "b1_global_ratio", "b2_seasonal_ratio", "hgb_b2res_v4", "ts_logratio_pool_v2"] as const).map((k) => (
                   mets[k] ? (
                     <tr key={k} className="border-t font-mono text-xs">
                       <td>{k}</td><td>{mets[k].mae.toFixed(2)}</td>
@@ -105,10 +105,11 @@ export function XrayPage() {
           <h2 className="font-bold">Provenance</h2>
           <ul className="mt-2 space-y-1 font-mono text-xs">
             <li>units: {xr.units}</li>
-            <li>hgb artifact: {xr.ml_trained ? "trained" : "missing"}</li>
+            <li>evaluation: {String((xr as { evaluation_version?: string }).evaluation_version ?? "n/a")} · {String((xr as { eval_unit?: string }).eval_unit ?? "")}</li>
+            <li>hgb artifact: {xr.ml_trained ? "trained" : "missing"} · {String((xr as { effective_ml_method?: string }).effective_ml_method ?? "")}</li>
             <li>transformer: {xr.ts_trained ? `trained (${String((xr.ts_meta as { params?: number })?.params ?? "?")} params)` : "missing"}</li>
             <li>months: {xr.months.length}</li>
-            <li>adjusted_calendar = same pipeline as /calendar (must match month totals)</li>
+            <li>adjusted_stat ratio source: {String((xr.months[0] as { ratio_source?: string })?.ratio_source ?? "?")}</li>
           </ul>
           {bt && (
             <p className="mt-2 text-xs text-muted-foreground">

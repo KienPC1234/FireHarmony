@@ -160,13 +160,15 @@ def predict_windows(model, X: np.ndarray, log_mean: float, log_std: float) -> np
         return np.clip(np.expm1(model(torch.tensor(X)).numpy() * log_std + log_mean), 0.0, None)
 
 
-def save_artifact(model, meta: dict, aoi: str, model_dir) -> dict:
+def save_artifact(model, meta: dict, aoi: str, model_dir, tag: str = "sample") -> dict:
     out = Path(model_dir)
     out.mkdir(parents=True, exist_ok=True)
-    mp, jp = out / f"ts_{aoi}.pt", out / f"ts_{aoi}.json"
+    suffix = "" if tag == "sample" else f"_{tag}"
+    mp, jp = out / f"ts_{aoi}{suffix}.pt", out / f"ts_{aoi}{suffix}.json"
     torch.save(model.state_dict(), mp)
     doc = {"method_id": meta.get("method_id", METHOD_ID), "seed": SEED,
-           "aoi": aoi, "train_years": meta.get("train_years", []),
+           "aoi": aoi, "data_tag": tag,
+           "train_years": meta.get("train_years", []),
            "test_years": meta.get("test_years", []),
            "n_train": meta.get("n_train", 0), "n_test": meta.get("n_test", 0),
            "metrics": meta.get("metrics", {}), "params": meta.get("params", 0),
@@ -179,9 +181,10 @@ def save_artifact(model, meta: dict, aoi: str, model_dir) -> dict:
     return {"model_path": str(mp), "meta_path": str(jp)}
 
 
-def load_artifact(aoi: str, model_dir):
+def load_artifact(aoi: str, model_dir, tag: str = "sample"):
     out = Path(model_dir)
-    mp, jp = out / f"ts_{aoi}.pt", out / f"ts_{aoi}.json"
+    suffix = "" if tag == "sample" else f"_{tag}"
+    mp, jp = out / f"ts_{aoi}{suffix}.pt", out / f"ts_{aoi}{suffix}.json"
     if not (mp.exists() and jp.exists()):
         return None, None
     try:

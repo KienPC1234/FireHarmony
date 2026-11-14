@@ -1,0 +1,359 @@
+{
+ "method_id": "hgb-b2residual-v4",
+ "seed": 7,
+ "aoi": "australia",
+ "data_tag": "raw",
+ "training_source": "nasa-firms-raw",
+ "dataset_sha256": "f3e51ac4c3c5b4f8387c2c670e9a44b5f9ca6dd79946d0e862cd708afbed68a1",
+ "train_years": [
+  2019,
+  2020,
+  2021,
+  2022,
+  2023,
+  2024
+ ],
+ "test_years": [
+  2025,
+  2026
+ ],
+ "n_train": 72,
+ "n_test": 13,
+ "metrics": {
+  "ml": {
+   "mae": 4978.194260434166,
+   "wape": 0.22327514959632414,
+   "bias": -3492.439836626018
+  },
+  "b0_raw_modis": {
+   "mae": 18482.69230769231,
+   "wape": 0.8289603968935764,
+   "bias": -18482.69230769231
+  },
+  "b1_global_ratio": {
+   "mae": 4979.101130050677,
+   "wape": 0.2233158232700898,
+   "bias": -3496.3696049642354
+  },
+  "b2_seasonal_ratio": {
+   "mae": 4978.058297216954,
+   "wape": 0.22326905156035481,
+   "bias": -3384.2816684413474
+  }
+ },
+ "features": [
+  "log_modis",
+  "rel_activity",
+  "day_frac",
+  "terra_frac",
+  "prev_rel_activity",
+  "month_sin",
+  "month_cos"
+ ],
+ "sklearn_version": "1.9.1",
+ "created_at": "2026-11-10T05:17:57.685588+00:00",
+ "b1_ratio": 4.929768338217382,
+ "b2_ratios": {
+  "1": 4.560199103958958,
+  "2": 5.268548827126388,
+  "3": 4.65745780101344,
+  "4": 4.708004957380425,
+  "5": 5.006593971461975,
+  "6": 4.9822427109754255,
+  "7": 4.493356546915524,
+  "8": 5.023618634614547,
+  "9": 5.151158753251962,
+  "10": 5.089398383619384,
+  "11": 4.99096648251313,
+  "12": 4.9711599590386335
+ },
+ "b2_log_ratios": {
+  "1": 1.5173662857219814,
+  "2": 1.6617549597617502,
+  "3": 1.538469763015296,
+  "4": 1.5492642423669798,
+  "5": 1.6107558378811042,
+  "6": 1.6058801332316932,
+  "7": 1.5025999830301968,
+  "8": 1.6141505175694277,
+  "9": 1.639221689998248,
+  "10": 1.6271596278241862,
+  "11": 1.6076295748794949,
+  "12": 1.603653205037515
+ },
+ "b1_log_ratio": 1.5952919967309258,
+ "params": {
+  "max_depth": 1,
+  "min_samples_leaf": 10,
+  "l2_regularization": 1.0
+ },
+ "target": "b2_residual",
+ "cv": {
+  "cv_mae": {
+   "{'max_depth': 1, 'min_samples_leaf': 10, 'l2_regularization': 1.0}": 1858.5037122182814,
+   "{'max_depth': 1, 'min_samples_leaf': 10, 'l2_regularization': 10.0}": 1882.8085312513278,
+   "{'max_depth': 1, 'min_samples_leaf': 10, 'l2_regularization': 50.0}": 1894.5136984611852,
+   "{'max_depth': 1, 'min_samples_leaf': 10, 'l2_regularization': 200.0}": 1869.7686322285733,
+   "{'max_depth': 1, 'min_samples_leaf': 20, 'l2_regularization': 1.0}": 1891.7653227236935,
+   "{'max_depth': 1, 'min_samples_leaf': 20, 'l2_regularization': 10.0}": 1909.616186857933,
+   "{'max_depth': 1, 'min_samples_leaf': 20, 'l2_regularization': 50.0}": 1903.2836228970489,
+   "{'max_depth': 1, 'min_samples_leaf': 20, 'l2_regularization': 200.0}": 1897.4786559423844,
+   "{'max_depth': 1, 'min_samples_leaf': 40, 'l2_regularization': 1.0}": 1987.4599373222366,
+   "{'max_depth': 1, 'min_samples_leaf': 40, 'l2_regularization': 10.0}": 1987.4599373222366,
+   "{'max_depth': 1, 'min_samples_leaf': 40, 'l2_regularization': 50.0}": 1987.4599373222366,
+   "{'max_depth': 1, 'min_samples_leaf': 40, 'l2_regularization': 200.0}": 1987.4599373222366,
+   "{'max_depth': 2, 'min_samples_leaf': 10, 'l2_regularization': 1.0}": 1962.0777399557076,
+   "{'max_depth': 2, 'min_samples_leaf': 10, 'l2_regularization': 10.0}": 2025.7785826060724,
+   "{'max_depth': 2, 'min_samples_leaf': 10, 'l2_regularization': 50.0}": 1968.7470402802053,
+   "{'max_depth': 2, 'min_samples_leaf': 10, 'l2_regularization': 200.0}": 1923.535842109837,
+   "{'max_depth': 2, 'min_samples_leaf': 20, 'l2_regularization': 1.0}": 1879.221618260247,
+   "{'max_depth': 2, 'min_samples_leaf': 20, 'l2_regularization': 10.0}": 1895.1023632199406,
+   "{'max_depth': 2, 'min_samples_leaf': 20, 'l2_regularization': 50.0}": 1883.19707780791,
+   "{'max_depth': 2, 'min_samples_leaf': 20, 'l2_regularization': 200.0}": 1877.0925693073714,
+   "{'max_depth': 2, 'min_samples_leaf': 40, 'l2_regularization': 1.0}": 1987.4599373222366,
+   "{'max_depth': 2, 'min_samples_leaf': 40, 'l2_regularization': 10.0}": 1987.4599373222366,
+   "{'max_depth': 2, 'min_samples_leaf': 40, 'l2_regularization': 50.0}": 1987.4599373222366,
+   "{'max_depth': 2, 'min_samples_leaf': 40, 'l2_regularization': 200.0}": 1987.4599373222366
+  },
+  "folds": [
+   {
+    "test_year": 2022,
+    "n_train": 36,
+    "n_test": 12
+   },
+   {
+    "test_year": 2023,
+    "n_train": 48,
+    "n_test": 12
+   },
+   {
+    "test_year": 2024,
+    "n_train": 60,
+    "n_test": 12
+   }
+  ],
+  "best": "{'max_depth': 1, 'min_samples_leaf': 10, 'l2_regularization': 1.0}",
+  "n_configs": 24
+ },
+ "selected_by": "blocked_time_series_cv",
+ "residual_enabled": false,
+ "residual_gate": {
+  "enabled": false,
+  "folds": [
+   {
+    "test_year": 2022,
+    "b1_mae": 1726.91,
+    "b2_mae": 2035.6,
+    "residual_mae": 1944.95
+   },
+   {
+    "test_year": 2023,
+    "b1_mae": 1191.68,
+    "b2_mae": 1911.72,
+    "residual_mae": 1921.98
+   },
+   {
+    "test_year": 2024,
+    "b1_mae": 1730.66,
+    "b2_mae": 1658.16,
+    "residual_mae": 1825.51
+   }
+  ],
+  "cv_b1_mae": 1549.749132933571,
+  "cv_b2_mae": 1868.4950641141893,
+  "cv_residual_mae": 1897.4786559423844,
+  "fold_wins": 1,
+  "n_folds": 3,
+  "fallback_baseline": "b1_global_ratio",
+  "reason": "no robust gain; serving b1_global_ratio (mean gain only -1.6% (<2%); won 1/3 folds; regressed on the most recent fold)"
+ },
+ "fallback_baseline": "b1_global_ratio",
+ "residual_mean": 0.03697404287005819,
+ "residual_abs_mean": 0.06130425944618802,
+ "feature_version": "features-v4.1",
+ "algorithm_version": "ml_b2res_v4.1",
+ "data_fingerprint": "3888aff399f58442",
+ "unified_eval": {
+  "evaluation_version": "eval-v2",
+  "dataset_sha256": "01040878f21ea7bd",
+  "test_years": [
+   2025,
+   2026
+  ],
+  "n_eval": 12,
+  "eval_unit": "aoi-month (VIIRS hotspot detections, not fires)",
+  "metrics": {
+   "b0_raw_modis": {
+    "mae": 12452.25,
+    "wape": 0.79794,
+    "bias": -12452.25,
+    "n": 12
+   },
+   "b1_global_ratio": {
+    "mae": 1666.3455,
+    "wape": 0.106779,
+    "bias": -56.7782,
+    "n": 12
+   },
+   "b2_seasonal_ratio": {
+    "mae": 1725.1069,
+    "wape": 0.110545,
+    "bias": 4.7723,
+    "n": 12
+   },
+   "hgb_b2res_v4": {
+    "mae": 1666.3455,
+    "wape": 0.106779,
+    "bias": -56.7782,
+    "n": 12
+   },
+   "ts_logratio_pool_v2": {
+    "mae": 1830.4518,
+    "wape": 0.117295,
+    "bias": 691.5524,
+    "n": 12
+   }
+  },
+  "pooled_metrics": {
+   "b0_raw_modis": {
+    "mae": 10262.5278,
+    "wape": 0.776208,
+    "bias": -10262.5278,
+    "n": 36
+   },
+   "b1_global_ratio": {
+    "mae": 2037.667,
+    "wape": 0.154119,
+    "bias": -882.4431,
+    "n": 36
+   },
+   "b2_seasonal_ratio": {
+    "mae": 1282.6208,
+    "wape": 0.097011,
+    "bias": 473.2676,
+    "n": 36
+   },
+   "hgb_b2res_v4": {
+    "mae": 1263.0337,
+    "wape": 0.09553,
+    "bias": 452.7507,
+    "n": 36
+   },
+   "ts_logratio_pool_v2": {
+    "mae": 1798.045,
+    "wape": 0.135995,
+    "bias": -388.8315,
+    "n": 36
+   }
+  },
+  "pooled_full_month": {
+   "aois": [
+    "vietnam",
+    "amazon"
+   ],
+   "n_eval": 24,
+   "metrics": {
+    "b0_raw_modis": {
+     "mae": 9167.6667,
+     "wape": 0.762112,
+     "bias": -9167.6667,
+     "n": 24
+    },
+    "b1_global_ratio": {
+     "mae": 2223.3277,
+     "wape": 0.184826,
+     "bias": -1295.2755,
+     "n": 24
+    },
+    "b2_seasonal_ratio": {
+     "mae": 1061.3778,
+     "wape": 0.088233,
+     "bias": 707.5152,
+     "n": 24
+    },
+    "hgb_b2res_v4": {
+     "mae": 1061.3778,
+     "wape": 0.088233,
+     "bias": 707.5152,
+     "n": 24
+    },
+    "ts_logratio_pool_v2": {
+     "mae": 1781.8416,
+     "wape": 0.148125,
+     "bias": -929.0234,
+     "n": 24
+    }
+   }
+  },
+  "rank": [
+   {
+    "method": "b1_global_ratio",
+    "mae": 1666.3455
+   },
+   {
+    "method": "hgb_b2res_v4",
+    "mae": 1666.3455
+   },
+   {
+    "method": "b2_seasonal_ratio",
+    "mae": 1725.1069
+   },
+   {
+    "method": "ts_logratio_pool_v2",
+    "mae": 1830.4518
+   },
+   {
+    "method": "b0_raw_modis",
+    "mae": 12452.25
+   }
+  ],
+  "best_method": "b1_global_ratio",
+  "coverage_class": "sparse_window",
+  "coverage": {
+   "months": 85,
+   "full_months": 0,
+   "partial_months": 85,
+   "missing_day_histogram": {
+    "1": 85,
+    "2": 85,
+    "3": 85,
+    "4": 85,
+    "5": 84,
+    "6": 84,
+    "7": 84,
+    "8": 84,
+    "9": 83,
+    "10": 84,
+    "11": 84,
+    "12": 84,
+    "13": 2,
+    "14": 3,
+    "15": 3,
+    "16": 3,
+    "17": 3,
+    "18": 85,
+    "19": 85,
+    "20": 84,
+    "21": 84,
+    "22": 84,
+    "23": 84,
+    "24": 84,
+    "25": 85,
+    "26": 85,
+    "27": 85,
+    "28": 85,
+    "29": 80,
+    "30": 78,
+    "31": 49
+   },
+   "verified": true
+  },
+  "ts_unified_seed_mae_range": [
+   1704.43,
+   1985.95
+  ],
+  "note": "Every method in `pooled`/`per_aoi` is scored on the exact same sample IDs. `hgb_full_test` covers all monthly test pairs and is reported separately because the Transformer lacks a 12-month context for some of them."
+ },
+ "eval_manifest_id": "eval-v2:01040878f21ea7bd",
+ "metrics_scope": "training_split; use unified_eval for the published table"
+}

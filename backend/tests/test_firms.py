@@ -1,6 +1,7 @@
 """FIRMS harmonization tests — schema, harmonization, calendar, DL describe."""
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,8 @@ from app.firms.schema import FirmsRecord
 from app.main import app
 
 client = TestClient(app)
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 _DIST_INDEX = Path(__file__).resolve().parents[2] / "frontend" / "dist" / "index.html"
 
@@ -200,7 +203,7 @@ def test_data_status_and_ingest_roundtrip(tmp_path):
     st2 = client.get("/api/firms/data-status").json()
     assert st2["raw_count"] >= 1
     from pathlib import Path as _P
-    for f in _P("data/firms/raw").glob("amazon_test_*.csv"):
+    for f in (BACKEND_DIR / "data" / "firms" / "raw").glob("amazon_test_*.csv"):
         f.unlink()
     import json as _json
     from app.firms.store import MANIFEST as _M
@@ -262,7 +265,7 @@ def test_brief_download_has_sections():
 def test_no_noaa20_before_2018_04_in_samples():
     import csv
     from pathlib import Path
-    for f in Path("data/firms/samples").glob("*.csv"):
+    for f in (BACKEND_DIR / "data" / "firms" / "samples").glob("*.csv"):
         with f.open() as fh:
             for r in csv.DictReader(fh):
                 assert not (r["satellite"] == "NOAA-20" and r["acq_date"] < "2018-04-01"), f
@@ -332,10 +335,10 @@ def test_ask_llm_grounded_or_fallback():
 
 def test_ts_status_and_calendar_ts():
     s = client.get("/api/firms/ts-status", params={"aoi": "vietnam"}).json()
-    assert s["trained"] is True and s["method_id"] == "ts_win12_v1"
+    assert s["trained"] is True and s["method_id"] == "ts_logratio_pool_v2"
     assert s["params"] > 1000
     r = client.get("/api/firms/calendar", params={"aoi": "vietnam", "method": "ts"}).json()
-    assert r["method_id"] == "ts_win12_v1"
+    assert r["method_id"] == "ts_logratio_pool_v2"
     assert any(d.get("estimate_type") == "ts_predicted" for d in r["daily"])
     bad = client.get("/api/firms/calendar", params={"aoi": "vietnam", "method": "nope"})
     assert bad.status_code == 422
@@ -343,10 +346,15 @@ def test_ts_status_and_calendar_ts():
 
 @pytest.mark.skipif(not _DIST_INDEX.exists(), reason="no SPA build")
 def test_backtest_has_transformer_and_spa_fallback():
-    b = client.get("/api/firms/backtest", params={"aoi": "vietnam"}).json()
-    assert "transformer" in b["metrics"]
+    b = client.get("/api/firms/backtest", params={"aoi": "vietnam", "data": "sample"}).json()
+    metrics = b["metrics"]
+    assert "ts_logratio_pool_v2" in metrics
+    assert "b2_seasonal_ratio" in metrics
+    assert b["eval_unit"].startswith("aoi-month")
     assert b["months"] and "ts_pred" in b["months"][0]
+    assert b["months"][0]["ml_pred"] is not None
     assert client.get("/calendar").status_code == 200
+    assert client.get("/logo.svg").headers["content-type"].startswith("image/svg")
     assert client.get("/api/does-not-exist").status_code == 404
 
 
@@ -380,19 +388,22 @@ def test_ml_monthly_conservation():
     from pathlib import Path as _P
 
     from app.firms import ml_cal as _mlc
-    model, _meta = _mlc.load_artifact("vietnam", _P("data/firms/models"))
+    model, _meta = _mlc.load_artifact(
+        "vietnam", _P(__file__).resolve().parents[1] / "data" / "firms" / "models")
     assert model is not None, "ML artifact missing; train first"
     rows = _modis_rows([f"2019-03-{d:02d}" for d in range(1, 21)])
     h = client.post("/api/firms/harmonize",
                     json={"records": rows, "method": "ml", "aoi": "vietnam"}).json()
-    assert h["method_id"] == "ml_hgb_v1"
+    assert h["method_id"].startswith(("ml_hgb", "ml_b2res"))
     assert any(d.get("estimate_type") == "ml_predicted" for d in h["daily"])
     yi = h["calendar"]["years"].index(2019)
     month_total = h["calendar"]["matrix"][yi][2]
     cell_sum = round(sum(d["harmonized_count"] for d in h["daily"]
                          if str(d["date"])[:7] == "2019-03"), 2)
     assert abs(month_total - cell_sum) < 0.05
-    pred = round(float(_mlc.predict_viirs(model, float(len(rows)), 3)), 2)
+    ctx = _mlc.monthly_modis_ctx(rows)["2019-03"]
+    pred = round(float(_mlc.predict_viirs(model, ctx["modis"], 3, ctx["day_frac"],
+                                          ctx["terra_frac"], ctx["prev_modis"])), 2)
     assert abs(month_total - pred) < 0.05
 
 
@@ -413,22 +424,66 @@ def test_raw_ml_blocked():
     """P0-03: synthetic-trained ML/TS artifacts are never served for raw observed data."""
     r = client.get("/api/firms/calendar",
                    params={"aoi": "vietnam", "data": "raw", "method": "ml"})
+    assert r.status_code == 200
+    assert r.json()["ml_meta"]["training_source"] == "nasa-firms-raw"
+    r2 = client.get("/api/firms/calendar",
+                    params={"aoi": "vietnam", "data": "raw", "method": "ts"})
+    assert r2.status_code == 200
+    assert r2.json()["ml_meta"]["training_source"] == "nasa-firms-raw"
+    r4 = client.get("/api/firms/calendar",
+                    params={"aoi": "australia", "data": "raw", "method": "ts"})
+    assert r4.status_code == 200  # australia now has a raw-trained TS artifact
+    assert r4.json()["ml_meta"]["training_source"] == "nasa-firms-raw"
+
+
+def test_raw_gate_without_artifact_422(tmp_path, monkeypatch):
+    """P0-03 gate: synthetic-only MODEL_DIR must refuse ml/ts on raw data."""
+    import app.main as _m
+    monkeypatch.setattr(_m, "MODEL_DIR", tmp_path)
+    r = client.get("/api/firms/calendar",
+                   params={"aoi": "vietnam", "data": "raw", "method": "ml"})
     assert r.status_code == 422
     r2 = client.get("/api/firms/calendar",
                     params={"aoi": "vietnam", "data": "raw", "method": "ts"})
     assert r2.status_code == 422
+    r3 = client.get("/api/firms/calendar",
+                    params={"aoi": "amazon", "data": "raw", "method": "ml"})
+    assert r3.status_code == 422  # empty MODEL_DIR: no artifacts at all
 
 
 def test_completeness_partial():
-    """P0-10: a 5-day month is partial -> no criticals, latest None."""
+    """P0-06: detection days are not observation days.
+
+    A POSTed 5-day record set has UNKNOWN observation coverage, so `partial`
+    must be None (not True/False), while detection_days is 5. Verified
+    coverage can still mark a month partial — tested separately.
+    """
     rows = _modis_rows([f"2021-06-{d:02d}" for d in range(1, 6)])
     h = client.post("/api/firms/harmonize", json={"records": rows}).json()
     comp = h["calendar"]["completeness"]["2021-06"]
-    assert comp["partial"] is True
-    assert comp["days"] == 5
+    assert comp["partial"] is None
+    assert comp["coverage_status"] == "unknown"
+    assert comp["detection_days"] == 5
+    assert comp["observed_days"] is None
     assert comp["span"] == ["2021-06-01", "2021-06-05"]
-    assert h["critical_periods"] == []
     assert h["latest"] is None
+
+
+def test_verified_coverage_marks_partial_not_detection_days():
+    """P0-06: one detection day with full fetch coverage is NOT partial."""
+    daily = [{"date": "2021-06-10", "harmonized_count": 5.0}]
+    full = {"2021-06": {"status": "verified", "requested_days": 30,
+                        "days_in_month": 30, "coverage_ratio": 1.0,
+                        "missing_days": [], "partial": False}}
+    c = cal.build_calendar(daily, coverage=full)
+    assert c["completeness"]["2021-06"]["partial"] is False
+    assert c["completeness"]["2021-06"]["detection_days"] == 1
+    assert cal.critical_periods(c) == []  # only one year, z has no history
+    sparse = {"2021-06": {"status": "verified", "requested_days": 5,
+                          "days_in_month": 30, "coverage_ratio": 0.167,
+                          "missing_days": list(range(6, 31)), "partial": True}}
+    c2 = cal.build_calendar(daily, coverage=sparse)
+    assert c2["completeness"]["2021-06"]["partial"] is True
 
 
 def test_platform_mismatch_quarantined():
@@ -452,4 +507,302 @@ def test_export_method_param():
     assert "cell_id" in r.text.splitlines()[0]
     bad = client.get("/api/firms/export",
                      params={"aoi": "vietnam", "data": "raw", "method": "ml"})
-    assert bad.status_code == 422
+    assert bad.status_code == 200  # vietnam raw ml artifact exists
+    assert "cell_km2" in bad.text.splitlines()[0]
+    bad2 = client.get("/api/firms/export",
+                      params={"aoi": "vietnam", "data": "raw", "method": "nonsense"})
+    assert bad2.status_code == 422
+
+
+def test_equal_area_fields_present():
+    r = client.get("/api/firms/calendar", params={"aoi": "vietnam"}).json()
+    d0 = r["daily"][0]
+    assert d0["cell_km2"] > 20 and d0["cell_km2"] < 40
+    assert d0["harmonized_per_km2"] >= 0
+
+
+def test_upload_dataset_roundtrip():
+    sample = client.get("/api/firms/sample", params={"aoi": "vietnam", "limit": 30}).json()
+    import io as _io, csv as _csv
+    buf = _io.StringIO()
+    w = _csv.DictWriter(buf, fieldnames=list(sample["records"][0].keys()))
+    w.writeheader(); w.writerows(sample["records"])
+    up = client.post("/api/firms/upload-dataset",
+                     files={"file": ("mini.csv", buf.getvalue(), "text/csv")}).json()
+    assert up["dataset_id"].startswith("upload:") and up["clean"] == 30
+    cal = client.get("/api/firms/calendar", params={"dataset": up["dataset_id"]}).json()
+    assert cal["dataset"] == up["dataset_id"]
+    assert "user-uploaded" in cal["data_source"]
+    bad = client.get("/api/firms/calendar", params={"dataset": "upload:deadbeefdeadbeef"})
+    assert bad.status_code == 404
+
+
+def test_raw_artifact_gate():
+    # all 3 AOIs now have raw-trained ml + ts artifacts (2019-2025 pulls)
+    for aoi, method in [("vietnam", "ml"), ("vietnam", "ts"),
+                        ("amazon", "ml"), ("amazon", "ts"),
+                        ("australia", "ml"), ("australia", "ts")]:
+        r = client.get("/api/firms/calendar",
+                       params={"aoi": aoi, "data": "raw", "method": method})
+        assert r.status_code == 200, (aoi, method)
+        assert r.json()["ml_meta"]["training_source"] == "nasa-firms-raw", (aoi, method)
+
+
+def test_noaa_abbrev_satellites_normalized_and_kept():
+    from app.firms.schema import FirmsRecord
+    for sat, inst in [("N20", "VIIRS"), ("N21", "VIIRS"), ("NPP", "VIIRS"),
+                      ("Terra", "MODIS"), ("Aqua", "MODIS")]:
+        r = FirmsRecord(latitude=12.5, longitude=106.1, brightness=320.0, scan=1.0,
+                        track=1.0, acq_date="2026-11-05", acq_time="1330",
+                        satellite=sat, instrument=inst, confidence="n", version="V2",
+                        bright_t31=285.0, frp=5.0, daynight="D")
+        assert r.qa() == "keep", (sat, r.qa())
+    assert FirmsRecord(latitude=12.5, longitude=106.1, brightness=320.0, scan=1.0,
+                       track=1.0, acq_date="2026-11-05", acq_time="1330",
+                       satellite="N20", instrument="VIIRS", confidence="n", version="V2",
+                       bright_t31=285.0, frp=5.0, daynight="D").satellite == "NOAA-20"
+
+
+# ---------------------------------------------------------------------------
+# Audit V4 regression tests (T01-T14). These are intentionally explicit about
+# the failure modes the review found; each one fails on the pre-fix code.
+# ---------------------------------------------------------------------------
+
+def _synthetic_pairs(n_months: int = 48) -> list[dict]:
+    pairs = []
+    for i in range(n_months):
+        y = 2019 + i // 12
+        m = i % 12 + 1
+        modis = 100 + 40 * ((m * 7) % 11) + i
+        viirs = int(modis * 4.2 + 15 * math.sin(m))
+        pairs.append({"year": y, "month": m, "modis": modis, "viirs": viirs,
+                      "day_frac": 0.8, "terra_frac": 0.5})
+    return pairs
+
+
+def test_T01_v4_dispatch_uses_seven_features():
+    """T01: b2_residual must dispatch to ml_v4, never the 6-feature legacy path."""
+    from app.firms import ml_v4
+    res = ml_v4.train_holdout(_synthetic_pairs(), test_years=2, tune=False)
+    model = res["model"]
+    assert model.n_features_in_ == 7
+    from app.firms import ml_cal
+    pred = ml_cal.predict_viirs(model, 500, 3, 0.8, 0.5, 400)
+    assert pred >= 0
+    # an unknown target must fail loudly, not silently fall back
+    class _Bad:
+        _target = "unknown-space"
+        n_features_in_ = 7
+    with pytest.raises(ValueError):
+        ml_cal.predict_viirs(_Bad(), 10, 1)
+
+
+def test_T02_predict_one_equals_predict_counts_gate_on_and_off():
+    """T02: one inverse transform for batch and single-row inference."""
+    from app.firms import ml_v4
+    res = ml_v4.train_holdout(_synthetic_pairs(), test_years=2, tune=False)
+    model = res["model"]
+    for gate in (True, False):
+        model._use_residual = gate
+        model._fallback = "b2_seasonal_ratio"
+        for modis in (0, 1, 5, 30, 1000):
+            for month in range(1, 13):
+                batch = float(ml_v4.predict_counts(
+                    model, [{"modis": modis, "month": month}])[0])
+                one = float(ml_v4.predict_one(model, modis, month, 0.5, 0.5))
+                assert abs(batch - one) < 1e-6, (gate, modis, month, batch, one)
+
+
+def test_T03_full_month_windows_cover_every_day():
+    """T03: 28/29/30/31-day months are fully requested, with no spill."""
+    from scripts.firms.fetch_full_month import windows_for_month
+    for year, month, last in [(2021, 2, 28), (2020, 2, 29), (2021, 4, 30),
+                              (2021, 1, 31), (2021, 12, 31)]:
+        wins = windows_for_month(year, month)
+        covered = []
+        for start, ndays in wins:
+            assert 1 <= ndays <= 5
+            assert start + ndays - 1 <= last
+            covered += list(range(start, start + ndays))
+        assert covered == list(range(1, last + 1)), (year, month, wins)
+
+
+def test_T04_no_target_leakage_from_test_viirs():
+    """T04: changing holdout VIIRS must not change train-only predictions."""
+    from app.firms import evaluation, ml_v4
+    pairs = _synthetic_pairs(60)
+    train = [p for p in pairs if p["year"] < 2023]
+    test = [p for p in pairs if p["year"] >= 2023]
+    b1_log, b2_log = evaluation.ratios_from_train(train)
+    before = [evaluation._counts(p["modis"], b2_log.get(p["month"], b1_log))
+              for p in test]
+    for p in test:
+        p["viirs"] = int(p["viirs"] * 100)
+    after = [evaluation._counts(p["modis"], b2_log.get(p["month"], b1_log))
+             for p in test]
+    assert before == after
+    # a model fit on train is also invariant to test targets
+    res = ml_v4.train_holdout(pairs, test_years=2, tune=False)
+    m = res["model"]
+    pred_mutated = ml_v4.predict_counts(m, test)
+    for p, v in zip(test, pred_mutated):
+        p["viirs"] = 1
+    assert (pred_mutated == ml_v4.predict_counts(m, test)).all()
+
+
+def test_T05_missing_month_is_null_not_zero():
+    daily = [{"date": "2020-01-10", "harmonized_count": 5.0}]
+    c = cal.build_calendar(daily)
+    assert c["matrix"][0][0] == 5.0
+    assert all(v is None for v in c["matrix"][0][1:])
+    assert c["completeness"]["2020-01"]["coverage_status"] == "unknown"
+
+
+def test_T07_unified_evaluation_manifest():
+    """T07: every method is scored on the same IDs in one manifest."""
+    from app.firms import evaluation
+    m = evaluation.load_manifest("sample")
+    if not m:
+        pytest.skip("run scripts.firms.evaluate --data sample first")
+    ids = [s["id"] for s in m["samples"]]
+    assert len(ids) == len(set(ids)) == m["n_eval"]
+    assert sum(i.get("n_eval", 0) for i in m["per_aoi"].values()) == m["n_eval"]
+    assert set(m["pooled"]["metrics"]) <= set(m["methods"])
+    verified = evaluation.verify_manifest(m)
+    for method, got in verified["all"].items():
+        want = m["pooled"]["metrics"][method]
+        assert abs(got["mae"] - want["mae"]) < 1e-4
+
+
+def test_T08_cache_key_changes_with_model_or_data_version(monkeypatch):
+    from app.firms import evaluation, ml_v4
+    k1 = evaluation.cache_key("vietnam", "raw", 2, extra="x")
+    monkeypatch.setattr(ml_v4, "ALGORITHM_VERSION", ml_v4.ALGORITHM_VERSION + "-next")
+    k2 = evaluation.cache_key("vietnam", "raw", 2, extra="x")
+    assert k1 != k2
+
+
+def test_T09_xray_uses_unified_manifest_not_legacy():
+    """T09: xray scores the V4 manifest and never loads sample for raw."""
+    x = client.get("/api/firms/xray", params={"aoi": "vietnam", "data": "sample"}).json()
+    assert "backtest_metrics" in x
+    assert "hgb_residual_enabled" in x
+    assert x["months"] and "ratio_source" in x["months"][0]
+    if x.get("evaluation_version"):
+        assert x["backtest_metrics"] is not None
+        assert "hgb_b2res_v4" in x["backtest_metrics"]
+
+
+def test_T10_raw_absent_is_explicit_404(tmp_path, monkeypatch):
+    import app.firms.store as store
+    monkeypatch.setattr(store, "RAW_DIR", tmp_path)
+    r = client.get("/api/firms/calendar", params={"aoi": "vietnam", "data": "raw"})
+    assert r.status_code == 404
+    body = r.json()
+    detail = body.get("detail") or {}
+    assert detail.get("error_code") == "no_raw_data"
+
+
+def test_T11_export_matches_calendar():
+    """T11: CSV monthly sums equal the calendar matrix for the same slice."""
+    import csv as _csv
+    import io as _io
+    params = {"aoi": "vietnam", "data": "sample", "method": "stat",
+              "bbox": "104,10,105,11"}
+    calr = client.get("/api/firms/calendar", params={**params, "limit": 5000}).json()
+    exp = client.get("/api/firms/export", params=params)
+    assert exp.status_code == 200
+    sums: dict[str, float] = {}
+    for row in _csv.DictReader(_io.StringIO(exp.text)):
+        ym = row["date"][:7]
+        sums[ym] = sums.get(ym, 0.0) + float(row["harmonized_count"])
+    years = calr["calendar"]["years"]
+    for yi, y in enumerate(years):
+        for mi in range(12):
+            v = calr["calendar"]["matrix"][yi][mi]
+            if v is None:
+                continue
+            got = round(sums.get(f"{y}-{mi + 1:02d}", 0.0), 2)
+            assert abs(got - v) < 0.02, (y, mi + 1, got, v)
+
+
+def test_T12_brief_matches_calendar_method_and_scope():
+    b = client.get("/api/firms/brief", params={"aoi": "vietnam", "method": "ts"}).text
+    assert "requested `ts`" in b
+    assert "effective `ts_logratio_pool_v2`" in b
+    assert "Period:" in b
+    assert "synthetic" in b.lower()
+
+
+def test_T13_artifact_compat_rejects_stale_fingerprint():
+    from pathlib import Path as _P
+    from app.firms import ml_cal
+    model, meta = ml_cal.load_artifact(
+        "vietnam", _P(__file__).resolve().parents[1] / "data" / "firms" / "models",
+        tag="raw")
+    ok, why = ml_cal.artifact_compat(model, meta, expected_fingerprint="stale")
+    assert not ok and "mismatch" in why
+    ok2, why2 = ml_cal.artifact_compat(model, meta, expected_fingerprint=None)
+    assert ok2
+
+
+def test_T14_replay_hides_test_viirs_but_keeps_reference():
+    """T14: predicted inputs depend on MODIS/context only; reference is separate."""
+    from app.firms import ml_v4
+    pairs = _synthetic_pairs(60)
+    res = ml_v4.train_holdout(pairs, test_years=2, tune=False)
+    m = res["model"]
+    test = [p for p in pairs if p["year"] >= 2023]
+    p1 = ml_v4.predict_counts(m, test)
+    ref1 = [p["viirs"] for p in test]
+    for p in test:
+        p["viirs"] = 0
+    p2 = ml_v4.predict_counts(m, test)
+    ref2 = [p["viirs"] for p in test]
+    assert (p1 == p2).all()
+    assert ref1 != ref2
+
+
+def test_T15_platform_mix_is_explicit():
+    """T15: adding a platform must not look like more fire by default."""
+    r = client.get("/api/firms/platform-series",
+                   params={"aoi": "vietnam", "data": "sample"}).json()
+    assert r["series"]
+    for row in r["series"]:
+        assert row["snpp_only"] <= row["all_platforms"]
+        assert "N20" not in row["by_platform"]  # normalised to NOAA-20
+    cal = client.get("/api/firms/calendar", params={"aoi": "vietnam"}).json()
+    assert "platform_mix" in cal["calendar"]
+
+
+def test_T16_production_smoke_routes_and_assets():
+    assert client.get("/calendar").status_code == 200
+    assert client.get("/method").status_code == 200
+    logo = client.get("/logo.svg")
+    assert logo.status_code == 200 and logo.headers["content-type"].startswith("image/svg")
+    man = client.get("/manifest.webmanifest")
+    assert man.status_code == 200
+    csvr = client.get("/api/firms/export", params={"aoi": "vietnam", "method": "stat"})
+    assert csvr.status_code == 200 and "cell_id" in csvr.text.splitlines()[0]
+
+
+def test_T17_production_requires_admin_token(monkeypatch):
+    """T17: APP_ENV=production with no ADMIN_TOKEN must not expose writes."""
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.delenv("ADMIN_TOKEN", raising=False)
+    r = client.post("/api/firms/ml-train", json={"aoi": "vietnam", "data": "sample"})
+    assert r.status_code == 503
+
+
+def test_T18_provenance_traceable():
+    """T18: metrics trace to a dataset hash and artifact id."""
+    from app.firms import evaluation
+    m = evaluation.load_manifest("raw")
+    if not m:
+        pytest.skip("no raw evaluation manifest")
+    assert m["dataset_sha256"] and m["evaluation_version"]
+    for s in m["samples"]:
+        assert s["id"] == f"{s['aoi']}:{s['year']}-{s['month']:02d}"
+    x = client.get("/api/firms/xray", params={"aoi": "vietnam", "data": "raw"}).json()
+    assert x["evaluation_version"] == m["evaluation_version"]
+    assert x["months"][0]["ratio_source"].startswith("train_only")

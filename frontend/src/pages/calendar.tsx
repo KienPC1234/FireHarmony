@@ -39,17 +39,19 @@ export function CalendarPage() {
     ["bg-blue-300", "z ≤ −1.5 low"],
     ["bg-muted text-muted-foreground", t("cal.nodata")],
   ];
-  const [search] = useSearchParams();
+  const [search, setSearch] = useSearchParams();
+  const initialData = ["sample", "raw"].includes(search.get("data") || "") ? search.get("data")! : "sample";
+  const initialMethod = ["stat", "ml", "ts"].includes(search.get("method") || "") ? search.get("method")! : "stat";
   const [data, setData] = useState<CalendarResponse | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [aois, setAois] = useState<Aoi[]>([]);
   const [aoi, setAoi] = useState(search.get("aoi") || "vietnam");
   const [bbox, setBbox] = useState(AOI_BBOX[search.get("aoi") || "vietnam"] ?? AOI_BBOX.vietnam);
-  const [dsrc, setDsrc] = useState("sample");
-  const [method, setMethod] = useState("stat");
+  const [dsrc, setDsrc] = useState(initialData);
+  const [method, setMethod] = useState(initialMethod);
   const [exportStatus, setExportStatus] = useState("");
-  const [applied, setApplied] = useState<{ bbox: string; aoi: string; data: string; method: string }>(
-    { bbox: AOI_BBOX[search.get("aoi") || "vietnam"] ?? AOI_BBOX.vietnam, aoi: search.get("aoi") || "vietnam", data: "sample", method: "stat" });
+  const [applied, setApplied] = useState<{ bbox: string; aoi: string; data: string; method: string; dataset?: string }>(
+    { bbox: AOI_BBOX[search.get("aoi") || "vietnam"] ?? AOI_BBOX.vietnam, aoi: search.get("aoi") || "vietnam", data: initialData, method: initialMethod, dataset: search.get("dataset") || undefined });
 
   useEffect(() => {
     api.aois().then((r) => setAois(r.aois)).catch(() => undefined);
@@ -57,15 +59,23 @@ export function CalendarPage() {
   useEffect(() => {
     setData(null);
     setError(null);
-    api.calendar(25000, applied.bbox || undefined, applied.aoi, applied.data, applied.method).then(setData).catch(setError);
+    api.calendar(25000, applied.bbox || undefined, applied.aoi, applied.data, applied.method, applied.dataset).then(setData).catch(setError);
   }, [applied]);
+  useEffect(() => {
+    const next = new URLSearchParams();
+    next.set("aoi", applied.aoi);
+    next.set("data", applied.data);
+    next.set("method", applied.method);
+    if (applied.dataset) next.set("dataset", applied.dataset);
+    setSearch(next, { replace: true });
+  }, [applied, setSearch]);
 
   const yearly = useMemo(
     () => (data ? data.calendar.years.map((y, i) => ({ year: y, detections: data.calendar.row_totals[i] })) : []),
     [data],
   );
-  const csvHref = useMemo(() => api.exportUrl(25000, applied.bbox || undefined, applied.aoi, applied.data, applied.method), [applied]);
-  const briefHref = useMemo(() => api.briefUrl(applied.bbox || undefined, applied.aoi, applied.data, applied.method), [applied]);
+  const csvHref = useMemo(() => api.exportUrl(25000, applied.bbox || undefined, applied.aoi, applied.data, applied.method, applied.dataset), [applied]);
+  const briefHref = useMemo(() => api.briefUrl(applied.bbox || undefined, applied.aoi, applied.data, applied.method, applied.dataset), [applied]);
 
   async function handleExport() {
     setExportStatus("");
@@ -95,8 +105,9 @@ export function CalendarPage() {
     if (!comp) return null;
     const keys = Object.keys(comp).sort();
     if (keys.length === 0) return null;
-    const partials = keys.filter((k) => comp[k].partial);
-    return { total: keys.length, full: keys.length - partials.length, partials: partials.map((k) => ({ key: k, days: comp[k].days })) };
+    const partials = keys.filter((k) => comp[k].partial === true);
+    const unknown = keys.filter((k) => comp[k].partial === null || comp[k].partial === undefined);
+    return { total: keys.length, full: keys.length - partials.length - unknown.length, partials: partials.map((k) => ({ key: k, days: comp[k].detection_days ?? comp[k].days })), unknown: unknown.length };
   }, [data]);
   const clima = useMemo(() => {
     if (!data) return [];
@@ -116,6 +127,9 @@ export function CalendarPage() {
       <div className="flex flex-wrap items-center gap-4">
         <h1 className="text-2xl font-bold">{t("cal.title")}</h1>
         <span className="rounded bg-amber-100 px-2 py-1 font-mono text-xs text-amber-900">{data.data_source ?? t("common.synthetic")}</span>
+        {data.dataset && (
+          <span className="rounded bg-sky-100 px-2 py-1 font-mono text-xs text-sky-900">session upload {data.dataset}</span>
+        )}
         <div className="ml-auto flex flex-wrap gap-2">
         <button className="rounded border px-3 py-2 text-sm" onClick={handleExport} type="button">
           {t("cal.csv")}
@@ -131,7 +145,7 @@ export function CalendarPage() {
           <button
             key={a.id}
             title={a.label}
-            onClick={() => { setAoi(a.id); const b = AOI_BBOX[a.id] ?? ""; setBbox(b); setApplied({ bbox: b, aoi: a.id, data: dsrc, method }); }}
+            onClick={() => { setAoi(a.id); const b = AOI_BBOX[a.id] ?? ""; setBbox(b); setApplied({ bbox: b, aoi: a.id, data: dsrc, method, dataset: applied.dataset }); }}
             className={`rounded-full border px-3 py-1 text-sm ${aoi === a.id ? "bg-orange-600 text-white" : "hover:bg-accent"}`}
           >
             {a.id}
@@ -154,7 +168,7 @@ export function CalendarPage() {
       </div>
       <form
         className="flex flex-wrap items-end gap-2 rounded-lg border p-3"
-        onSubmit={(e) => { e.preventDefault(); setApplied({ bbox, aoi, data: dsrc, method }); }}
+        onSubmit={(e) => { e.preventDefault(); setApplied({ bbox, aoi, data: dsrc, method, dataset: applied.dataset }); }}
       >
         <label className="text-sm">{t("cal.bbox")}
           <input value={bbox} onChange={(e) => setBbox(e.target.value)}
@@ -169,7 +183,7 @@ export function CalendarPage() {
         zoom={AOI_CENTER[aoi]?.z ?? 5}
         bbox={applied.bbox || null}
         cells={data.daily.map((d) => ({ lat: Number(d.lat), lon: Number(d.lon), harmonized_count: Number(d.harmonized_count), date: String(d.date), estimate_type: String(d.estimate_type ?? "") }))}
-        onSelect={(b) => { setBbox(b); setApplied({ bbox: b, aoi, data: dsrc, method }); }}
+        onSelect={(b) => { setBbox(b); setApplied({ bbox: b, aoi, data: dsrc, method, dataset: applied.dataset }); }}
       />
       {L && (
         <div className="rounded-lg border-l-4 border-orange-600 bg-accent/50 p-3" role="status">
@@ -185,8 +199,8 @@ export function CalendarPage() {
       {reliability && (
         <p className="text-sm text-muted-foreground" role="status">
           {reliability.partials.length === 0
-            ? `${t("cal.fullmonths")}: ${reliability.full}/${reliability.total}`
-            : `${t("cal.fullmonths")} ${reliability.full}/${reliability.total} · ${t("cal.partialmonths")}: ${reliability.partials.map((p) => `${p.key} (${p.days})`).join(", ")}`}
+            ? `${t("cal.fullmonths")}: ${reliability.full}/${reliability.total}${reliability.unknown ? ` · coverage unknown: ${reliability.unknown}` : ""}`
+            : `${t("cal.fullmonths")} ${reliability.full}/${reliability.total} · ${t("cal.partialmonths")}: ${reliability.partials.map((p) => `${p.key} (${p.days}d detected)`).join(", ")}${reliability.unknown ? ` · coverage unknown: ${reliability.unknown}` : ""}`}
         </p>
       )}
       {data.calendar.years.length === 0 ? <EmptyState message={t("cal.empty")} /> : (
@@ -209,12 +223,12 @@ export function CalendarPage() {
                   const title = v === null
                     ? `${y}-${m}: ${t("cal.nodata")}`
                     : isPartial
-                      ? `${y}-${m}: ${v} (z=${z}, ${t("cal.partial")}: ${cinfo?.days} days)`
-                      : `${y}-${m}: ${v} (z=${z})`;
+                      ? `${y}-${m}: ${v} (z=${z}, coverage ${Math.round((cinfo?.coverage_ratio ?? 0) * 100)}%, ${cinfo?.detection_days ?? cinfo?.days} detection days)`
+                      : `${y}-${m}: ${v} (z=${z}, coverage ${cinfo?.coverage_status ?? "unknown"}${cinfo?.coverage_ratio != null ? ` ${Math.round(cinfo.coverage_ratio * 100)}%` : ""})`;
                   return (
                     <td key={m} title={title}
                       className={`border p-2 ${colorFor(z)}`}>
-                      {v === null ? "—" : v}{isPartial && cinfo ? <span title={`${t("cal.partialmonths")}: ${cinfo.days} days`}> ◐</span> : null}
+                      {v === null ? "—" : v}{isPartial && cinfo ? <span title={`${t("cal.partialmonths")}: ${Math.round((cinfo.coverage_ratio ?? 0) * 100)}% days requested`}> ◐</span> : null}
                     </td>
                   );
                 })}

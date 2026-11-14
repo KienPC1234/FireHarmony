@@ -18,6 +18,7 @@ from app.firms.schema import FirmsRecord
 DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "firms"
 SAMPLE_DIR = DATA_DIR / "samples"
 RAW_DIR = DATA_DIR / "raw"
+UPLOAD_DIR = DATA_DIR / "uploads"
 MANIFEST = DATA_DIR / "ingest_manifest.json"
 
 AOIS = ("vietnam", "amazon", "australia")
@@ -130,34 +131,161 @@ def ingest_upload(filename: str, content: bytes, aoi: str,
     return report
 
 
-def load_raw_merged(aoi: str, limit: int = 1000000,
-                    raw_dir: Path | None = None) -> list[dict]:
-    """Merge all downloaded raw CSVs for an aoi, deduped (P0-08).
+def save_upload_dataset(filename: str, chunks, max_bytes: int = 10 * 1024 * 1024) -> dict:
+    """Stream an uploaded CSV to uploads/ with an early size cap (P0-11/P1-18).
 
-    Overlapping NRT/science-quality pulls of the same detection collapse onto
-    one key: (instrument, satellite, date, time, lat4, lon4, version). Science
-    rows win over NRT duplicates only in that the first occurrence is kept and
-    file order is sorted — provenance lives in the manifest.
+    `chunks` is a SYNC iterable of bytes (endpoint bridges async reads).
+    Validates header + schema AFTER a complete, within-quota write.
+    Prunes oldest uploads beyond 20 files.
+    Returns {dataset_id, file, rows, clean, rejected, errors}.
+    """
+    import re as _re
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    safe = _re.sub(r"[^A-Za-z0-9_.-]", "_", filename or "upload.csv")[:60]
+    digest = hashlib.sha256()
+    size = 0
+    tmp = UPLOAD_DIR / f"tmp_{int(time.time() * 1000)}.part"
+    with tmp.open("wb") as fh:
+        for ch in chunks:
+            if not ch:
+                continue
+            size += len(ch)
+            if size > max_bytes:
+                fh.close()
+                tmp.unlink(missing_ok=True)
+                raise ValueError(f"File too large (>{max_bytes // 1024 // 1024} MB session cap)")
+            digest.update(ch)
+            fh.write(ch)
+    return register_upload_file(tmp, safe, size, digest.hexdigest())
+
+
+def register_upload_file(tmp: Path, safe_filename: str, size: int, digest_hex: str) -> dict:
+    """Validate + promote a fully-written tmp upload; prune; never keep invalid."""
+    import re as _re
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    safe = _re.sub(r"[^A-Za-z0-9_.-]", "_", safe_filename or "upload.csv")[:60]
+    did = digest_hex[:16]
+    dest = UPLOAD_DIR / f"upload_{did}_{safe}"
+    if dest.exists():
+        tmp.unlink(missing_ok=True)
+    else:
+        tmp.replace(dest)
+    ups = sorted(UPLOAD_DIR.glob("upload_*.csv"), key=lambda p: p.stat().st_mtime)
+    for old in ups[:-20]:
+        old.unlink(missing_ok=True)
+    # validate
+    text = dest.read_text(encoding="utf-8", errors="replace").splitlines()
+    reader = csv.DictReader(text)
+    if not reader.fieldnames or "latitude" not in {c.lower() for c in reader.fieldnames}:
+        dest.unlink(missing_ok=True)
+        raise ValueError("Not a FIRMS CSV: missing latitude/longitude columns")
+    clean, rejected, total = 0, 0, 0
+    errors: list[dict] = []
+    for i, row in enumerate(reader):
+        total += 1
+        try:
+            FirmsRecord(**{k.lower(): v for k, v in dict(row).items()})
+            clean += 1
+        except Exception as e:  # noqa: BLE001 - per-row report
+            rejected += 1
+            if len(errors) < 10:
+                errors.append({"row": i + 2, "error": str(e)[:160]})
+    if total == 0:
+        dest.unlink(missing_ok=True)
+        raise ValueError("Empty CSV (no data rows)")
+    return {"dataset_id": f"upload:{did}", "file": dest.name, "bytes": size,
+            "rows": total, "clean": clean, "rejected": rejected, "errors": errors}
+
+
+def load_upload_dataset(dataset_id: str, limit: int = 100000) -> list[dict]:
+    """Load a session upload by id (validated hex, no path traversal)."""
+    import re as _re
+    m = _re.fullmatch(r"upload:([0-9a-f]{16})", dataset_id or "")
+    if not m:
+        raise ValueError(f"Bad dataset_id {dataset_id!r}")
+    hits = sorted(UPLOAD_DIR.glob(f"upload_{m.group(1)}_*.csv"))
+    if not hits:
+        raise ValueError(f"Unknown or expired dataset {dataset_id!r}")
+    rows: list[dict] = []
+    with hits[0].open(encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            rows.append({k.lower(): v for k, v in r.items()})
+            if len(rows) >= limit:
+                break
+    return rows
+
+
+CACHE_DIR = DATA_DIR / "cache"
+
+
+def raw_fingerprint(aoi: str, raw_dir: Path | None = None) -> str:
+    """Cache key: file names + sizes + max mtime for an AOI's raw pulls."""
+    raw_dir = raw_dir or RAW_DIR
+    files = sorted(raw_dir.glob(f"{aoi}_*.csv"))
+    if not files:
+        return "empty"
+    parts = [f"{f.name}:{f.stat().st_size}" for f in files]
+    parts.append(f"mt:{max(f.stat().st_mtime for f in files):.0f}")
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()[:16]
+
+
+def sample_fingerprint(aoi: str) -> str:
+    p = sample_path(aoi)
+    if not p.exists():
+        return "empty"
+    return hashlib.sha256(p.read_bytes()).hexdigest()[:16]
+
+
+def pooled_fingerprint(aois, raw: bool = True) -> str:
+    """Fingerprint of the multi-AOI pool a pooled model was trained on."""
+    parts = [f"{a}:{raw_fingerprint(a) if raw else sample_fingerprint(a)}"
+             for a in aois]
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()[:16]
+
+
+def cache_get(key: str):
+    """Read a cached analysis result. JSON, not pickle (audit P1-20)."""
+    f = CACHE_DIR / f"{key}.json"
+    if not f.exists():
+        return None
+    try:
+        return json.loads(f.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def cache_put(key: str, value) -> None:
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = CACHE_DIR / f".{key}.tmp"
+    tmp.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(CACHE_DIR / f"{key}.json")
+    # keep the newest 40 entries
+    entries = sorted(CACHE_DIR.glob("*.json"), key=lambda p: p.stat().st_mtime)
+    for old in entries[:-40]:
+        old.unlink(missing_ok=True)
+
+
+def iter_raw_rows(aoi: str, raw_dir: Path | None = None, limit: int | None = None):
+    """Stream deduped raw rows for an aoi without materialising them.
+
+    Same dedup signature and SP-first ordering as load_raw_merged, but yields
+    dicts so a 1.4M-row AOI never becomes a 1.4M-element Python list in RAM.
     """
     if aoi not in AOIS and aoi != "custom":
         raise ValueError(f"Unknown aoi {aoi!r}")
     raw_dir = raw_dir or RAW_DIR
-    rows: list[dict] = []
-    seen: set[tuple] = set()
     if not raw_dir.exists():
-        return rows
-    per_file: list[list[dict]] = []
-    for f in sorted(raw_dir.glob(f"{aoi}_*.csv"),
-                    key=lambda p: (0 if "_SP_" in p.name else 1, p.name)):
-        buf: list[dict] = []
+        return
+    files = sorted(raw_dir.glob(f"{aoi}_*.csv"),
+                   key=lambda p: (0 if "_SP_" in p.name else 1, p.name))
+    seen: set[int] = set()
+    n = 0
+    for f in files:
         try:
             with f.open(encoding="utf-8") as fh:
                 for r in csv.DictReader(fh):
                     d = {k.lower(): v for k, v in r.items()}
                     try:
-                        # NRT and science-quality (SP) pulls of the same
-                        # detection collapse to one: version is NOT part of
-                        # the signature, SP files sort first so SP wins.
                         sig = (str(d.get("instrument", "")).upper(),
                                str(d.get("satellite", "")).strip(),
                                str(d.get("acq_date", ""))[:10],
@@ -166,29 +294,111 @@ def load_raw_merged(aoi: str, limit: int = 1000000,
                                round(float(d.get("longitude") or 0), 4))
                     except (TypeError, ValueError):
                         continue
-                    if sig in seen:
+                    # 64-bit Python hash: same dedup intent with ~1/8 memory
+                    # of a tuple set at 4M+ rows.
+                    key = hash(sig)
+                    if key in seen:
                         continue
-                    seen.add(sig)
-                    buf.append(d)
+                    seen.add(key)
+                    yield d
+                    n += 1
+                    if limit is not None and n >= limit:
+                        return
         except OSError:
             continue
-        if buf:
-            per_file.append(buf)
-    # Round-robin interleave so any limit-prefix stays representative
-    # across sources/dates (P1-12: no single-file prefix bias).
-    i = 0
-    while len(rows) < limit:
-        progressed = False
-        for buf in per_file:
-            if i < len(buf):
-                rows.append(buf[i])
-                progressed = True
-                if len(rows) >= limit:
-                    break
-        if not progressed:
-            break
-        i += 1
+
+
+def load_raw_merged(aoi: str, limit: int = 2000000,
+                    raw_dir: Path | None = None) -> list[dict]:
+    """Bounded, deduped, round-robin prefix of an AOI's raw pulls.
+
+    Reading every row of a 4.4M-row AOI into `per_file` lists is how the old
+    version could OOM. We only need `limit` rows, so each file contributes at
+    most ceil(limit / n_files) + slack; if dedup eats into the budget the cap
+    is raised and the pass repeated. Full-data consumers (training, evaluation,
+    calendar) use `iter_raw_rows`/`PairBuilder` instead.
+    """
+    if aoi not in AOIS and aoi != "custom":
+        raise ValueError(f"Unknown aoi {aoi!r}")
+    raw_dir = raw_dir or RAW_DIR
+    if not raw_dir.exists():
+        return []
+    files = sorted(raw_dir.glob(f"{aoi}_*.csv"),
+                   key=lambda p: (0 if "_SP_" in p.name else 1, p.name))
+    if not files:
+        return []
+    cap = max(8, (limit + len(files) - 1) // len(files) + 8)
+    for _ in range(4):
+        seen: set[int] = set()
+        per_file: list[list[dict]] = []
+        for f in files:
+            buf: list[dict] = []
+            try:
+                with f.open(encoding="utf-8") as fh:
+                    for i, r in enumerate(csv.DictReader(fh)):
+                        if i >= cap:
+                            break
+                        d = {k.lower(): v for k, v in r.items()}
+                        try:
+                            sig = (str(d.get("instrument", "")).upper(),
+                                   str(d.get("satellite", "")).strip(),
+                                   str(d.get("acq_date", ""))[:10],
+                                   str(d.get("acq_time", "")).strip(),
+                                   round(float(d.get("latitude") or 0), 4),
+                                   round(float(d.get("longitude") or 0), 4))
+                        except (TypeError, ValueError):
+                            continue
+                        key = hash(sig)
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        buf.append(d)
+            except OSError:
+                continue
+            if buf:
+                per_file.append(buf)
+        rows: list[dict] = []
+        i = 0
+        while len(rows) < limit:
+            progressed = False
+            for buf in per_file:
+                if i < len(buf):
+                    rows.append(buf[i])
+                    progressed = True
+                    if len(rows) >= limit:
+                        break
+            if not progressed:
+                break
+            i += 1
+        if len(rows) >= limit or all(len(b) < cap for b in per_file):
+            return rows
+        cap *= 2
     return rows
+
+
+def raw_stats(aoi: str, raw_dir: Path | None = None) -> dict:
+    """Existence + month coverage for an AOI's raw pulls (audit P0-14)."""
+    from app.firms import coverage as _cov
+    raw_dir = raw_dir or RAW_DIR
+    files = sorted(raw_dir.glob(f"{aoi}_*.csv")) if raw_dir.exists() else []
+    cover = _cov.coverage_for_aoi(aoi) if files else {}
+    months = sorted(cover)
+    full = [m for m in months if not cover[m].get("partial")]
+    return {
+        "aoi": aoi,
+        "raw_ready": bool(files),
+        "raw_files": len(files),
+        "months_available": len(months),
+        "date_range": [months[0], months[-1]] if months else None,
+        "full_months": len(full),
+        "partial_months": len(months) - len(full),
+        "coverage_verified": bool(cover),
+        "fingerprint": raw_fingerprint(aoi, raw_dir) if files else "empty",
+    }
+
+
+def raw_ready(aoi: str) -> bool:
+    return bool(list(RAW_DIR.glob(f"{aoi}_*.csv"))) if RAW_DIR.exists() else False
 
 
 def data_status() -> dict:
@@ -199,13 +409,15 @@ def data_status() -> dict:
         n = sum(1 for _ in p.open(encoding="utf-8")) - 1 if p.exists() else 0
         datasets.append({"aoi": aoi, "sample_file": p.name if p.exists() else None,
                          "sample_rows": max(n, 0),
-                         "sample_bytes": p.stat().st_size if p.exists() else 0})
+                         "sample_bytes": p.stat().st_size if p.exists() else 0,
+                         **raw_stats(aoi)})
     raw_files = []
     if RAW_DIR.exists():
         for f in sorted(RAW_DIR.glob("*.csv")):
             raw_files.append({"file": f.name, "bytes": f.stat().st_size})
     return {"datasets": datasets, "raw_files": raw_files[:100],
             "raw_count": len(raw_files),
+            "raw_aois_ready": [d["aoi"] for d in datasets if d["raw_ready"]],
             "cache": cache_info(),
             "manifest_entries": len(json.loads(MANIFEST.read_text(encoding="utf-8")))
             if MANIFEST.exists() else 0}

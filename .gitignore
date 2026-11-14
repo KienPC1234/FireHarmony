@@ -61,3 +61,8 @@ logs/
 core
 core.*
 vgcore.*
+
+# ===== FIRMS runtime caches (regenerable; evaluation manifests are committed) =====
+backend/data/firms/cache/
+backend/data/firms/models/backtest_*.json
+backend/data/firms/request_ledger.jsonl

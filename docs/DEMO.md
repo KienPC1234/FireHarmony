@@ -1,27 +1,73 @@
-# Demo script — 2 minutes, 4 clicks
+# Demo script — 3 minutes, real data first
 
-Server chạy sẵn (`make demo` → http://127.0.0.1:8000). Không cần mạng ngoài
-sample offline; bản đồ cần tiles OSM.
+Server: `make demo` → http://127.0.0.1:8000 (API + SPA). No external network is
+needed for the data; map tiles need OSM.
 
-## 0:00–0:20 — Vấn đề (Home)
-MODIS 1 km (2000–) vs VIIRS 375 m (2012–): VIIRS thấy gấp ~3 lần.
-So sánh trực tiếp = sai. App harmonize XUÔI về độ nhạy VIIRS:
-giữ VIIRS ở ô nào nó bay qua, upscale MODIS-era bằng 1/k (ghi nhãn ước lượng).
+## 0:00–0:25 — The problem, with the defects we found
 
-## 0:20–0:50 — Bản đồ + vùng (Calendar)
-Bấm **Vẽ vùng quan tâm**, kéo chuột quanh Tây Nguyên → calendar tính lại ngay.
-Chấm cam = ô ngày harmonized. Đổi chip **amazon** → mùa cháy Jul–Oct;
-**australia** → Dec–Feb. Màu ô = anomaly z so cùng tháng lịch sử.
+MODIS 1 km vs VIIRS 375 m: VIIRS sees ~3–5× more hotspots, so adding raw counts
+fakes a 2012 step. Our first pulls also measured **5 days per month**, and the
+first “full month” fetcher never requested **day 31**. Both are now visible:
+`/api/firms/coverage` shows `requested_days`, `missing_days`, and failed
+requests. The fixed fetcher derives windows from the real month length.
 
-## 0:50–1:20 — Bằng chứng (Calendar tiếp)
-Chỉ vào bảng: **2019-02/03 z≈24** (Vietnam), Amazon **2019-08**, Úc **2019-12/2020-01**
-(Black Summer) — toàn sự kiện cháy thật. Tỷ lệ năm sau/trước 2012 ≈ 1.14:
-không còn bước nhảy kỷ nguyên (công thức cộng cũ cho 2.2x — đã sửa, có test guard).
+## 0:25–0:55 — Real data, real coverage
 
-## 1:20–1:45 — AI giải thích (Hỏi đáp AI)
-Hỏi: “Độ chính xác ra sao?” → đáp bằng số live (era ratio, k đo được 168 tháng,
-spike cấy). Mọi số đều tính từ dữ liệu, không bịa.
+Open **/xray?aoi=vietnam&data=raw**. Say:
 
-## 1:45–2:00 — Mang về (Calendar)
-**Download harmonized CSV** + **brief .md 1 trang** cho emergency manager
-(top anomaly, latest vs history, outlook seasonal-naive + limits).
+- vietnam 1.39M rows / 85 manifest months; amazon 4.46M; australia only
+  5-day windows and therefore flagged partial.
+- units are **hotspot detections**, not confirmed fires.
+- the point is not “more AI”; it is that every displayed number traces to a
+  request ledger and an artifact fingerprint.
+
+## 0:55–1:40 — The unified table (same sample IDs for every method)
+
+Read the 2025 holdout (n=36, train ≤2024):
+
+| method | pooled MAE | vietnam | amazon | australia |
+|---|---|---|---|---|
+| B0 raw MODIS | 10262.5 | 8665.2 | 9670.2 | 12452.3 |
+| B1 global ratio | 2037.7 | 2426.8 | 2019.8 | **1666.3** |
+| B2 seasonal ratio | 1282.6 | **867.6** | **1255.1** | 1725.1 |
+| HGB `ml_b2res_v4` | **1263.0** | 867.6 | 1255.1 | 1666.3 |
+| Transformer `ts_logratio_pool_v2` | 1798.0 | 1225.4 | 2338.2 | 1830.5 |
+
+Two honest claims: the gated HGB wins pooled only because it **abstains** to
+the best per-AOI baseline, and the Transformer **loses to B2** even though it
+beats B1. No model wins every region.
+
+## 1:40–2:15 — Why the losses are credible
+
+1. HGB predicts a residual on B2 and runs a blocked-CV gate: ≥2% gain, a
+   majority of folds, no regression on the latest fold. It abstains on all
+   three AOIs; the API returns `residual_enabled=false` and the fallback.
+2. Transformer target is the log ratio, pooled 3-AOI + AOI embedding, early
+   stop on the last train year, 5 seeds. It still does not beat B2.
+3. Leave-one-region-out (no AOI embedding): vietnam 4193 vs B1 3451 (loses),
+   amazon 20445 vs B1 24319 (beats B1 but loses to raw MODIS 7061),
+   australia 4694 vs B1 5611 (beats). Spatial transfer is not reliable.
+
+## 2:15–2:45 — Use it
+
+Calendar → method `stat` (default), draw an AOI, download CSV and the brief.
+Switch to `method: ml` and show the badge:
+`ABSTAINS → serves b2_seasonal_ratio`. Switch to `ts` and show
+`months_scored` / `months_missing_context`. The badge is the point: the app
+tells you which model actually produced the number.
+
+## 2:45–3:00 — Close
+
+“We do not invent fires where the satellite never looked, and we do not put a
+learned model in front of a baseline it cannot beat. We publish the ledger,
+the artifact fingerprint, the losing table, and the region where all methods
+are weak.”
+
+## Reproduce (no network for the committed evaluation)
+
+```bash
+cd backend
+../.venv/bin/python -m scripts.firms.evaluate --data raw --verify
+../.venv/bin/python -m scripts.firms.make_benchmark --check
+../.venv/bin/python -m pytest tests/test_firms.py -q
+```

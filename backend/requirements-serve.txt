@@ -1,4 +1,6 @@
-# Minimal serving + CI stack (CPU-only, no torch needed for tests).
+# Minimal serving + CI stack (CPU-only). Tests and the stat/ML paths need no
+# torch; ?method=ts requires requirements-torch.txt. /api/health reports
+# methods_available so a deployment cannot silently advertise Transformer.
 numpy<2.0
 fastapi
 uvicorn[standard]

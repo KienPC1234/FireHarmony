@@ -45,7 +45,17 @@ export interface CalendarResponse {
     col_medians: Array<number | null>;
     coverage?: number[][];
     z_unit?: string;
-    completeness?: Record<string, { days: number; span: [string, string]; partial: boolean }>;
+    completeness?: Record<string, {
+      days: number;
+      detection_days?: number;
+      span: [string, string];
+      partial: boolean | null;
+      coverage_status?: "verified" | "unknown";
+      coverage_ratio?: number | null;
+      observed_days?: number | null;
+      missing_days?: number[];
+      sparse_detections?: boolean;
+    }>;
   };
   critical_periods: Array<{ year: number; month: number; count: number; z: number; label: string }>;
   latest: { date: string; month: number; month_total: number; hist_median: number; hist_years?: number; ratio: number | null; verdict: string } | null;
@@ -53,7 +63,12 @@ export interface CalendarResponse {
   aoi?: string;
   data?: string;
   data_source?: string;
+  dataset?: string;
   method_id?: string;
+  effective_method?: string;
+  ml_meta?: Record<string, unknown> | null;
+  coverage?: Record<string, unknown>;
+  platform_mix?: Record<string, Record<string, number>>;
   qa?: { clean: number; rejected: number; qa_counts: Record<string, number> };
   bbox?: string | null;
   daily: Array<Record<string, number | string | null>>;
@@ -68,14 +83,23 @@ export interface AskResponse {
   suggestions: string[];
 }
 
+export interface UploadDatasetResponse {
+  dataset_id: string;
+  rows: number;
+  clean: number;
+  rejected: number;
+  errors?: Array<Record<string, unknown>>;
+  calendar_url: string;
+}
+
 export const api = {
   health: () => get<{ status: string; torch: boolean }>("/api/health"),
   schema: () => get<{ fields: string[] }>("/api/firms/schema"),
   sample: (limit = 200, aoi = "vietnam") => get<{ count: number; records: Record<string, unknown>[] }>(`/api/firms/sample?limit=${limit}&aoi=${aoi}`),
   aois: () => get<{ aois: Aoi[] }>("/api/firms/aois"),
   dataStatus: () => get<{ datasets: Array<{ aoi: string; sample_rows: number; sample_bytes: number }>; raw_count: number; raw_files: Array<{ file: string; bytes: number }> }>("/api/firms/data-status"),
-  calendar: (limit = 25000, bbox?: string, aoi = "vietnam", data = "sample", method = "stat") =>
-    get<CalendarResponse>(`/api/firms/calendar?limit=${limit}&aoi=${aoi}&data=${data}&method=${method}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}`),
+  calendar: (limit = 25000, bbox?: string, aoi = "vietnam", data = "sample", method = "stat", dataset?: string) =>
+    get<CalendarResponse>(`/api/firms/calendar?limit=${limit}&aoi=${aoi}&data=${data}&method=${method}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}`),
   harmonize: (records: Record<string, unknown>[]) =>
     post<CalendarResponse>("/api/firms/harmonize", { records }),
   validate: (records: Record<string, unknown>[]) =>
@@ -89,10 +113,24 @@ export const api = {
       "/api/firms/ask-llm", { question, ...opts }),
   llmStatus: () => get<{ llm_available: boolean; provider: string; model: string; models: string[] }>(
     "/api/firms/llm-status"),
-  briefUrl: (bbox?: string, aoi = "vietnam", data = "sample", method = "stat") =>
-    `${BASE}/api/firms/brief?aoi=${aoi}&data=${data}&method=${method}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}`,
+  briefUrl: (bbox?: string, aoi = "vietnam", data = "sample", method = "stat", dataset?: string) =>
+    `${BASE}/api/firms/brief?aoi=${aoi}&data=${data}&method=${method}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}`,
   dlInfo: () => get<{ has_torch: boolean; models: Array<Record<string, string>> }>("/api/firms/dl-info"),
-  exportUrl: (limit = 25000, bbox?: string, aoi = "vietnam", data = "sample", method = "stat") => `${BASE}/api/firms/export?limit=${limit}&aoi=${aoi}&data=${data}&method=${method}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}`,
+  exportUrl: (limit = 25000, bbox?: string, aoi = "vietnam", data = "sample", method = "stat", dataset?: string) => `${BASE}/api/firms/export?limit=${limit}&aoi=${aoi}&data=${data}&method=${method}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}`,
+  uploadDataset: async (file: File): Promise<UploadDatasetResponse> => {
+    const form = new FormData();
+    form.append("file", file);
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/api/firms/upload-dataset`, { method: "POST", body: form });
+    } catch (e) {
+      throw new ApiError(0, "Cannot reach the API. Is the backend running on :8000?", e);
+    }
+    const text = await res.text();
+    const body = text ? (JSON.parse(text) as unknown) : null;
+    if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`, body);
+    return body as UploadDatasetResponse;
+  },
   xray: (aoi = "vietnam", data = "sample") =>
     get<{ aoi: string; data_source: string; units: string; backtest_metrics: Record<string, Record<string, number>> | null; ml_trained: boolean; ts_trained: boolean; ts_meta: Record<string, unknown> | null; months: Array<{ year: number; month: number; modis_raw: number; viirs_ref: number; adjusted_stat: number; adjusted_calendar: number | null; k_used: number }> }>(
       `/api/firms/xray?aoi=${aoi}&data=${data}`),

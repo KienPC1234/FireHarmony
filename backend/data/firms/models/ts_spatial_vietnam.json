@@ -1,0 +1,37 @@
+{
+ "trained": true,
+ "held_out": "vietnam",
+ "n": 73,
+ "train_aois": [
+  "amazon",
+  "australia"
+ ],
+ "metrics": {
+  "transformer": {
+   "mae": 4192.929799344442,
+   "wape": 0.31571768478569495,
+   "bias": -3718.1318223781236
+  },
+  "b0_raw_modis": {
+   "mae": 10778.602739726028,
+   "wape": 0.8116032619346747,
+   "bias": -10778.383561643835
+  },
+  "b1_global_ratio": {
+   "mae": 3450.5312834804413,
+   "wape": 0.25981683458458626,
+   "bias": -2992.7797137300754
+  }
+ },
+ "method_id": "ts_logratio_pool_v2",
+ "algorithm_version": "ts_logratio_pool_v2.1",
+ "protocol": "leave-one-region-out, no AOI embedding",
+ "seeds": [
+  7,
+  17,
+  27
+ ],
+ "training_source": "nasa-firms-raw",
+ "data_fingerprint": "a6fbe0284e446452",
+ "feature_version": "ts-features-v2"
+}

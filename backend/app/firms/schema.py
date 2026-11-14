@@ -74,7 +74,13 @@ class FirmsRecord(BaseModel):
     @classmethod
     def _norm_sat(cls, v: object) -> str:
         s = str(v or "UNKNOWN").strip()
-        s = s.replace("NOAA20", "NOAA-20").replace("NOAA21", "NOAA-21")
+        s = (s.replace("NOAA20", "NOAA-20").replace("NOAA21", "NOAA-21")
+               .replace("NOAA_20", "NOAA-20").replace("NOAA_21", "NOAA-21")
+               .replace("NOAA 20", "NOAA-20").replace("NOAA 21", "NOAA-21"))
+        if s in {"N20", "N-20"}:
+            return "NOAA-20"
+        if s in {"N21", "N-21"}:
+            return "NOAA-21"
         if s in {"N", "NPP", "Suomi NPP", "S-NPP"}:
             return "NPP"
         return s or "UNKNOWN"

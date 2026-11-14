@@ -1,6 +1,11 @@
-"""Train the temporal Transformer calibrator for one AOI and persist it.
+"""CLI: train the pooled log-ratio Transformer (ts_logratio_pool_v2).
 
-Usage: python -m scripts.firms.train_ts --aoi vietnam --test-years 3
+Pools windows from every AOI that has data, with an AOI embedding, so the
+model sees ~220 windows instead of ~73. Early stopping uses the last training
+year (never the holdout).
+
+Usage:
+    python -m scripts.firms.train_ts --aoi vietnam --data raw --test-years 2
 """
 from __future__ import annotations
 
@@ -13,30 +18,53 @@ from pathlib import Path
 BACKEND = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(BACKEND))
 
-from app.firms import ml_cal, store, ts_transformer as tst  # noqa: E402
+from app.firms import ml_cal, store, ts_v2  # noqa: E402
 
 MODEL_DIR = BACKEND / "data" / "firms" / "models"
+AOIS = ("vietnam", "amazon", "australia")
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--aoi", default="vietnam")
-    ap.add_argument("--test-years", type=int, default=3)
-    ap.add_argument("--epochs", type=int, default=120)
+    ap.add_argument("--test-years", type=int, default=2)
+    ap.add_argument("--epochs", type=int, default=180)
+    ap.add_argument("--data", default="sample", choices=("sample", "raw"))
+    ap.add_argument("--single-aoi", action="store_true",
+                    help="no pooling (ablation / spatial-transfer baseline)")
     a = ap.parse_args()
-    records = store.load_records(a.aoi, 100000)
-    pairs = ml_cal.build_monthly_pairs(records)
-    wins = tst.build_windows(pairs)
-    res = tst.train_holdout(wins, test_years=a.test_years, epochs=a.epochs)
-    res["training_source"] = "synthetic-sample"
+    wins: list[dict] = []
+    pooled: list[str] = []
+    targets = [a.aoi] if a.single_aoi else list(AOIS)
+    for name in targets:
+        if a.data == "raw":
+            pairs = ml_cal.build_monthly_pairs_iter(
+                store.iter_raw_rows(name, limit=None))
+        else:
+            pairs = ml_cal.build_monthly_pairs(store.load_records(name, 100000))
+        w = ts_v2.build_windows(pairs, aoi=name)
+        if w:
+            wins += w
+            pooled.append(name)
+    res = ts_v2.train_pooled(wins, test_years=a.test_years, epochs=a.epochs)
+    tag = "sample" if a.data == "sample" else "raw"
+    res["training_source"] = ("synthetic-sample" if tag == "sample" else "nasa-firms-raw")
+    res["data_fingerprint"] = (store.pooled_fingerprint(store.AOIS) if tag == "raw"
+                               else store.pooled_fingerprint(store.AOIS, raw=False))
+    res["feature_version"] = ts_v2.FEATURE_VERSION
+    res["algorithm_version"] = ts_v2.ALGORITHM_VERSION
     res["dataset_sha256"] = hashlib.sha256(
-        json.dumps(pairs, sort_keys=True).encode("utf-8")).hexdigest()
+        json.dumps([{k: w[k] for k in ("year", "month", "aoi", "y")} for w in wins],
+                   sort_keys=True).encode()).hexdigest()
+    out = {k: v for k, v in res.items() if k not in ("models",)}
+    out["aoi"] = a.aoi
+    out["pooled_aois"] = pooled
     if not res.get("trained"):
-        print(json.dumps({"trained": False, **{k: v for k, v in res.items() if k != 'model'}}, indent=1))
+        print(json.dumps(out, indent=1))
         return 2
-    model = res.pop("model")
-    paths = tst.save_artifact(model, res, a.aoi, MODEL_DIR)
-    print(json.dumps({**{k: v for k, v in res.items()}, **paths}, indent=1))
+    paths = ts_v2.save_artifact(res["models"], res, a.aoi, MODEL_DIR, tag=tag)
+    out.update(paths)
+    print(json.dumps(out, indent=1, default=str))
     return 0
 
 

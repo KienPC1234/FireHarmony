@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, CalendarDays, Download, MessagesSquare } from "lucide-react";
-import { api, describeError, type Aoi } from "@/lib/api";
+import { api, ApiError, describeError, type Aoi } from "@/lib/api";
+import { parseCsv } from "@/lib/csv";
 import { useLang } from "@/lib/i18n";
 import { ErrorState, Loading } from "@/components/states";
 import { AnomalyFigure, PipelineFigure, PixelFigure } from "@/components/figures";
 
 export function HomePage() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const STEPS = [
     { icon: "📥", title: t("home.step1t"), desc: t("home.step1d") },
     { icon: "🗺️", title: t("home.step2t"), desc: t("home.step2d") },
@@ -20,6 +21,7 @@ export function HomePage() {
   const [stats, setStats] = useState<{ rows: number; raw: number } | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<string>("");
+  const [uploadUrl, setUploadUrl] = useState<string>("");
   const [error, setError] = useState<unknown>(null);
 
   useEffect(() => {
@@ -32,19 +34,27 @@ export function HomePage() {
 
   async function onUpload() {
     if (!file) return;
-    const text = await file.text();
-    const [header, ...lines] = text.trim().split("\n");
-    const cols = header.split(",").map((c) => c.trim().toLowerCase());
-    const records = lines.slice(0, 5000).map((ln) => {
-      const cells = ln.split(",");
-      return Object.fromEntries(cols.map((c, i) => [c, cells[i]?.trim()]));
-    });
+    setResult("");
+    setUploadUrl("");
     try {
-      const v = await api.validate(records);
-      const h = await api.harmonize(records);
-      setResult(`Clean ${v.clean}, rejected ${v.rejected}. Cells ${h.daily_cells}. ` +
-        `Critical: ${h.critical_periods.slice(0, 3).map((p) => `${p.year}-${p.month}(z=${p.z})`).join(", ") || "none"}`);
+      const up = await api.uploadDataset(file);
+      setResult(`rows ${up.rows}, clean ${up.clean}, rejected ${up.rejected}`);
+      setUploadUrl(up.calendar_url);
     } catch (e) {
+      if (e instanceof ApiError && e.status === 403) {
+        // Admin-gated prod: fall back to the old client-side behavior.
+        try {
+          const text = await file.text();
+          const records = parseCsv(text, 5000);
+          const v = await api.validate(records);
+          const h = await api.harmonize(records);
+          setResult(`Clean ${v.clean}, rejected ${v.rejected}. Cells ${h.daily_cells}. ` +
+            `Critical: ${h.critical_periods.slice(0, 3).map((p) => `${p.year}-${p.month}(z=${p.z})`).join(", ") || "none"}`);
+        } catch (e2) {
+          setResult(describeError(e2));
+        }
+        return;
+      }
       setResult(describeError(e));
     }
   }
@@ -115,9 +125,34 @@ export function HomePage() {
         )}
       </section>
 
+      <section className="space-y-3">
+        <h2 className="text-xl font-bold">{lang === "vi" ? "Dành cho ai" : "For whom"}</h2>
+        <div className="grid gap-3 md:grid-cols-3">
+          <Link to="/calendar?aoi=vietnam"
+            className="card-glow group rounded-lg border bg-card p-4 transition-shadow hover:shadow-lg">
+            <p className="font-mono text-xs uppercase text-orange-500">{lang === "vi" ? "Kiểm lâm" : "Forest ranger"}</p>
+            <p className="mt-1 text-sm font-semibold group-hover:underline">{lang === "vi" ? "Rà soát mùa khô Tây Nguyên 2019" : "Central Highlands dry-season review 2019"}</p>
+            <p className="mt-2 text-xs text-muted-foreground">{lang === "vi" ? "So tháng 2–3/2019 với median cùng tháng, xuất brief 1 trang." : "Compare Feb–Mar 2019 vs same-month median, export a 1-page brief."}</p>
+          </Link>
+          <Link to="/xray?aoi=amazon&data=sample"
+            className="card-glow group rounded-lg border bg-card p-4 transition-shadow hover:shadow-lg">
+            <p className="font-mono text-xs uppercase text-orange-500">{lang === "vi" ? "Nhà khoa học" : "Researcher"}</p>
+            <p className="mt-1 text-sm font-semibold group-hover:underline">{lang === "vi" ? "So sensor Amazon 2019-08" : "Sensor comparison, Amazon 2019-08"}</p>
+            <p className="mt-2 text-xs text-muted-foreground">MODIS vs VIIRS vs adjusted + holdout error.</p>
+          </Link>
+          <Link to="/calendar?aoi=australia"
+            className="card-glow group rounded-lg border bg-card p-4 transition-shadow hover:shadow-lg">
+            <p className="font-mono text-xs uppercase text-orange-500">{lang === "vi" ? "Land manager Úc" : "Australia land manager"}</p>
+            <p className="mt-1 text-sm font-semibold group-hover:underline">Black Summer 2019-12/2020-01</p>
+            <p className="mt-2 text-xs text-muted-foreground">{lang === "vi" ? "Xem đỉnh cháy 12/2019–01/2020, đối chiếu tháng bất thường." : "Inspect the Dec 2019–Jan 2020 peak and anomalous months."}</p>
+          </Link>
+        </div>
+      </section>
+
       <section className="card-glow rounded-lg border bg-card p-4">
         <h2 className="font-bold">{t("home.upload")}</h2>
         <p className="text-sm text-muted-foreground">{t("home.upload_desc")}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{t("home.upload_session")}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <input type="file" accept=".csv" aria-label="FIRMS CSV"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
@@ -125,6 +160,11 @@ export function HomePage() {
         </div>
         <p className="mt-2 text-xs text-muted-foreground">{t("home.uploadwarn")}</p>
         {result && <p className="mt-3 text-sm" role="status">{result}</p>}
+        {uploadUrl && (
+          <p className="mt-2 text-sm">
+            <Link className="underline" to={uploadUrl}>{t("home.upload_open")}</Link>
+          </p>
+        )}
       </section>
     </div>
   );
