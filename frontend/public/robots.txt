@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+# API documentation is public; no private areas exist.

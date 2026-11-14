@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <meta name="theme-color" content="#0B1426" />
+    <title>AlphaCentauriAB - Space Fire Safety Intelligence</title>
+    <meta
+      name="description"
+      content="AI dashboard over NASA research on fire in microgravity: PROMETHEUS RAG, ARGUS retrieval, HESTIA measured data, and a mission fire-safety brief."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="AlphaCentauriAB · Space Fire Safety Intelligence" />
+    <meta
+      property="og:description"
+      content="991 NASA documents, cited answers, measured flame-spread data, and a cited mission brief. Every number traceable to its report."
+    />
+    <meta property="og:image" content="/hero-flame.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="AlphaCentauriAB · Space Fire Safety Intelligence" />
+    <meta
+      name="twitter:description"
+      content="A fire-safety intelligence dashboard for human space exploration, built on NASA NTRS and PSI data."
+    />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/logo.svg" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      This dashboard needs JavaScript. The FastAPI endpoints under /api are still
+      available without it.
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

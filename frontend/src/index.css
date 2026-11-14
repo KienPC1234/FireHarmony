@@ -1,0 +1,287 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
+    --radius: 0.65rem;
+    --flame: 24 95% 58%;
+  }
+
+  .dark {
+    --background: 222 47% 6%;
+    --foreground: 210 40% 98%;
+    --card: 221 44% 9%;
+    --card-foreground: 210 40% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 6%;
+    --secondary: 217 33% 15%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 14%;
+    --muted-foreground: 215 22% 75%;
+    --accent: 217 33% 16%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 19%;
+    --input: 217 33% 22%;
+    --ring: 217 91% 60%;
+    --flame: 24 95% 58%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    /* Inter's alternates plus contextual ligatures: the defaults look generic. */
+    font-feature-settings: "cv11" 1, "ss01" 1, "rlig" 1, "calt" 1;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Numbers must not jitter while data animates in. */
+  .font-mono,
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    @apply bg-primary/30;
+  }
+
+  mark {
+    @apply rounded bg-primary/20 px-0.5 text-foreground;
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  /* Long citation-bearing answers should wrap rather than overflow. */
+  .prose-answer {
+    overflow-wrap: break-word;
+  }
+
+  /* Range sliders (mission brief, fire risk) get a real thumb. The native
+     control is a thin grey line otherwise, and it is the primary input of
+     the mission-brief instrument. Kept in plain CSS so no dependency is
+     needed; accent-color remains as the forced-colors fallback. */
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 1.5rem;
+    background: transparent;
+    cursor: pointer;
+    accent-color: hsl(var(--primary));
+  }
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 999px;
+    background:
+      linear-gradient(
+        to right,
+        hsl(var(--primary)) 0%,
+        hsl(var(--primary)) var(--fill, 50%),
+        hsl(var(--muted)) var(--fill, 50%),
+        hsl(var(--muted)) 100%
+      );
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    margin-top: -5px;
+    height: 16px;
+    width: 16px;
+    border-radius: 999px;
+    background: hsl(var(--primary-foreground));
+    border: 2px solid hsl(var(--primary));
+    box-shadow: 0 0 12px -2px hsl(var(--primary) / 0.8);
+  }
+  input[type="range"]::-moz-range-track {
+    height: 6px;
+    border-radius: 999px;
+    background: hsl(var(--muted));
+  }
+  input[type="range"]::-moz-range-progress {
+    height: 6px;
+    border-radius: 999px;
+    background: hsl(var(--primary));
+  }
+  input[type="range"]::-moz-range-thumb {
+    height: 12px;
+    width: 12px;
+    border-radius: 999px;
+    background: hsl(var(--primary-foreground));
+    border: 2px solid hsl(var(--primary));
+    box-shadow: 0 0 12px -2px hsl(var(--primary) / 0.8);
+  }
+  input[type="range"]:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
+@media print {
+  header,
+  footer,
+  nav,
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .container {
+    max-width: none !important;
+  }
+  a {
+    color: black !important;
+    text-decoration: underline;
+  }
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--border));
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground) / 0.5);
+}
+
+@layer utilities {
+  /* Soft ambient light so the page is not a flat black rectangle. Kept faint
+     on purpose: the hero and illustrations carry the colour, the page behind
+     them stays quiet. */
+  .bg-aurora {
+    background-image:
+      radial-gradient(55rem 28rem at 12% -12%, hsl(var(--primary) / 0.09), transparent 62%),
+      radial-gradient(42rem 22rem at 88% -6%, hsl(268 80% 62% / 0.06), transparent 60%),
+      radial-gradient(36rem 22rem at 50% 110%, hsl(var(--flame) / 0.04), transparent 65%);
+  }
+
+  .text-gradient {
+    background: linear-gradient(110deg, hsl(var(--foreground)) 10%, #bfdbfe 48%, #fcd34d 96%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Windows High Contrast and forced-colors modes ignore background-clip, and
+     a transparent colour then paints nothing at all — the page heading would
+     simply be invisible. Fall back to the plain foreground colour there. */
+  @media (forced-colors: active) {
+    .text-gradient {
+      background: none;
+      color: CanvasText;
+      forced-color-adjust: auto;
+    }
+  }
+
+  /* Cards get a cursor-following glow. The JS in Card sets --mx/--my. */
+  .card-glow {
+    position: relative;
+    isolation: isolate;
+  }
+  .card-glow::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0;
+    border-radius: inherit;
+    transition: opacity 0.35s ease;
+    background: radial-gradient(
+      420px circle at var(--mx, 50%) var(--my, 0%),
+      hsl(var(--primary) / 0.13),
+      transparent 62%
+    );
+  }
+  .card-glow:hover::before {
+    opacity: 1;
+  }
+
+  .glow-border {
+    box-shadow:
+      0 0 0 1px hsl(var(--primary) / 0.22),
+      0 0 60px -18px hsl(var(--primary) / 0.55);
+  }
+
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, hsl(var(--border) / 0.35) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.35) 1px, transparent 1px);
+    background-size: 42px 42px;
+    mask-image: radial-gradient(ellipse at center, black 20%, transparent 75%);
+  }
+
+  .animate-float {
+    animation: aab-float 9s ease-in-out infinite;
+  }
+  .animate-shimmer {
+    background-size: 200% 100%;
+    animation: aab-shimmer 2.6s linear infinite;
+  }
+  .animate-fade-up {
+    animation: aab-fade-up 0.45s ease-out both;
+  }
+}
+
+/* The floating hero flame is the most prominent animation on the site and it
+   ran for ever, whatever the reader's motion preference was. The other
+   animations in this file are already handled in JS; this one is pure CSS. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-float,
+  .animate-shimmer {
+    animation: none;
+  }
+}
+
+@keyframes aab-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(0.6deg); }
+}
+
+@keyframes aab-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes aab-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}

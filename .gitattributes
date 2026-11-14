@@ -1,0 +1,20 @@
+* text=auto eol=lf
+
+# Binary artefacts: never diff or line-wrap them.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.woff2 binary
+*.faiss binary
+*.safetensors binary
+*.pt binary
+*.pth binary
+*.ckpt binary
+*.joblib binary
+
+# The NTRS full text is data, not a programming language. Keep it out of the
+# GitHub language breakdown while still tracking every file.
+backend/data/raw/ntrs/fulltext/** linguist-vendored
+backend/data/processed/*.jsonl linguist-generated
+docs/screenshots/*.png linguist-documentation

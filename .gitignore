@@ -1,0 +1,70 @@
+# ===== Environments =====
+.venv/
+env/
+conda-meta/
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# ===== Notebooks =====
+.ipynb_checkpoints/
+
+# ===== Model artifacts (sinh lại được) =====
+backend/models/prometheus/index/
+backend/models/prometheus/*.faiss
+backend/models/prometheus/*.joblib
+backend/models/prometheus/argus-retrieval/
+backend/models/prometheus/argus-reranker/
+backend/models/prometheus/argus-generator-lora/
+backend/models/prometheus/fire_risk_model.json
+backend/models/prometheus/*.json
+backend/checkpoints/
+runs/
+outputs/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.safetensors
+
+# ===== FIRMS data =====
+backend/data/firms/raw/
+backend/data/firms/*.parquet
+
+# ===== HF cache =====
+.cache/huggingface/
+
+# ===== Frontend (Vite) =====
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/*.local
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+frontend/.playwright/
+
+# ===== Env / secrets =====
+.env
+backend/.env
+
+# ===== Editor / OS =====
+.vscode/
+.idea/
+.DS_Store
+
+# ===== Logs =====
+*.log
+logs/
+.pytest_cache/
+
+# ===== Crash dumps (never commit: GB-sized, regenerable, secret-free junk) =====
+core
+core.*
+vgcore.*

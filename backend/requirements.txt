@@ -1,0 +1,66 @@
+# ==== Deep Learning (CUDA 13.0) ====
+--extra-index-url https://download.pytorch.org/whl/cu130
+torch==2.14.1+cu130
+torchvision==0.29.1+cu130
+torchaudio==2.11.0+cu130
+
+# ==== Core data / scientific ====
+numpy<2.0
+pandas
+scipy
+scikit-learn
+sympy
+networkx
+
+# ==== Visualization / notebooks ====
+matplotlib
+seaborn
+plotly
+jupyterlab
+ipykernel
+ipywidgets
+tensorboard
+
+# ==== Vision ====
+pillow
+opencv-python
+
+# ==== NLP / Hugging Face ecosystem ====
+transformers
+datasets
+tokenizers
+accelerate
+safetensors
+huggingface-hub
+sentencepiece
+
+# ==== Utilities ====
+tqdm
+pyyaml
+rich
+einops
+
+# ==== Backend API ====
+fastapi
+uvicorn[standard]
+python-dotenv
+
+# ==== PROMETHEUS: training & retrieval ====
+peft
+trl
+bitsandbytes
+sentence-transformers
+faiss-cpu
+evaluate
+rouge-score
+pdfplumber
+gliner
+joblib
+
+# ==== Testing ====
+pytest
+
+# PostgreSQL driver for query audit / feedback storage.
+psycopg[binary]>=3.2
+# Connection pool for the audit writes.
+psycopg-pool>=3.2

@@ -1,0 +1,17 @@
+{
+  "name": "AlphaCentauriAB · Space Fire Safety Intelligence",
+  "short_name": "AlphaCentauriAB",
+  "description": "A fire-safety intelligence dashboard built on NASA microgravity combustion research.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B1426",
+  "theme_color": "#0B1426",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

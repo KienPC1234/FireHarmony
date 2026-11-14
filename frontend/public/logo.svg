@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">AlphaCentauriAB</title>
+  <desc id="desc">A warm amber flame with two stellar cores, encircled by an inclined blue orbit on a midnight blue rounded square.</desc>
+  <defs>
+    <clipPath id="crossing"><path d="M263 113C273 170 211 197 218 249C239 243 259 225 270 204C280 240 323 254 329 213C366 255 378 285 371 319C361 365 319 394 264 394C205 394 161 357 158 306C155 265 174 231 207 198C239 166 255 144 263 113Z"/></clipPath>
+    <linearGradient id="fire" x1="190" y1="150" x2="315" y2="379" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE5A3"/>
+      <stop offset=".5" stop-color="#FFB34E"/>
+      <stop offset="1" stop-color="#F46A40"/>
+    </linearGradient>
+  </defs>
+  <!-- Remove this rectangle for a transparent standalone mark. -->
+  <rect width="512" height="512" rx="112" fill="#0B1426"/>
+  <!-- A true ellipse; the foreground arc uses exactly the same geometry. -->
+  <ellipse cx="256" cy="250" rx="190" ry="86" transform="rotate(-28 256 250)" stroke="#86BDDC" stroke-width="14"/>
+  <!-- A compact, rounded flame: a symbolic mark, not a scientific diagram. -->
+  <path d="M263 113C273 170 211 197 218 249C239 243 259 225 270 204C280 240 323 254 329 213C366 255 378 285 371 319C361 365 319 394 264 394C205 394 161 357 158 306C155 265 174 231 207 198C239 166 255 144 263 113Z" fill="url(#fire)"/>
+  <!-- Binary stellar cores, A and B. -->
+  <path d="M241 252L249 272L269 280L249 288L241 308L233 288L213 280L233 272Z" fill="#0B1426"/>
+  <path d="M300 268L305 282L319 287L305 292L300 306L295 292L281 287L295 282Z" fill="#0B1426"/>
+  <g clip-path="url(#crossing)">
+    <path d="M190 0A190 86 0 0 1-190 0" transform="translate(256 250) rotate(-28)" stroke="#0B1426" stroke-width="30"/>
+  </g>
+  <path d="M190 0A190 86 0 0 1-190 0" transform="translate(256 250) rotate(-28)" stroke="#86BDDC" stroke-width="14"/>
+</svg>
