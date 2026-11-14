@@ -122,18 +122,23 @@ def train_calibrator(pairs: list[dict], epochs: int = 60, lr: float = 1e-2) -> d
         ss = float(np.sum((y - y.mean()) ** 2)) or 1.0
         r2 = 1 - float(np.sum((y - pred) ** 2)) / ss
     return {"trained": True, "n": len(pairs), "mae": round(mae, 3),
-            "r2_log": round(float(r2), 3), "epochs": epochs}
+            "r2_logspace_train_only": round(float(r2), 3),
+            "warning": "train-set only, no holdout — do not quote as accuracy",
+            "epochs": epochs, "seed": 7}
 
 
 def describe() -> dict:
     return {
         "has_torch": _HAS_TORCH,
+        "status": ("experimental — NOT used by /calendar; no persisted checkpoints"
+                   if _HAS_TORCH else "statistical path only (torch not installed)"),
         "models": [
             {"name": "CrossSensorCalibrator", "kind": "MLP residual (6->32->32->1)",
-             "params": "2.3k", "input": "MODIS count/FRP + climatology + month + lat",
-             "target": "VIIRS-equivalent count", "loss": "Huber"},
+             "params": "1313", "input": "MODIS count/FRP + climatology + month + lat",
+             "target": "VIIRS-equivalent count", "loss": "Huber (log1p space)",
+             "used_in_pipeline": False},
             {"name": "FireSeasonAE", "kind": "Conv1d autoencoder over 12-month season",
-             "params": "0.4k", "input": "12-month harmonized series",
-             "score": "MAE reconstruction error"},
+             "params": "261", "input": "12-month harmonized series",
+             "score": "MAE reconstruction error", "used_in_pipeline": False},
         ],
     }

@@ -51,4 +51,4 @@ cd backend && ../.venv/bin/python -m scripts.firms.fetch_firms --source VIIRS_SN
 - `docs/FIRMS_MODEL_CARD.md` — the two tiny models + fallbacks
 - `docs/AGENT_CLAIMS.md` — who owns what (claim before editing)
 
-Previous microgravity project backup: `/data/backup_AlphaCentauriAB_20261109/`.
+Previous microgravity project source (if kept): `/data/AlphaCentauriAB_old/` — not part of this repo.

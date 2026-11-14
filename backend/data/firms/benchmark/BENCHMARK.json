@@ -1,0 +1,47 @@
+{
+ "aois": {
+  "vietnam": {
+   "fixture": "real_mini_vietnam.csv",
+   "fixture_rows": 1500,
+   "full_rows": 12114,
+   "fixture_sha256": "e2fd3c692e26bbb12791cb82ff41baa86854c1f46aa4c4e4458875012289a58e",
+   "date_range": [
+    "2019-02-15",
+    "2026-11-09"
+   ]
+  },
+  "amazon": {
+   "fixture": "real_mini_amazon.csv",
+   "fixture_rows": 1500,
+   "full_rows": 85369,
+   "fixture_sha256": "44017860fbe27acfe8cca40ba61e9523cb207bffbd823d49972d881a119732cb",
+   "date_range": [
+    "2019-08-15",
+    "2026-11-09"
+   ]
+  },
+  "australia": {
+   "fixture": "real_mini_australia.csv",
+   "fixture_rows": 1500,
+   "full_rows": 221579,
+   "fixture_sha256": "6a441da6152b0a043fc7bc93e5f9cce466ad0ef21736d8cf14b806eb495337fe",
+   "date_range": [
+    "2019-12-20",
+    "2026-11-09"
+   ]
+  }
+ },
+ "sources": [
+  "MODIS_NRT",
+  "MODIS_SP",
+  "VIIRS_NOAA20_NRT",
+  "VIIRS_NOAA21_NRT",
+  "VIIRS_SNPP_NRT",
+  "VIIRS_SNPP_SP"
+ ],
+ "expected_pairs": {
+  "file": "expected_pairs.csv",
+  "rows": 7,
+  "sha256": "a7ce11d321a0c4d52825c5db84a2fc19a308f777abd40cbc86a411e3b60452da"
+ }
+}

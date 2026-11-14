@@ -48,6 +48,8 @@ def gather_facts(calendar: dict, daily_cells: int, ratios: dict,
         "era_ratio": era_ratio,
         "col_medians": calendar.get("col_medians", []),
         "latest": None,  # filled by caller
+        "data_source": "synthetic demo (NOT observed)",
+        "z_unit": calendar.get("z_unit", "robust MAD units"),
     }
 
 
@@ -90,28 +92,35 @@ def _fmt_top(critical: list[dict], n: int = 3) -> str:
 
 
 def _t_algorithm(f: dict, vi: bool) -> str:
+    src = f.get("data_source", "synthetic demo (NOT observed)")
     if vi:
         return (f"Thuật toán gồm 4 bước trên lưới ngày 0.05°: (1) Chuẩn hóa mọi dòng FIRMS về một schema, "
-                f"gắn cờ QA. (2) Ước lượng k = MODIS/VIIRS = {f['k_fallback']} từ tổng tháng của AOI "
-                f"({f['k_months_measured']} tháng đo được, không cần trùng ô). (3) Harmonize XUÔI về độ nhạy VIIRS: "
-                f"giữ nguyên VIIRS ở ô nào VIIRS bay qua, ô chỉ có MODIS (trước 2012) upscale 1/k và ghi nhãn ước lượng. "
-                f"Không bao giờ cộng dồn — cộng sẽ tạo bước nhảy giả ~2x năm 2012. "
-                f"(4) Calendar tháng×năm, anomaly z = (giá trị − median cùng tháng)/MAD.")
-    return (f"4 steps on a daily 0.05° grid: (1) standardize FIRMS rows, QA flags. (2) k = MODIS/VIIRS = "
-            f"{f['k_fallback']} from monthly AOI totals ({f['k_months_measured']} measured months). "
-            f"(3) Forward fill to VIIRS sensitivity: keep VIIRS where it flew, upscale MODIS-only cells by 1/k "
-            f"(labeled estimated). Never summed — a sum fakes a ~2x step in 2012. "
-            f"(4) Month×year calendar, z = (value − same-month median)/MAD.")
+                f"gắn cờ QA (hàng lỗi hình học bị loại, thống kê trong `qa`). (2) Ước lượng k = MODIS/VIIRS = {f['k_fallback']} từ tổng tháng của AOI "
+                f"({f['k_months_measured']} tháng đo được, không cần trùng ô). Đây là activity-ratio thực nghiệm, chưa phải hiệu chuẩn cảm biến "
+                f"đã kiểm chứng (chưa tách ngày/đêm, giờ bay, số vệ tinh). (3) Chỉ số hoạt động đã chỉnh sensor: "
+                f"giữ nguyên VIIRS ở ô nào VIIRS ghi nhận ≥1 detection, ô chỉ-MODIS upscale 1/k và ghi nhãn MODIS-upscaled ESTIMATE "
+                f"(coverage=unknown — hotspot-only feed không chứng minh được 'đã quan sát mà không cháy'). "
+                f"Không bao giờ cộng dồn. (4) Calendar tháng×năm, anomaly z tính bằng đơn vị MAD robust ({f.get('z_unit')}). "
+                f"Nguồn dữ liệu hiện tại: {src}.")
+    return (f"4 steps on a daily 0.05° grid: (1) standardize FIRMS rows, QA flags (bad geometry dropped, counted in `qa`). "
+            f"(2) k = MODIS/VIIRS = {f['k_fallback']} from monthly AOI totals ({f['k_months_measured']} measured months). "
+            f"This is an empirical activity ratio, not yet a validated sensor calibration (no day/night or overpass split). "
+            f"(3) Sensor-adjusted activity index (hotspot detections, NOT fires): keep VIIRS where >=1 VIIRS detection, "
+            f"upscale MODIS-only cells by 1/k as ESTIMATES (coverage=unknown). Never summed. "
+            f"(4) Month×year calendar, z in robust MAD units. Current source: {src}.")
 
 
 def _t_accuracy(f: dict, critical: list[dict], vi: bool) -> str:
     top = _fmt_top(critical)
+    src = f.get("data_source", "synthetic demo (NOT observed)")
     if vi:
-        return (f"3 con số kiểm chứng được tính live: (1) Tỷ lệ cháy trung bình năm sau-2012/trước-2012 = {f['era_ratio']} "
-                f"(mục tiêu ~1.0 — chuỗi nhất quán xuyên kỷ nguyên sensor). (2) k đo được trên {f['k_months_measured']} tháng, "
-                f"fallback văn hiến {f['k_fallback']}. (3) Spike 2019 cấy vào được bắt: {top}. "
-                f"Giới hạn thành thật: sample hiện là tổng hợp (dữ liệu FIRMS thật cần MAP_KEY); ô trước 2012 là upscale ước lượng; "
-                f"bias giờ bay vệ tinh và mây che chưa khử hết.")
+        return (f"3 con số tính live trên nguồn HIỆN TẠI ({src}): (1) Tỷ lệ hoạt động sau-2012/trước-2012 = {f['era_ratio']} "
+                f"(mục tiêu ~1.0 — nhất quán nội bộ, KHÔNG phải độ chính xác cháy thật). (2) k trên {f['k_months_measured']} tháng, "
+                f"fallback {f['k_fallback']}. (3) Spike 2019 CẤY TRONG SYNTHETIC được bắt: {top} — chứng minh pipeline chạy, "
+                f"không chứng minh bắt cháy thật. Ô MODIS-only là ước lượng; FRP upscale = null; bias giờ bay/mây còn.")
+    return (f"3 live numbers on CURRENT source ({src}): (1) post/pre-2012 activity ratio = {f['era_ratio']} "
+            f"(internal consistency, NOT fire accuracy). (2) k on {f['k_months_measured']} months, fallback {f['k_fallback']}. "
+            f"(3) planted 2019 synthetic spike caught: {top} — pipeline check, not real-fire skill.")
     return (f"3 live-verifiable numbers: (1) post-2012/pre-2012 yearly mean ratio = {f['era_ratio']} "
             f"(target ~1.0 — era-consistent). (2) k measured on {f['k_months_measured']} months, fallback {f['k_fallback']}. "
             f"(3) planted 2019 spike caught: {top}. Honest limits: current sample is synthetic (real FIRMS needs MAP_KEY); "
@@ -144,24 +153,23 @@ def _t_latest(f: dict, latest: dict | None, vi: bool) -> str:
         return "Chưa có dữ liệu mới nhất." if vi else "No latest data."
     r = latest.get("ratio")
     if vi:
-        return (f"Tháng mới nhất {latest['date']}: {latest['month_total']} vụ (quy đổi VIIRS), "
-                f"median lịch sử cùng tháng {latest['hist_median']} (×{r}) → {latest['verdict'].replace('_', ' ')}.")
-    return (f"Latest month {latest['date']}: {latest['month_total']} harmonized fires vs "
-            f"historical same-month median {latest['hist_median']} (×{r}) → {latest['verdict']}.")
+        return (f"Tháng mới nhất {latest['date']}: {latest['month_total']} detections (chỉ số hoạt động, KHÔNG phải số vụ cháy), "
+                f"median lịch sử cùng tháng {latest['hist_median']} (×{r}, baseline {latest.get('hist_years')} năm, đã loại năm hiện tại) → {latest['verdict'].replace('_', ' ')}.")
+    return (f"Latest month {latest['date']}: {latest['month_total']} hotspot detections (activity index, NOT fires) vs "
+            f"historical same-month median {latest['hist_median']} (×{r}, {latest.get('hist_years')}-yr baseline excl. current year) → {latest['verdict']}.")
 
 
 def _t_dl(f: dict, dl_info: dict, vi: bool) -> str:
     models = "; ".join(f"{m['name']} ({m['kind']}, {m['params']} params)" for m in dl_info.get("models", []))
     torch_s = "có" if dl_info.get("has_torch") else "không"
+    status = dl_info.get("status", "")
     if vi:
-        return (f"2 mô hình tí hon (<50k params, chạy CPU vài giây, torch trên máy này: {torch_s}): {models}. "
-                f"CrossSensorCalibrator học phần dư cho phép upscale 1/k trên tháng overlap (loss Huber, target số VIIRS); "
-                f"FireSeasonAE (Conv1d trên vector 12 tháng) chấm điểm mùa cháy lạ bằng sai số tái tạo. "
-                f"Thiếu torch/dữ liệu mỏng → tự rúle về đường thống kê, API luôn báo `trained: false` khi từ chối.")
-    return (f"2 tiny models (<50k params, seconds on CPU, torch here: {torch_s}): {models}. "
-            f"CrossSensorCalibrator learns the residual of the 1/k upscale on overlap months (Huber, VIIRS target); "
-            f"FireSeasonAE (Conv1d over the 12-month vector) scores odd seasons by reconstruction error. "
-            f"No torch/thin data → statistical fallback, API reports `trained: false` on refusal.")
+        return (f"Trạng thái ML: {status}. {models}. "
+                f"CrossSensorCalibrator chỉ là thí nghiệm offline (torch: {torch_s}); /calendar KHÔNG dùng ML. "
+                f"FireSeasonAE chưa huấn luyện — không tuyên bố neural anomaly detection. Hỏi tiếp về thuật toán thống kê nhé.")
+    return (f"ML status: {status}. {models}. "
+            f"CrossSensorCalibrator is an offline experiment (torch: {torch_s}); /calendar does NOT use ML. "
+            f"FireSeasonAE is untrained — no neural anomaly claims.")
 
 
 def _t_usage(f: dict, vi: bool) -> str:

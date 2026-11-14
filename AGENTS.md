@@ -1,8 +1,8 @@
 # AGENTS.md — FIRMS Fire Calendar (fresh repo, 2026-11-09)
 
-Previous project (microgravity PROMETHEUS/HESTIA) is archived at
-`/data/backup_AlphaCentauriAB_20261109/` (history.bundle + worktree-gon.tar.gz).
-Do not resurrect its modules (`prometheus/`, NTRS corpus, HESTIA guards) here.
+Old project sources (microgravity PROMETHEUS/HESTIA), if kept on disk, live
+outside this repo and must not be resurrected here (`prometheus/`, NTRS corpus,
+old guards).
 
 ## What this project is
 

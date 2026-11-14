@@ -30,7 +30,7 @@ export default defineConfig({
         },
       },
     },
-    // Keep the initial shell lean; charts/motion load on demand.
+    // Keep the initial shell lean; charts load on demand with the calendar page.
     chunkSizeWarningLimit: 420,
   },
   preview: { port: 5173 },

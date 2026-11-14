@@ -9,8 +9,8 @@
  *   pm2 logs alphacentauriab
  *   make pm2-stop
  *
- * The backend/.env file supplies DATABASE_URL, OLLAMA_HOST and the other
- * settings. It is loaded here so PM2 does not need a shell profile.
+ * The backend/.env file supplies FIRMS_MAP_KEY and other settings.
+ * It is loaded here so PM2 does not need a shell profile.
  */
 const fs = require("fs")
 const path = require("path")
@@ -29,7 +29,7 @@ function loadEnv(file) {
       if (key) out[key] = value
     }
   } catch {
-    // .env is optional; the dashboard works without PostgreSQL/Ollama.
+    // .env is optional; the dashboard works without it (offline samples).
   }
   return out
 }
@@ -51,12 +51,8 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
-      // Measured RSS with the retrieval model warm is ~2 GB (SentenceTransformer
-      // weights + 11k-chunk FAISS index in-process). A 1G ceiling used to sit
-      // here and PM2 kill-restarted the API as soon as the model loaded — first
-      // as a flap on the first Ask, then as a restart loop once startup warming
-      // landed. The dashboard cannot serve retrieval below ~2 GB by design
-      // (single process, no sidecar), so the ceiling must fit the model.
+      // Single process holds the harmonized series in memory; keep headroom
+      // for torch when CrossSensorCalibrator trains on overlap months.
       max_memory_restart: "3G",
       restart_delay: 2000,
       kill_timeout: 5000,

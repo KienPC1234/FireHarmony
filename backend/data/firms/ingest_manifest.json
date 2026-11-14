@@ -82,5 +82,241 @@
   "by_instrument": {
    "MODIS": 1303
   }
+ },
+ {
+  "file": "vietnam_VIIRS_NOAA20_NRT_2026-11-09_5d_c0ecff95ac863ad3.csv",
+  "aoi": "vietnam",
+  "source": "VIIRS_NOAA20_NRT",
+  "bbox": "104,10,109,16",
+  "days": 5,
+  "sha16": "c0ecff95ac863ad3",
+  "at": "2026-11-09",
+  "rows": 258,
+  "clean": 258,
+  "rejected": 0,
+  "by_instrument": {
+   "VIIRS": 258
+  }
+ },
+ {
+  "file": "vietnam_VIIRS_NOAA21_NRT_2026-11-09_5d_d99c6d7f3f870360.csv",
+  "aoi": "vietnam",
+  "source": "VIIRS_NOAA21_NRT",
+  "bbox": "104,10,109,16",
+  "days": 5,
+  "sha16": "d99c6d7f3f870360",
+  "at": "2026-11-09",
+  "rows": 378,
+  "clean": 378,
+  "rejected": 0,
+  "by_instrument": {
+   "VIIRS": 378
+  }
+ },
+ {
+  "file": "australia_MODIS_NRT_2026-11-09_5d_832cd1e8eebcc369.csv",
+  "aoi": "australia",
+  "source": "MODIS_NRT",
+  "bbox": "113,-39,153,-12",
+  "days": 5,
+  "sha16": "832cd1e8eebcc369",
+  "at": "2026-11-09",
+  "rows": 11737,
+  "clean": 11737,
+  "rejected": 0,
+  "by_instrument": {
+   "MODIS": 11737
+  }
+ },
+ {
+  "file": "australia_VIIRS_SNPP_NRT_2026-11-09_5d_2b11a44667d05367.csv",
+  "aoi": "australia",
+  "source": "VIIRS_SNPP_NRT",
+  "bbox": "113,-39,153,-12",
+  "days": 5,
+  "sha16": "2b11a44667d05367",
+  "at": "2026-11-09",
+  "rows": 0,
+  "clean": 0,
+  "rejected": 0,
+  "by_instrument": {}
+ },
+ {
+  "file": "australia_VIIRS_NOAA20_NRT_2026-11-09_5d_549ef89d4b62652d.csv",
+  "aoi": "australia",
+  "source": "VIIRS_NOAA20_NRT",
+  "bbox": "113,-39,153,-12",
+  "days": 5,
+  "sha16": "549ef89d4b62652d",
+  "at": "2026-11-09",
+  "rows": 46487,
+  "clean": 46487,
+  "rejected": 0,
+  "by_instrument": {
+   "VIIRS": 46487
+  }
+ },
+ {
+  "file": "australia_VIIRS_NOAA21_NRT_2026-11-09_5d_71a4c180edee7f19.csv",
+  "aoi": "australia",
+  "source": "VIIRS_NOAA21_NRT",
+  "bbox": "113,-39,153,-12",
+  "days": 5,
+  "sha16": "71a4c180edee7f19",
+  "at": "2026-11-09",
+  "rows": 56110,
+  "clean": 56110,
+  "rejected": 0,
+  "by_instrument": {
+   "VIIRS": 56110
+  }
+ },
+ {
+  "file": "amazon_MODIS_NRT_2026-11-09_5d_85411a7a358cc1c0.csv",
+  "aoi": "amazon",
+  "source": "MODIS_NRT",
+  "bbox": "-70,-12,-50,3",
+  "days": 5,
+  "sha16": "85411a7a358cc1c0",
+  "at": "2026-11-09",
+  "rows": 4014,
+  "clean": 4014,
+  "rejected": 0,
+  "by_instrument": {
+   "MODIS": 4014
+  }
+ },
+ {
+  "file": "amazon_VIIRS_SNPP_NRT_2026-11-09_5d_2b11a44667d05367.csv",
+  "aoi": "amazon",
+  "source": "VIIRS_SNPP_NRT",
+  "bbox": "-70,-12,-50,3",
+  "days": 5,
+  "sha16": "2b11a44667d05367",
+  "at": "2026-11-09",
+  "rows": 0,
+  "clean": 0,
+  "rejected": 0,
+  "by_instrument": {}
+ },
+ {
+  "file": "amazon_VIIRS_NOAA20_NRT_2026-11-09_5d_50614ac572278492.csv",
+  "aoi": "amazon",
+  "source": "VIIRS_NOAA20_NRT",
+  "bbox": "-70,-12,-50,3",
+  "days": 5,
+  "sha16": "50614ac572278492",
+  "at": "2026-11-09",
+  "rows": 14399,
+  "clean": 14399,
+  "rejected": 0,
+  "by_instrument": {
+   "VIIRS": 14399
+  }
+ },
+ {
+  "file": "amazon_VIIRS_NOAA21_NRT_2026-11-09_5d_0d4c54c951b44574.csv",
+  "aoi": "amazon",
+  "source": "VIIRS_NOAA21_NRT",
+  "bbox": "-70,-12,-50,3",
+  "days": 5,
+  "sha16": "0d4c54c951b44574",
+  "at": "2026-11-09",
+  "rows": 15567,
+  "clean": 15567,
+  "rejected": 0,
+  "by_instrument": {
+   "VIIRS": 15567
+  }
+ },
+ {
+  "file": "amazon_MODIS_SP_2019-08-15_5d_aaffc81efc484299.csv",
+  "aoi": "amazon",
+  "source": "MODIS_SP",
+  "bbox": "-70,-12,-50,3",
+  "days": 5,
+  "sha16": "aaffc81efc484299",
+  "at": "2026-11-09",
+  "rows": 10173,
+  "clean": 10173,
+  "rejected": 0,
+  "by_instrument": {
+   "MODIS": 10173
+  }
+ },
+ {
+  "file": "amazon_VIIRS_SNPP_SP_2019-08-15_5d_0f14deed220794b5.csv",
+  "aoi": "amazon",
+  "source": "VIIRS_SNPP_SP",
+  "bbox": "-70,-12,-50,3",
+  "days": 5,
+  "sha16": "0f14deed220794b5",
+  "at": "2026-11-09",
+  "rows": 41217,
+  "clean": 41217,
+  "rejected": 0,
+  "by_instrument": {
+   "VIIRS": 41217
+  }
+ },
+ {
+  "file": "australia_MODIS_SP_2019-12-20_5d_749f6f7bc0d2aa21.csv",
+  "aoi": "australia",
+  "source": "MODIS_SP",
+  "bbox": "113,-39,153,-12",
+  "days": 5,
+  "sha16": "749f6f7bc0d2aa21",
+  "at": "2026-11-09",
+  "rows": 12187,
+  "clean": 12187,
+  "rejected": 0,
+  "by_instrument": {
+   "MODIS": 12187
+  }
+ },
+ {
+  "file": "australia_VIIRS_SNPP_SP_2019-12-20_5d_ff40907f1fcda394.csv",
+  "aoi": "australia",
+  "source": "VIIRS_SNPP_SP",
+  "bbox": "113,-39,153,-12",
+  "days": 5,
+  "sha16": "ff40907f1fcda394",
+  "at": "2026-11-09",
+  "rows": 62599,
+  "clean": 62599,
+  "rejected": 0,
+  "by_instrument": {
+   "VIIRS": 62599
+  }
+ },
+ {
+  "file": "australia_MODIS_SP_2020-01-05_5d_7cf28548032c56bf.csv",
+  "aoi": "australia",
+  "source": "MODIS_SP",
+  "bbox": "113,-39,153,-12",
+  "days": 5,
+  "sha16": "7cf28548032c56bf",
+  "at": "2026-11-09",
+  "rows": 4821,
+  "clean": 4821,
+  "rejected": 0,
+  "by_instrument": {
+   "MODIS": 4821
+  }
+ },
+ {
+  "file": "australia_VIIRS_SNPP_SP_2020-01-05_5d_5040e6f2a596b344.csv",
+  "aoi": "australia",
+  "source": "VIIRS_SNPP_SP",
+  "bbox": "113,-39,153,-12",
+  "days": 5,
+  "sha16": "5040e6f2a596b344",
+  "at": "2026-11-09",
+  "rows": 27653,
+  "clean": 27653,
+  "rejected": 0,
+  "by_instrument": {
+   "VIIRS": 27653
+  }
  }
 ]

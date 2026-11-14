@@ -87,7 +87,7 @@
 
   /* Range sliders (mission brief, fire risk) get a real thumb. The native
      control is a thin grey line otherwise, and it is the primary input of
-     the mission-brief instrument. Kept in plain CSS so no dependency is
+     the calendar instrument. Kept in plain CSS so no dependency is
      needed; accent-color remains as the forced-colors fallback. */
   input[type="range"] {
     -webkit-appearance: none;

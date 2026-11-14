@@ -14,6 +14,7 @@ import argparse
 import csv
 import hashlib
 import json
+import os
 import sys
 import time
 import urllib.request
@@ -24,6 +25,33 @@ BACKEND = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(BACKEND))
 from app.firms.schema import FirmsRecord  # noqa: E402
 from app.firms.store import MANIFEST, RAW_DIR  # noqa: E402
+
+
+def _load_dotenv() -> None:
+    """Load backend/.env (gitignored) so FIRMS_MAP_KEY need not be exported.
+
+    Uses python-dotenv when installed, else a 10-line KEY=VALUE parser —
+    no dependency required for a download script.
+    """
+    env = BACKEND / ".env"
+    try:
+        from dotenv import load_dotenv  # type: ignore
+
+        load_dotenv(env, override=False)
+        return
+    except ImportError:
+        pass
+    try:
+        for raw in env.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            k, v = k.strip(), v.strip().strip("'\"")
+            if k and k not in os.environ:
+                os.environ[k] = v
+    except OSError:
+        pass
 
 SOURCES = ("MODIS_NRT", "MODIS_SP", "VIIRS_SNPP_NRT", "VIIRS_SNPP_SP",
            "VIIRS_NOAA20_NRT", "VIIRS_NOAA21_NRT")
@@ -78,7 +106,8 @@ def main() -> None:
     ap.add_argument("--aoi", default="custom")
     args = ap.parse_args()
 
-    key = __import__("os").environ.get("FIRMS_MAP_KEY", "").strip()
+    _load_dotenv()
+    key = os.environ.get("FIRMS_MAP_KEY", "").strip()
     if not key:
         print("Set FIRMS_MAP_KEY first (https://firms.modaps.eosdis.nasa.gov/api/area/).",
               file=sys.stderr)

@@ -14,7 +14,7 @@ Read this + `AGENTS.md` before editing. Claim openly here, never revert another 
 
 | ID | Owner | Scope (files/dirs) | Task | Since (+0700) | Status |
 |----|-------|--------------------|------|---------------|--------|
-| CLAIM-004 | opencode-session | `backend/app/firms/**`, `frontend/src/pages/*`, `frontend/src/lib/api.ts` | Tiep tuc fire calendar: AOI bbox + current-vs-history + charts | 2026-11-09 17:45 | ACTIVE |
+| CLAIM-004 | opencode-session (audit-fix) | `backend/app/firms/**`, `frontend/src/pages/*`, `frontend/src/lib/api.ts` | Tiep tuc fire calendar: AOI bbox + current-vs-history + charts | 2026-11-09 17:45 | ACTIVE |
 
 
 ## Contested

@@ -1,68 +1,21 @@
-# ==== Deep Learning (CUDA 13.0) ====
+# FIRMS Fire Calendar — backend dependencies.
+# torch is optional at runtime (dl.py degrades to statistics without it),
+# but install it for the CrossSensorCalibrator + FireSeasonAE demo.
 --extra-index-url https://download.pytorch.org/whl/cu130
 torch==2.14.1+cu130
-torchvision==0.29.1+cu130
-torchaudio==2.11.0+cu130
 
-# ==== Core data / scientific ====
+# ==== Data ====
 numpy<2.0
 pandas
 pyarrow
-scipy
-scikit-learn
-sympy
-networkx
 
-# ==== Visualization / notebooks ====
-matplotlib
-seaborn
-plotly
-jupyterlab
-ipykernel
-ipywidgets
-tensorboard
-
-# ==== Vision ====
-pillow
-opencv-python
-
-# ==== NLP / Hugging Face ecosystem ====
-transformers
-datasets
-tokenizers
-accelerate
-safetensors
-huggingface-hub
-sentencepiece
-
-# ==== Utilities ====
-tqdm
-pyyaml
-rich
-einops
-
-# ==== Backend API ====
+# ==== API ====
 fastapi
 uvicorn[standard]
-python-multipart
+pydantic
 python-dotenv
-
-# ==== PROMETHEUS: training & retrieval ====
-peft
-trl
-bitsandbytes
-sentence-transformers
-faiss-cpu
-evaluate
-rouge-score
-pdfplumber
-gliner
-joblib
+python-multipart
 
 # ==== Testing ====
 pytest
-
-# PostgreSQL driver for query audit / feedback storage.
-psycopg[binary]>=3.2
-# Connection pool for the audit writes.
-psycopg-pool>=3.2
+httpx

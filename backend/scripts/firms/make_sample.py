@@ -43,6 +43,8 @@ REGIONS = {
 }
 
 MODIS_START, VIIRS_START, END_YEAR = 2001, 2012, 2025
+NOAA20_START = (2018, 4)  # P0-02: FIRMS VIIRS NOAA-20 begins 04/2018; NPP from 01/2012
+REGION_SEEDS = {"vietnam": 11, "amazon": 22, "australia": 33}  # P2-03: stable, no hash()
 
 
 def seasonal_intensity(peaks: dict[int, float], month: int) -> float:
@@ -62,7 +64,7 @@ def main(region: str = "all", seed: int = 7) -> list[Path]:
 def _generate(name: str, seed: int) -> Path:
     cfg = REGIONS[name]
     lon0, lat0, lon1, lat1 = cfg["bbox"]
-    rng = random.Random(seed + hash(name) % 1000)
+    rng = random.Random(REGION_SEEDS[name] * 1000 + seed)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     rows = []
     for year in range(MODIS_START, END_YEAR + 1):
@@ -73,11 +75,11 @@ def _generate(name: str, seed: int) -> Path:
             n_small = int(base * 20 + rng.randint(0, 4))
             for _ in range(n_events):
                 rows.extend(_event(rng, year, month, lon0, lat0, lon1, lat1,
-                                   year >= VIIRS_START))
+                                   year >= VIIRS_START, (year, month) >= NOAA20_START))
             if year >= VIIRS_START:
                 for _ in range(n_small):
-                    rows.append(_row(rng, year, month, "VIIRS",
-                                     rng.choice(["NPP", "NOAA-20"]),
+                    sat = "NOAA-20" if (year, month) >= NOAA20_START and rng.random() < 0.3 else "NPP"
+                    rows.append(_row(rng, year, month, "VIIRS", sat,
                                      None, None, None, lon0, lat0, lon1, lat1))
     out = OUT_DIR / f"firms_sample_{name}.csv"
     with out.open("w", newline="", encoding="utf-8") as f:
@@ -94,20 +96,23 @@ def _generate(name: str, seed: int) -> Path:
 
 def _event(rng: random.Random, year: int, month: int,
            lon0: float, lat0: float, lon1: float, lat1: float,
-           has_viirs: bool) -> list[dict]:
+           has_viirs: bool, allow_noaa20: bool = False) -> list[dict]:
     """One fire event: shared center+date, MODIS pixel + VIIRS pixel cluster."""
     clat = rng.uniform(lat0, lat1)
     clon = rng.uniform(lon0, lon1)
     day = rng.randint(1, 28)
     rows = []
+    # P0-08: Aqua (MODIS) service starts 2002-07-04 — Terra only before that.
+    modis_sat = "Terra" if (year, month) < (2002, 7) else rng.choice(["Terra", "Aqua"])
     if rng.random() < 0.95:
-        rows.append(_row(rng, year, month, "MODIS", rng.choice(["Terra", "Aqua"]),
+        rows.append(_row(rng, year, month, "MODIS", modis_sat,
                          clat, clon, day, lon0, lat0, lon1, lat1))
     if not has_viirs:
         return rows
     n_v = max(1, int(rng.expovariate(1 / 3.2)))
     for _ in range(n_v):
-        rows.append(_row(rng, year, month, "VIIRS", rng.choice(["NPP", "NOAA-20"]),
+        sat = "NOAA-20" if (allow_noaa20 and rng.random() < 0.3) else "NPP"
+        rows.append(_row(rng, year, month, "VIIRS", sat,
                          clat, clon, day, lon0, lat0, lon1, lat1))
     return rows
 
@@ -124,6 +129,9 @@ def _row(rng: random.Random, year: int, month: int, inst: str, sat: str,
     spread = 0.004 if inst == "MODIS" else 0.008
     lat = round(min(max(clat + rng.uniform(-spread, spread), lat0), lat1), 4)
     lon = round(min(max(clon + rng.uniform(-spread, spread), lon0), lon1), 4)
+    # Day-level Aqua guard: service starts 2002-07-04.
+    if inst == "MODIS" and sat == "Aqua" and f"{year}-{month:02d}-{day:02d}" < "2002-07-04":
+        sat = "Terra"
     frp = round(rng.uniform(2, 60) if inst == "MODIS" else rng.uniform(0.5, 40), 2)
     return {
         "latitude": lat, "longitude": lon,

@@ -7,6 +7,7 @@ const CalendarPage = lazy(() => import("@/pages/calendar").then((m) => ({ defaul
 const MethodPage = lazy(() => import("@/pages/method").then((m) => ({ default: m.MethodPage })));
 const AboutPage = lazy(() => import("@/pages/about").then((m) => ({ default: m.AboutPage })));
 const AskPage = lazy(() => import("@/pages/ask").then((m) => ({ default: m.AskPage })));
+const XrayPage = lazy(() => import("@/pages/xray").then((m) => ({ default: m.XrayPage })));
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
       <Route element={<Layout />}>
         <Route index element={<HomePage />} />
         <Route path="calendar" element={<CalendarPage />} />
+        <Route path="xray" element={<XrayPage />} />
         <Route path="method" element={<MethodPage />} />
         <Route path="about" element={<AboutPage />} />
           <Route path="ask" element={<AskPage />} />

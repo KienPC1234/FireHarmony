@@ -39,20 +39,3 @@ export function num(n: number | null | undefined, digits = 0): string {
     maximumFractionDigits: digits,
   })
 }
-
-/** Split an answer into text and [NTRS-...] / [PSI-...] citation tokens. */
-export function splitCitations(
-  text: string,
-): Array<{ type: "text" | "citation"; value: string; docId?: string }> {
-  const out: Array<{ type: "text" | "citation"; value: string; docId?: string }> = []
-  const re = /\[((?:NTRS|PSI)-[A-Za-z0-9-]+)\]/g
-  let last = 0
-  let m: RegExpExecArray | null
-  while ((m = re.exec(text)) !== null) {
-    if (m.index > last) out.push({ type: "text", value: text.slice(last, m.index) })
-    out.push({ type: "citation", value: m[0], docId: m[1] })
-    last = m.index + m[0].length
-  }
-  if (last < text.length) out.push({ type: "text", value: text.slice(last) })
-  return out
-}

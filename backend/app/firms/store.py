@@ -86,16 +86,18 @@ def qa_report(records: list[dict]) -> dict:
 
 def ingest_upload(filename: str, content: bytes, aoi: str,
                   source: str = "upload") -> dict:
-    """Validate an uploaded FIRMS CSV in chunks, store under raw/, log manifest."""
+    """Validate an uploaded FIRMS CSV in chunks, store under raw/, log manifest.
+
+    P1-15: validate BEFORE committing to disk; enforce 50 MB upstream too.
+    """
     if aoi not in AOIS:
         raise ValueError(f"Unknown aoi {aoi!r}")
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
-    digest = hashlib.sha256(content).hexdigest()[:16]
-    stamp = time.strftime("%Y%m%dT%H%M%S")
-    dest = RAW_DIR / f"{aoi}_{source}_{stamp}_{digest}.csv"
-    dest.write_bytes(content)
+    if len(content) > 50 * 1024 * 1024:
+        raise ValueError("File too large (max 50 MB)")
     text = content.decode("utf-8", errors="replace").splitlines()
     reader = csv.DictReader(text)
+    if not reader.fieldnames or "latitude" not in {c.lower() for c in reader.fieldnames}:
+        raise ValueError("Not a FIRMS CSV: missing latitude/longitude columns")
     clean, rejected, total = 0, 0, 0
     errors: list[dict] = []
     for i, row in enumerate(reader):
@@ -107,6 +109,13 @@ def ingest_upload(filename: str, content: bytes, aoi: str,
             rejected += 1
             if len(errors) < 20:
                 errors.append({"row": i + 2, "error": str(e)[:160]})
+    if total == 0:
+        raise ValueError("Empty CSV (no data rows)")
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    digest = hashlib.sha256(content).hexdigest()[:16]
+    stamp = time.strftime("%Y%m%dT%H%M%S")
+    dest = RAW_DIR / f"{aoi}_{source}_{stamp}_{digest}.csv"
+    dest.write_bytes(content)
     report = {"file": dest.name, "bytes": len(content), "sha16": digest,
               "aoi": aoi, "source": source, "rows": total,
               "clean": clean, "rejected": rejected, "errors": errors}
@@ -121,29 +130,64 @@ def ingest_upload(filename: str, content: bytes, aoi: str,
     return report
 
 
-def load_raw_merged(aoi: str, limit: int = 100000,
+def load_raw_merged(aoi: str, limit: int = 1000000,
                     raw_dir: Path | None = None) -> list[dict]:
-    """Merge all downloaded raw CSVs for an aoi (real FIRMS pulls + ingests).
+    """Merge all downloaded raw CSVs for an aoi, deduped (P0-08).
 
-    Different sources/dates simply concatenate — harmonize() aggregates by
-    (cell, day, instrument), so overlapping pulls of the same fire would
-    double count; the manifest (file/date/source) is how you avoid that.
+    Overlapping NRT/science-quality pulls of the same detection collapse onto
+    one key: (instrument, satellite, date, time, lat4, lon4, version). Science
+    rows win over NRT duplicates only in that the first occurrence is kept and
+    file order is sorted — provenance lives in the manifest.
     """
     if aoi not in AOIS and aoi != "custom":
         raise ValueError(f"Unknown aoi {aoi!r}")
     raw_dir = raw_dir or RAW_DIR
     rows: list[dict] = []
+    seen: set[tuple] = set()
     if not raw_dir.exists():
         return rows
-    for f in sorted(raw_dir.glob(f"{aoi}_*.csv")):
+    per_file: list[list[dict]] = []
+    for f in sorted(raw_dir.glob(f"{aoi}_*.csv"),
+                    key=lambda p: (0 if "_SP_" in p.name else 1, p.name)):
+        buf: list[dict] = []
         try:
             with f.open(encoding="utf-8") as fh:
                 for r in csv.DictReader(fh):
-                    rows.append({k.lower(): v for k, v in r.items()})
-                    if len(rows) >= limit:
-                        return rows
+                    d = {k.lower(): v for k, v in r.items()}
+                    try:
+                        # NRT and science-quality (SP) pulls of the same
+                        # detection collapse to one: version is NOT part of
+                        # the signature, SP files sort first so SP wins.
+                        sig = (str(d.get("instrument", "")).upper(),
+                               str(d.get("satellite", "")).strip(),
+                               str(d.get("acq_date", ""))[:10],
+                               str(d.get("acq_time", "")).strip(),
+                               round(float(d.get("latitude") or 0), 4),
+                               round(float(d.get("longitude") or 0), 4))
+                    except (TypeError, ValueError):
+                        continue
+                    if sig in seen:
+                        continue
+                    seen.add(sig)
+                    buf.append(d)
         except OSError:
             continue
+        if buf:
+            per_file.append(buf)
+    # Round-robin interleave so any limit-prefix stays representative
+    # across sources/dates (P1-12: no single-file prefix bias).
+    i = 0
+    while len(rows) < limit:
+        progressed = False
+        for buf in per_file:
+            if i < len(buf):
+                rows.append(buf[i])
+                progressed = True
+                if len(rows) >= limit:
+                    break
+        if not progressed:
+            break
+        i += 1
     return rows
 
 

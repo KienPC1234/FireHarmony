@@ -15,15 +15,8 @@ dist/
 # ===== Notebooks =====
 .ipynb_checkpoints/
 
-# ===== Model artifacts (sinh lại được) =====
-backend/models/prometheus/index/
-backend/models/prometheus/*.faiss
-backend/models/prometheus/*.joblib
-backend/models/prometheus/argus-retrieval/
-backend/models/prometheus/argus-reranker/
-backend/models/prometheus/argus-generator-lora/
-backend/models/prometheus/fire_risk_model.json
-backend/models/prometheus/*.json
+# ===== Model artifacts (regenerable: torch checkpoints, exports) =====
+backend/models/
 backend/checkpoints/
 runs/
 outputs/
