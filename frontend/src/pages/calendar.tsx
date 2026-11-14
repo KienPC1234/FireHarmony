@@ -185,7 +185,7 @@ export function CalendarPage() {
         setApplied((prev) => ({
           ...prev,
           data: "raw",
-          method: method === "k_ratio" ? "stan" : prev.method,
+          method: method === "k_ratio" ? "stan" : backendMethod(method),
         }));
       } else {
         if (method === "stan") setMethod("k_ratio");
@@ -202,14 +202,18 @@ export function CalendarPage() {
   }, [dataFeed, method, setMethod]);
 
   useEffect(() => {
-    if ((method === "hts_anchor" || method === "stan") && dataFeed !== "raw") {
-      setDataFeed("raw");
-      setApplied((prev) => ({ ...prev, data: "raw", method: backendMethod(method) }));
+    if ((method === "hts_anchor" || method === "stan") && dataFeed === "sample") {
+      // Keep explicit feed selection authoritative: sample has no tile
+      // coverage, so STAN/HTS is unavailable. Correct method, not data.
+      setMethod("k_ratio");
+      setApplied((prev) =>
+        prev.data === "sample" && prev.method === "stat"
+          ? prev : { ...prev, data: "sample", method: "stat" });
       return;
     }
     const bm = backendMethod(method);
     setApplied((prev) => (prev.method === bm ? prev : { ...prev, method: bm }));
-  }, [method, dataFeed, setDataFeed]);
+  }, [method, dataFeed, setMethod]);
 
   // P2: manifest `date_range` per AOI for the dock sensor table and the
   // saved-AOI badges. Null outer state = fetch still pending → loading text.

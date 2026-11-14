@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("mobile Fire Calendar map remains usable when inspector toggles", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/calendar?aoi=vietnam&data=sample");
-  await expect(page.getByText("SYNTHETIC DEMO")).toBeVisible({ timeout: 35_000 });
+  await expect(page.locator("[data-fh-feed]")).toContainText(/Dữ liệu mẫu|Synthetic Feed/);
   const map = page.locator(".leaflet-container").first();
   await expect(map).toBeVisible({ timeout: 25_000 });
   const before = await map.boundingBox();
@@ -23,7 +23,7 @@ test("mobile Fire Calendar map remains usable when inspector toggles", async ({ 
 test("desktop mission rail preserves query context", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/calendar?aoi=amazon&data=sample&mode=research");
-  await expect(page.getByText("SYNTHETIC DEMO")).toBeVisible({ timeout: 35_000 });
+  await expect(page.locator("[data-fh-feed]")).toContainText(/Dữ liệu mẫu|Synthetic Feed/);
   const rail = page.getByRole("navigation", { name: "Workspace navigation" });
   await expect(rail).toBeVisible();
   await expect(rail.getByRole("link", { name: "X-Ray / Trends" })).toBeVisible();
@@ -38,7 +38,7 @@ test("desktop mission rail preserves query context", async ({ page }) => {
 test("intermediate width uses top navigation and a readable calendar", async ({ page }) => {
   await page.setViewportSize({ width: 820, height: 1180 });
   await page.goto("/calendar?aoi=amazon&data=sample");
-  await expect(page.getByText("SYNTHETIC DEMO")).toBeVisible({ timeout: 35_000 });
+  await expect(page.locator("[data-fh-feed]")).toContainText(/Dữ liệu mẫu|Synthetic Feed/);
   await expect(page.getByRole("navigation", { name: "Workspace navigation" })).toBeHidden();
   const map = await page.locator(".leaflet-container").first().boundingBox();
   expect(map?.width ?? 0).toBeGreaterThan(650);

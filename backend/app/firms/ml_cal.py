@@ -1,7 +1,7 @@
 """Monthly pair builders (MODIS + VIIRS counts per year-month).
 
 Only the data-reduction half of the old calibration module remains: the HGB
-calibrator (`hgb_b2res_v4`) was archived and removed on 2026-11-13, but its pair
+calibrator (`hgb_b2res_v4`) was archived and removed on 2026-11-14, but its pair
 builder is still the shared way to turn millions of raw rows into AOI-month
 pairs for evaluation and the benchmark.
 """

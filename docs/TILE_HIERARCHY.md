@@ -1,6 +1,6 @@
 # Tile hierarchy: the strongest candidate, and why more GPU did not help
 
-> **Historical analysis (pre-2026-11-13).** Numbers below were computed before
+> **Historical analysis (pre-2026-11-14).** Numbers below were computed before
 > the Australia full-month backfill. Current, reproducible numbers are in
 > `docs/FIRMS_MODEL_CARD.md` (`eval-v3`); this file is kept as the experiment
 > trail, not as the served-metrics source.
@@ -269,7 +269,7 @@ for months with no neighbouring VIIRS. The model card says this explicitly.
    and missing platforms do add variance; a denser NOAA-20/21 pull would test
    whether the safe variant can recover part of the gain.
 
-The retrospective spatial model and its artifact were removed on 2026-11-13
+The retrospective spatial model and its artifact were removed on 2026-11-14
 (non-served cleanup); the evidence above is historical and lives in git history.
 
 ## 9. STAN: a network tuned to the count/season/space structure

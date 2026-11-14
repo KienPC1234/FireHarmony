@@ -1,4 +1,4 @@
-# Audit UI/UX + data-truth response (2026-11-12)
+# Audit UI/UX + data-truth response (2026-11-14)
 
 Scope: the P0 list in the UI/UX audit, plus the P1 items that affect truth,
 navigation, accessibility and tests. Model work is unchanged: STAN remains the

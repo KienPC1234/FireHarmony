@@ -36,7 +36,11 @@ export function ResearchContextProvider({ children }: { children: React.ReactNod
   const dataFeed = (searchParams.get("data") as DataFeedKind) || "raw";
   const mode = (searchParams.get("mode") as ExperienceMode) || "explore";
   const yearMonth = searchParams.get("ym");
-  const method = (searchParams.get("method") as CalibMethod) || "stan";
+  // A shared URL is an explicit source-of-truth selection. If method is
+  // omitted, choose a method supported by that feed, rather than silently
+  // switching a synthetic demo request to a slow NASA raw request.
+  const method = (searchParams.get("method") as CalibMethod)
+    || (dataFeed === "sample" ? "k_ratio" : "stan");
 
   // Functional update with a fixed identity: closing over `searchParams` would
   // recreate this callback (and every setX wrapper) on each URL sync, and any
@@ -62,7 +66,11 @@ export function ResearchContextProvider({ children }: { children: React.ReactNod
     yearMonth,
     method,
     setAoi: (nextAoi) => updateParams({ aoi: nextAoi }),
-    setDataFeed: (nextFeed) => updateParams({ data: nextFeed }),
+    // One URL transition for feed+method: the sample feed has no STAN/HTS
+    // tiles. Do not briefly expose an incompatible method or raw request.
+    setDataFeed: (nextFeed) => updateParams({
+      data: nextFeed, method: nextFeed === "sample" ? "k_ratio" : "stan",
+    }),
     setMode: (nextMode) => updateParams({ mode: nextMode }),
     setYearMonth: (nextYm) => updateParams({ ym: nextYm }),
     setMethod: (nextMethod) => updateParams({ method: nextMethod }),

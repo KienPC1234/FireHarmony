@@ -1,6 +1,6 @@
 {
  "evaluation_version": "eval-v4",
- "created_at": "2026-11-13T03:15:01.262633+00:00",
+ "created_at": "2026-11-14T03:20:00+00:00",
  "data": "sample",
  "data_source": "synthetic demo (NOT observed)",
  "eval_unit": "aoi-month (VIIRS hotspot detections, not fires)",

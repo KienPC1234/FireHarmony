@@ -78,7 +78,8 @@ test("Calendar month picker updates URL before navigating to Evidence", async ({
   await expect(page.locator('[data-fh-page="calendar"] h1')).toBeVisible();
   // Use the map's 12-month scrubber: unlike the header's capped daily-slice
   // selector, it offers all months from the returned calendar year.
-  const months = page.locator('[data-ui-review="calendar-scrubber"] .grid-cols-12 button');
+  // Target the month row, independent of responsive column-class changes.
+  const months = page.locator('[data-ui-review="calendar-scrubber"] .grid button');
   await expect(months).toHaveCount(12);
   await months.nth(6).click(); // July (month 7)
   await expect(page).toHaveURL(/ym=2024-07/);

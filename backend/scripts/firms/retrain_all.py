@@ -1,6 +1,6 @@
 """Rebuild the served ML stack in dependency order.
 
-Only three methods exist after the 2026-11-13 consolidation: STAN (primary),
+Only three methods exist after the 2026-11-14 consolidation: STAN (primary),
 B2 (baseline) and HTS (fallback/diagnostic). Archived/retrospective models and
 their training scripts were removed.
 

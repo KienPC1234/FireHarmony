@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type Dispatch, type SetStateAction } from "react";
+import { useMemo, type Dispatch, type SetStateAction } from "react";
 import type { CalendarResponse } from "@/lib/api";
 import type { MapMeta, MonthCell } from "./useCalendarData";
 
@@ -9,9 +9,9 @@ import type { MapMeta, MonthCell } from "./useCalendarData";
  * series, and the scrubber's `scrubberYears`. The `mapPeriod` atom itself
  * is created in `CalendarPage` (lazy-initialized from the URL, as before)
  * and passed in, so this hook and `useCalendarData` stay flat with no
- * cyclic hook params. The empty-year reset that used to run inside the
- * calendar fetch callback now runs as an effect on `data`, with the same
- * end state.
+ * cyclic hook params. Explicit research months remain selected even
+ * when a year has zero detections or missing coverage. Lack of an observation
+ * is not permission to silently widen the research period.
  */
 export function useMapPeriod(opts: {
   data: CalendarResponse | null;
@@ -21,18 +21,6 @@ export function useMapPeriod(opts: {
   setMapPeriod: Dispatch<SetStateAction<string>>;
 }) {
   const { data, monthCells, mapMeta, mapPeriod, setMapPeriod } = opts;
-
-  // Reset mapPeriod if the URL/state points to a year with no recorded
-  // detections (e.g. 2026): fall back to the full-period view.
-  useEffect(() => {
-    if (!data) return;
-    setMapPeriod((prev) => {
-      if (!/^\d{4}-\d{2}$/.test(prev)) return prev;
-      const yNum = Number(prev.slice(0, 4));
-      const yIdx = data.calendar?.years?.indexOf(yNum) ?? -1;
-      return yIdx < 0 || (data.calendar?.row_totals?.[yIdx] ?? 0) <= 0 ? "all" : prev;
-    });
-  }, [data, setMapPeriod]);
 
   const periods = useMemo(() => {
     if (!data) return [];

@@ -5,7 +5,7 @@ returns a `gaps` ledger (`missing_months`, `missing_by_year`,
 `missing_examples`) derived from the request manifest. The calendar UI shows
 the same warning.
 
-## Current gaps (2026-11-13, post-Australia backfill)
+## Current gaps (2026-11-14, post-Australia backfill)
 
 | AOI | Expected range | Fetched months | Full months (>=90% paired) | Missing |
 |---|---|---:|---:|---|

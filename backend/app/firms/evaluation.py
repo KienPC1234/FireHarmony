@@ -36,7 +36,7 @@ EVALUATION_VERSION = "eval-v4"
 MODEL_DIR = Path(__file__).resolve().parents[2] / "data" / "firms" / "models"
 METHOD_ORDER = ("b0_raw_modis", "b1_global_ratio", "b2_seasonal_ratio")
 # Only the served/fallback artifacts are joined; archived and retrospective
-# models were removed in the 2026-11-13 consolidation.
+# models were removed in the 2026-11-14 consolidation.
 ARTIFACT_METHODS = ("stan_safe_v1", "hts_anchor_v1")
 
 

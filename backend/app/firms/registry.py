@@ -1,6 +1,6 @@
 """One registry for every model in the repo: role, artifact, and gate status.
 
-Three methods serve the calendar after the 2026-11-13 consolidation: STAN
+Three methods serve the calendar after the 2026-11-14 consolidation: STAN
 (primary), B2 (baseline) and HTS (fallback). Archived HGB/TS/TileFormer and the
 retrospective spatial/SensorFormer comparators were removed, so this registry
 no longer needs a "comparator" or "archived" role.

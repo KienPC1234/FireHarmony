@@ -109,7 +109,7 @@ export function MapTimeScrubber({
               onClick={handlePrevYear}
               disabled={availableYears.indexOf(activeYear) <= 0}
               aria-label="Previous Year"
-              className="inline-flex min-h-[28px] min-w-[28px] items-center justify-center rounded-md p-1 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400"
+              className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded-md p-2 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </button>
@@ -135,7 +135,7 @@ export function MapTimeScrubber({
               onClick={handleNextYear}
               disabled={availableYears.indexOf(activeYear) >= availableYears.length - 1}
               aria-label="Next Year"
-              className="inline-flex min-h-[28px] min-w-[28px] items-center justify-center rounded-md p-1 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400"
+              className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded-md p-2 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400"
             >
               <ChevronRight className="h-3.5 w-3.5" />
             </button>
