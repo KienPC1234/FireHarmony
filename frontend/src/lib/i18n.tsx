@@ -1,207 +1,93 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import i18next, { type TOptions } from "i18next";
+import { initReactI18next, useTranslation } from "react-i18next";
+import { vi } from "@/locales/vi";
+import { en } from "@/locales/en";
 
 export type Lang = "vi" | "en";
 
-const STRINGS = {
-  vi: {
-    "nav.home": "Tổng quan",
-    "nav.overview": "Tổng quan",
-    "nav.calendar": "Fire Calendar",
-    "nav.xray": "Sensor Lab",
-    "nav.lab": "Sensor Lab",
-    "nav.evidence": "Bằng chứng",
-    "nav.ask": "AI Investigator",
-    "nav.investigator": "AI Investigator",
-    "nav.method": "Phương pháp & Dữ liệu",
-    "nav.methods": "Phương pháp & Dữ liệu",
-    "nav.about": "Phương pháp & Dữ liệu",
-    "header.sub": "MODIS + VIIRS · một calendar duy nhất",
-    "footer.text": "FireHarmony - NASA Space Apps 2026 - Chuẩn hóa chuỗi dữ liệu vệ tinh MODIS C6.1 và VIIRS 375m.",
-    "common.loading": "Đang tải…",
-    "common.synthetic": "SYNTHETIC DEMO (không phải quan trắc thật)",
-    "common.detections": "lượt phát hiện điểm nóng",
-    "home.kicker": "NASA Space Apps 2026 · Earth Science",
-    "home.title": "Hai thế hệ vệ tinh. Một góc nhìn tin cậy hơn về hoạt động cháy.",
-    "home.desc": "MODIS và VIIRS ghi nhận điểm nóng với độ phân giải và điều kiện khác nhau. Khám phá chuỗi dữ liệu lịch sử, so sánh đo đạc giữa các cảm biến và kiểm tra bằng chứng đằng sau từng xu hướng đã hiệu chỉnh.",
-    "home.open": "Khám phá Fire Calendar",
-    "home.ask": "AI Investigator",
-    "home.stat_rows": "dòng hotspot tổng hợp (3 AOI)",
-    "home.stat_years": "năm 2001–2025",
-    "home.stat_raw": "file FIRMS thật đã kéo",
-    "home.why": "Vì sao 2 sensor không so được trực tiếp?",
-    "home.z_note": "z tính theo MAD robust (1.4826 x MAD), bảo vệ baseline không bị kéo lệch bởi năm cực đoan.",
-    "home.pipeline": "Pipeline 5 bước",
-    "home.aois": "3 vùng cháy demo",
-    "home.aoi_note": "CSV + brief sẵn trên trang calendar",
-    "home.upload": "Dùng CSV FIRMS của bạn",
-    "home.upload_desc": "Tải từ FIRMS Area API rồi upload (tối đa 5000 dòng, xử lý tại chỗ).",
-    "home.harmonize": "Chuẩn hóa dữ liệu",
-    "home.upload_open": "Mở trong Calendar",
-    "home.upload_session": "Tải lên server, mở dataset trong Calendar",
-    "home.uploadwarn": "Lưu ý: chỉ 5000 dòng đầu được phân tích phía client và trường CSV có dấu ngoặc kép chưa được hỗ trợ đầy đủ.",
-    "home.step1t": "Chuẩn hóa",
-    "home.step1d": "Mọi dòng FIRMS về một schema, gắn cờ QA, loại hàng lỗi có báo cáo.",
-    "home.step2t": "Lưới ngày",
-    "home.step2d": "Gộp theo ô 0.05° × ngày × sensor: count + tổng FRP.",
-    "home.step3t": "Tỷ lệ k",
-    "home.step3d": "Hệ số k = MODIS/VIIRS từ tổng tháng AOI, activity-ratio thực nghiệm đối chiếu hai cảm biến.",
-    "home.step4t": "Chỉ số đã chỉnh sensor",
-    "home.step4d": "Giữ VIIRS nơi ghi nhận ≥1 detection; ô chỉ-MODIS upscale 1/k, nhãn ESTIMATE.",
-    "home.step5t": "Calendar",
-    "home.step5d": "Ma trận tháng × năm + anomaly z robust + CSV/brief (tháng thiếu = no data).",
-    "cal.title": "Lịch hoạt động cháy",
-    "cal.apply": "Áp dụng",
-    "cal.bbox": "Vùng quan tâm (minLon,minLat,maxLon,maxLat)",
-    "cal.csv": "Tải CSV đã chuẩn hóa",
-    "cal.brief": "Tải báo cáo tóm tắt (.md)",
-    "cal.latest": "Tháng mới nhất",
-    "cal.vs_median": "vs trung vị lịch sử cùng tháng",
-    "cal.clima": "Khí hậu học theo tháng (trung vị vs năm mới nhất)",
-    "cal.yearly": "Tổng năm (chỉ số hoạt động, không phải số vụ cháy)",
-    "cal.critical": "Tháng bất thường (|z| ≥ 2, đơn vị MAD)",
-    "cal.empty": "Không có điểm nóng nào trong vùng này.",
-    "cal.loading": "Đang chuẩn hóa…",
-    "cal.nodata": "không có dữ liệu",
-    "cal.outlook": "Xu hướng khí hậu (không phải dự báo)",
-    "cal.outlook_note": "Phân tích chuỗi khí hậu học lịch sử, không thay thế hệ thống cảnh báo cháy thời gian thực.",
-    "cal.cells": "ô ngày",
-    "cal.fullmonths": "Tháng đủ dữ liệu",
-    "cal.partial": "thiếu",
-    "cal.partialmonths": "Tháng thiếu (ghi rõ số ngày)",
-    "map.draw": "Vẽ vùng quan tâm",
-    "map.drawing": "Đang vẽ: kéo chuột trên bản đồ…",
-    "map.note": "Chấm cam = ô ngày đã chỉnh sensor (tối đa 800 điểm). Tooltip ghi rõ observed / estimated.",
-    "ask.title": "Hỏi đáp về harmonization",
-    "ask.desc": "Trợ lý đối thoại thông minh: phân tích dữ liệu quan trắc vệ tinh có căn cứ khoa học.",
-    "ask.placeholder": "VD: Độ chính xác của calendar ra sao?",
-    "ask.send": "Hỏi",
-    "ask.thinking": "Đang tính toán…",
-    "ask.empty": "Chưa có câu hỏi. Chọn một gợi ý bên dưới hoặc nhập câu hỏi để bắt đầu.",
-    "method.title": "Phương pháp: harmonize + ML thử nghiệm",
-    "method.sub": "stat là mặc định; ml_b2res_v4 / ts_logratio_pool_v2 là artifact NASA raw đã lưu, chọn qua ?method=. Bảng unified eval và các điểm thua baseline được công bố trong model card.",
-    "method.models": "Mô hình trên server này (thử nghiệm)",
-    "method.honesty": "Trung thực số liệu",
-    "about.title": "Dữ liệu & giới hạn",
-    "about.sub": "Challenge: Harmonization of MODIS and VIIRS Hot Spots (NASA Space Apps 2026).",
-    "about.src": "Nguồn",
-    "about.on_server": "Có gì trên server",
-    "about.limits": "Đầu ra & giới hạn",
-  },
-  en: {
-    "nav.home": "Overview",
-    "nav.overview": "Overview",
-    "nav.calendar": "Fire Calendar",
-    "nav.xray": "Sensor Lab",
-    "nav.lab": "Sensor Lab",
-    "nav.evidence": "Evidence",
-    "nav.ask": "AI Investigator",
-    "nav.investigator": "AI Investigator",
-    "nav.method": "Methods & Data",
-    "nav.methods": "Methods & Data",
-    "nav.about": "Methods & Data",
-    "header.sub": "MODIS + VIIRS · one trustworthy calendar",
-    "footer.text": "FireHarmony - NASA Space Apps 2026 - Harmonized Earth Observation for MODIS C6.1 and VIIRS 375m.",
-    "common.loading": "Loading…",
-    "common.synthetic": "SYNTHETIC DEMO (not observed)",
-    "common.detections": "hotspot detections",
-    "home.kicker": "NASA Space Apps 2026 · Earth Science",
-    "home.title": "Two satellite generations. One clearer view of fire activity.",
-    "home.desc": "MODIS and VIIRS detect active-fire hotspots differently. Explore the historical record, compare sensor measurements, and inspect the evidence behind every adjusted trend.",
-    "home.open": "Explore Fire Calendar",
-    "home.ask": "AI Investigator",
-    "home.stat_rows": "synthetic hotspot rows (3 AOIs)",
-    "home.stat_years": "years 2001–2025",
-    "home.stat_raw": "real FIRMS files pulled",
-    "home.why": "Why can't 2 sensors be compared directly?",
-    "home.z_note": "z in robust MAD units (1.4826 x MAD), ensuring extreme wildfire seasons do not skew baseline.",
-    "home.pipeline": "5-step pipeline",
-    "home.aois": "3 demo fire regions",
-    "home.aoi_note": "CSV + brief ready on the calendar page",
-    "home.upload": "Use your own FIRMS CSV",
-    "home.upload_desc": "Download from the FIRMS Area API, then upload (max 5000 rows, processed locally).",
-    "home.harmonize": "Harmonize",
-    "home.upload_open": "Open in Calendar",
-    "home.upload_session": "Upload to server, open dataset in Calendar",
-    "home.uploadwarn": "Note: only the first 5000 rows are parsed client-side and quoted CSV fields are not fully supported.",
-    "home.step1t": "Standardize",
-    "home.step1d": "All FIRMS rows into one schema, QA flags, bad rows rejected with report.",
-    "home.step2t": "Daily grid",
-    "home.step2d": "Aggregate by 0.05° cell × day × sensor: count + FRP sums.",
-    "home.step3t": "Ratio k",
-    "home.step3d": "Ratio k = MODIS/VIIRS from AOI monthly totals, an empirical activity ratio across sensors.",
-    "home.step4t": "Sensor-adjusted index",
-    "home.step4d": "Keep VIIRS where ≥1 detection recorded; MODIS-only cells upscaled 1/k, labeled ESTIMATE.",
-    "home.step5t": "Calendar",
-    "home.step5d": "Month × year matrix + robust z anomaly + CSV/brief (missing months = no data).",
-    "cal.title": "Burning-activity calendar",
-    "cal.apply": "Apply",
-    "cal.bbox": "Area of interest (minLon,minLat,maxLon,maxLat)",
-    "cal.csv": "Download harmonized CSV",
-    "cal.brief": "Download 1-page brief (.md)",
-    "cal.latest": "Latest month",
-    "cal.vs_median": "vs same-month historical median",
-    "cal.clima": "Monthly climatology (median vs latest year)",
-    "cal.yearly": "Yearly totals (activity index, not fire counts)",
-    "cal.critical": "Anomalous months (|z| ≥ 2, MAD units)",
-    "cal.empty": "No hotspots in this area.",
-    "cal.loading": "Harmonizing…",
-    "cal.nodata": "no data",
-    "cal.outlook": "Climatology outlook (not a forecast)",
-    "cal.outlook_note": "Historical climatology analysis, not a replacement for real-time nowcasting systems.",
-    "cal.cells": "daily cells",
-    "cal.fullmonths": "Full months",
-    "cal.partial": "partial",
-    "cal.partialmonths": "Partial month (day count shown)",
-    "map.draw": "Draw area of interest",
-    "map.drawing": "Drawing: drag on the map…",
-    "map.note": "Orange dots = sensor-adjusted daily cells (max 800). Tooltips state observed / estimated.",
-    "ask.title": "Harmonization Q&A",
-    "ask.desc": "Intelligent Fire Assistant: grounded analytical answers for satellite observation data.",
-    "ask.placeholder": "E.g.: How accurate is the calendar?",
-    "ask.send": "Ask",
-    "ask.thinking": "Computing…",
-    "ask.empty": "No questions yet. Select a prompt below or type your inquiry to begin.",
-    "method.title": "Method: harmonize + experimental ML",
-    "method.sub": "stat is the default; ml_b2res_v4 / ts_logratio_pool_v2 are persisted NASA-raw artifacts, selectable via ?method=. The unified evaluation table and every baseline loss are published in the model card.",
-    "method.models": "Models on this server (experimental)",
-    "method.honesty": "Honest numbers",
-    "about.title": "Data & limits",
-    "about.sub": "Challenge: Harmonization of MODIS and VIIRS Hot Spots (NASA Space Apps 2026).",
-    "about.src": "Sources",
-    "about.on_server": "What's on the server",
-    "about.limits": "Outputs & limits",
-  },
-} as const;
+const initialLang: Lang = (() => {
+  try {
+    const saved = localStorage.getItem("firms-lang");
+    return saved === "en" ? "en" : "vi";
+  } catch {
+    return "vi";
+  }
+})();
 
-export type I18nKey = keyof (typeof STRINGS)["vi"];
+// Initialize i18next singleton
+if (!i18next.isInitialized) {
+  i18next.use(initReactI18next).init({
+    resources: {
+      vi: { translation: vi },
+      en: { translation: en },
+    },
+    lng: initialLang,
+    fallbackLng: "vi",
+    interpolation: {
+      escapeValue: false,
+    },
+  });
+}
 
-const Ctx = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: (k: I18nKey) => string }>({
-  lang: "vi",
+interface LangContextValue {
+  lang: Lang;
+  setLang: (lang: Lang) => void;
+  t: (key: string, options?: TOptions) => string;
+}
+
+const LangContext = createContext<LangContextValue>({
+  lang: initialLang,
   setLang: () => undefined,
   t: (k) => k,
 });
 
 export function LangProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>(() => {
-    try {
-      const s = localStorage.getItem("firms-lang");
-      return s === "en" ? "en" : "vi";
-    } catch {
-      return "vi";
-    }
-  });
+  const { t: translate } = useTranslation();
+  const [lang, setLangState] = useState<Lang>(() => (i18next.language === "en" ? "en" : "vi"));
+
   useEffect(() => {
-    try {
-      localStorage.setItem("firms-lang", lang);
-    } catch { /* ignore */ }
+    const handleLangChange = (lng: string) => {
+      const normalized: Lang = lng === "en" ? "en" : "vi";
+      setLangState(normalized);
+      try {
+        localStorage.setItem("firms-lang", normalized);
+      } catch {
+        // Ignore localStorage error
+      }
+      document.documentElement.lang = normalized;
+    };
+
+    i18next.on("languageChanged", handleLangChange);
     document.documentElement.lang = lang;
+    return () => {
+      i18next.off("languageChanged", handleLangChange);
+    };
   }, [lang]);
-  const setLang = useCallback((l: Lang) => setLangState(l), []);
-  const t = useCallback((k: I18nKey) => (STRINGS[lang] as Record<string, string>)[k] ?? k, [lang]);
-  return <Ctx.Provider value={{ lang, setLang, t }}>{children}</Ctx.Provider>;
+
+  const setLang = (nextLang: Lang) => {
+    i18next.changeLanguage(nextLang);
+  };
+
+  const t = (k: string, opts?: TOptions): string => {
+    const res = translate(k, opts ?? {});
+    return typeof res === "string" ? res : String(res ?? k);
+  };
+
+  return (
+    <LangContext.Provider value={{ lang, setLang, t }}>
+      {children}
+    </LangContext.Provider>
+  );
 }
 
 export function useLang() {
-  return useContext(Ctx);
+  const ctx = useContext(LangContext);
+  const { t } = useTranslation();
+  return {
+    lang: ctx.lang,
+    setLang: ctx.setLang,
+    t: ctx.t || t,
+  };
 }

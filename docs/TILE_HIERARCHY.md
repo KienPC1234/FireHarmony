@@ -193,3 +193,172 @@ python -m scripts.firms.evaluate_hts         # HTS vs B2 on 72 rows
 python -m app.firms.sf_tile --epochs 120     # TileFormer + LOO (CUDA)
 python -m pytest tests/test_firms.py -q -k "T40 or T41 or T42 or T43"
 ```
+
+## 8. Re-review after the "architecture or data" challenge
+
+The earlier conclusion ("compute is not the bottleneck") was too narrow. A
+second sweep separated data quality, loss, architecture and information source.
+
+### 8.1 Is the error just counting noise?
+
+For a Poisson count with mean λ, E|X−λ| ≈ √(2λ/π). On the 72 official
+AOI-months this floor averages **95.5 MAE**, while B2 is **2,386.9** — about
+**25× the irreducible noise**. At tile level the floor is 17.3 vs HTS 137.0
+(8×). So the error is model/feature error, not only Poisson noise.
+
+### 8.2 Loss and architecture sweep (rolling-origin, AOI aggregates)
+
+Trained on tile-months before each cutoff; scored on that year's AOI-months
+(2024–25 is the two-year holdout).
+
+| Cutoff / test | B2 | HTS | HGB Poisson (count) | Ridge (log) | Poisson GLM | HGB log-ratio (tile) | **Spatial HGB** |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 2021 | 2,211 | 1,721 | 8,289 | 2,690 | 1,867 | 1,565 | **1,014** |
+| 2022 | 2,922 | 2,754 | 8,247 | 4,079 | 3,148 | 3,254 | **2,257** |
+| 2023 | 2,079 | 1,460 | 7,530 | 2,199 | 1,450 | 1,876 | **1,265** |
+| 2024–25 | 2,507 | 2,211 | 8,272 | 2,543 | 2,233 | 2,092 | **1,313** |
+
+- Direct count losses did **not** help; HGB Poisson was unstable and badly
+  over-predicted. Ridge and Poisson GLM were no better than HTS.
+- A tile-level HGB on log-ratio beat HTS in 2021/2024 but lost in 2022/2023:
+  architecture alone was not a reliable win.
+- Adding **neighbouring-tile features** was the decisive change.
+
+### 8.3 Spatial HGB — and the honest catch
+
+Features add the eight neighbouring 1° tiles: same-month neighbour MODIS and
+VIIRS, previous-month neighbour ratio, plus HTS anchor and tile climatology.
+
+On the official 72 holdout months:
+
+| Method | Pooled MAE | Vietnam | Amazon | Australia |
+|---|---:|---:|---:|---:|
+| B2 | 2,386.9 | 844.2 | 4,647.7 | 1,668.8 |
+| HTS | 2,211.1 | 783.9 | 4,250.1 | 1,599.2 |
+| **Spatial HGB** | **1,312.8** | **467.1** | **2,169.8** | **1,301.6** |
+| Spatial HGB, forecast-safe | 2,302.5 | 644.5 | 4,439.1 | 1,823.8 |
+
+- Spatial−B2 ΔMAE = **−1,074**, CI **[−1,832, −467]**, P=1.0; year-block CI
+  [−1,765, −383].
+- Spatial−HTS ΔMAE = **−898**, CI **[−1,516, −383]**, P=1.0.
+- Spatial holdout (210 whole tiles never seen in training, 2024–25):
+  **640.6 vs HTS 869.6**, better in all three AOIs. It is not tile memorisation.
+- **Catch:** the forecast-safe variant (previous-month neighbour VIIRS only,
+  no same-month neighbour VIIRS) scores **2,302.5**, *worse* than HTS. The entire
+  gain comes from contemporaneous VIIRS in adjacent tiles.
+
+That means the model is a **retrospective spatial imputation / gap-fill**, not a
+better MODIS→VIIRS calibration. It is valid for a calendar that already contains
+observed VIIRS in the month being reconstructed, and invalid for forecasting or
+for months with no neighbouring VIIRS. The model card says this explicitly.
+
+### 8.4 Revised conclusion
+
+1. The old one-line conclusion was wrong: **feature/information design matters
+   far more than adding parameters**. Spatial context cuts MAE ~45%.
+2. More compute alone still does not help (22k→258k params changed little), and
+   count-loss models were unstable. "Bigger model" is not the lever either.
+3. The lever is **information**: observed neighbour VIIRS. Without it, HTS
+   remains the most stable calibration baseline.
+4. Data quality is not merely Poisson noise (25× floor), but sparse tile labels
+   and missing platforms do add variance; a denser NOAA-20/21 pull would test
+   whether the safe variant can recover part of the gain.
+
+Artifact: `backend/data/firms/models/spatial_hgb_raw.json`, produced by
+`python -m app.firms.spatial_hgb`. Status: `GET /api/firms/spatial-status`.
+Not wired into the calendar: serving it would require tile-level gap-fill and
+an explicit "retrospective" badge.
+
+## 9. STAN: a network tuned to the count/season/space structure
+
+The audit challenge was right that the earlier model was a generic residual net
+with patches. STAN (`app/firms/stan.py`) is designed from the problem:
+
+| Problem property | STAN design |
+|---|---|
+| VIIRS detections are over-dispersed counts | negative-binomial (NB2) likelihood; mean = `anchor_count * exp(delta)`; Poisson ablation |
+| annual cycle, short memory | 12-month window, dilated causal TCN (1/2/4) + **seasonal FiLM** modulation |
+| need the target month, not generic context | learned **target-month query** cross-attends over the window (no 12×12 self-attention) |
+| fire is spatially correlated | neighbour-tile context: same-month MODIS, previous-month VIIRS ratio; optional same-month neighbour VIIRS only in the retrospective twin |
+| exposure differs | `days_modis` enters the sequence; anchor offset handles level |
+| small n | 82k (d=64) / 171k (d=96) parameters, 5 seeds, early stop on 2023 |
+
+### 9.1 Tuning (subset of 60 AOI-months, 3 seeds, 140 epochs)
+
+| Variant | MAE | vs HTS |
+|---|---:|---:|
+| HTS anchor | 1,196 | — |
+| STAN d=64, NB, FiLM, 3 layers | 1,150 | −47 |
+| STAN d=32 | 1,131 | −65 |
+| **STAN d=96** | **985** | **−211** (3-seed run) |
+| no FiLM | 1,300 | +104 |
+| 2 layers | 1,214 | +18 |
+| 4 layers | 1,195 | −2 |
+| Poisson instead of NB | 1,150 | −46 |
+| forecast-safe (no same-month neighbour VIIRS) | 1,161 | −35 |
+
+FiLM is the largest structural win; depth beyond 3 and Poisson-vs-NB are not.
+d=96 is the selected width.
+
+### 9.2 Official 72-month holdout (5 seeds, d=96)
+
+| Variant | Pooled MAE | Vietnam | Amazon | Australia | Δ vs B2 | 95% CI vs B2 |
+|---|---:|---:|---:|---:|---:|---|
+| B2 | 2,386.9 | 844.2 | 4,647.7 | 1,668.8 | — | — |
+| HTS | 2,211.1 | 783.9 | 4,250.1 | 1,599.2 | −175.8 | — |
+| **STAN forecast-safe** | **2,128.7** | **646.0** | **4,151.9** | **1,588.2** | **−258.2** | **[−534.8, −19.1]** |
+| STAN retrospective (uses neighbour VIIRS) | 2,170.1 | 730.6 | 4,190.9 | 1,588.9 | −216.8 | — |
+
+STAN forecast-safe **beats B2 with a CI that excludes zero** and improves all
+three AOIs. It beats HTS on the point estimate (Δ −82), but the HTS CI still
+includes zero, so that comparison is not conclusive. Headline (VN+AM, 48):
+2,398.9 vs B2 2,746.0 (−12.6%).
+
+The retrospective twin is **not** better in the deterministic run (2,170.1), so
+no retrospective gain is claimed. Earlier nondeterministic runs differed by
+~40 MAE; the safe variant is the one reported.
+
+### 9.2b Leave-one-region-out (train on 2 AOIs, test the third)
+
+| Held out | STAN MAE | HTS MAE | B2 MAE | STAN−HTS CI |
+|---|---:|---:|---:|---|
+| Vietnam | 948.4 | **783.9** | 844.2 | [−122.3, +456.7] |
+| Amazon | 5,292.9 | **4,250.1** | 4,647.7 | [−316.9, +2,875.5] |
+| Australia | **1,594.8** | 1,599.2 | 1,668.8 | [−9.3, −0.4] |
+
+Region transfer still fails for Vietnam and Amazon; Australia is a near-tie that
+barely excludes zero. So the in-region gain is real, but a new region is not
+solved — the same limitation as the HGB LOO.
+
+### 9.3 Serving decision (product choice, with caveats)
+
+STAN forecast-safe is now the **served main model** for raw data
+(`method=stan`), by an explicit product decision:
+
+- `GET /api/firms/calendar?data=raw&method=stan` rescales MODIS-only cells to
+  the STAN monthly target; VIIRS-observed cells are untouched.
+- The target series is `models/stan_series_raw.json`: **STAN for 2024+**, and
+  **HTS fallback for earlier months** (STAN needs a 12-month window and an
+  anchor fitted before the holdout).
+- The synthetic sample has no 1° tiles, so STAN is disabled there (B2 anchor is
+  used); `method=stan&data=sample` returns 409.
+- `GET /api/firms/stan-status` reports `served=true, role=main`.
+- Weights: `models/stan_safe_raw.pt` (sha256 in the JSON).
+
+This is a product decision, not a claim that the statistical debate is closed:
+
+1. STAN beats B2 with CI [−534.8, −19.1], and improves all three AOIs.
+2. It only edges HTS on the point estimate; the HTS CI still includes zero.
+3. LOO fails for Vietnam and Amazon; Australia is a near-tie. A new region is
+   not solved.
+4. Retrospective spatial HGB (section 8) is stronger (1,313) but requires
+   observed neighbour VIIRS and is not a forecast.
+
+### 9.4 Limits
+
+- STAN needs a 12-month window; months without one fall back to HTS in the
+  official evaluation (serve simulation), so the gain is diluted, not inflated.
+- Three AOIs; leave-one-region-out for STAN is not yet run (the HGB LOO and
+  spatial holdout are the current transfer evidence).
+- NOAA-20/21 and cloud/overpass remain missing; no claim of physical detection
+  probability.

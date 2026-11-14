@@ -36,6 +36,24 @@ export function BlindSpotsTab({ spots }: BlindSpotsTabProps) {
 
   return (
     <div className="space-y-4 animate-fade-in">
+      {/* Executive Scientific Verdict Card */}
+      <div className="rounded-2xl border border-cyan-500/40 bg-gradient-to-r from-cyan-950/40 via-slate-900/90 to-blue-950/40 p-4 space-y-2 shadow-lg backdrop-blur">
+        <div className="flex items-center justify-between border-b border-cyan-500/20 pb-2">
+          <span className="font-mono text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-cyan-400" />
+            {vi ? "KẾT LUẬN KIỂM TOÁN ĐIỂM MÙ VỆ TINH (EXECUTIVE BLIND SPOT AUDIT)" : "EXECUTIVE BLIND SPOT AUDIT VERDICT"}
+          </span>
+          <span className="font-mono text-xs rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2.5 py-0.5 text-cyan-200">
+            {spots.ym} · {spots.coverage_class.toUpperCase()}
+          </span>
+        </div>
+        <p className="text-xs sm:text-sm text-slate-100 font-medium leading-relaxed">
+          {vi
+            ? `Tháng ${spots.ym} đạt độ phủ ghép đôi ${pct(spots.paired_coverage_ratio, 1)}. Ghi nhận ${detectedDays} ngày có quan trắc điểm nóng và ${unknownDays} ngày khuyết dữ liệu quan trắc. Quy chuẩn khoa học: Các ngày thiếu quan sát do mây mù hoặc góc quét quỹ đạo tuyệt đối không được gán bằng 0 để tránh bóp méo xu hướng biến động thực tế.`
+            : `Period ${spots.ym} achieves ${pct(spots.paired_coverage_ratio, 1)} paired coverage. Logged ${detectedDays} active detection days and ${unknownDays} unobserved gap days. Scientific protocol: Days missing coverage due to cloud attenuation or swath gaps are strictly masked rather than filled with zero, preventing false baseline artifacts.`}
+        </p>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi
           icon={ShieldCheck}

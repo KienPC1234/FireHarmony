@@ -82,6 +82,8 @@ def loads(path: Path | None = None) -> list[dict]:
                 "modis": float(r["modis"]), "viirs": float(r["viirs"]),
                 "day_frac": float(r["day_frac"]),
                 "terra_frac": float(r["terra_frac"]),
+                "days_modis": int(r.get("days_modis") or 0),
+                "days_viirs": int(r.get("days_viirs") or 0),
             })
     return out
 

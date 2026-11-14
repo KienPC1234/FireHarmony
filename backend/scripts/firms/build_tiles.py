@@ -47,6 +47,8 @@ def _inst(rec: dict) -> str | None:
 
 def build() -> dict:
     acc: dict[tuple, list[int]] = {}
+    dates_m: dict[tuple, set[str]] = {}
+    dates_v: dict[tuple, set[str]] = {}
     for aoi in AOIS:
         lat0, lat1, lon0, lon1 = BOUNDS[aoi]
         for rec in store.iter_raw_rows(aoi, limit=None):
@@ -74,6 +76,7 @@ def build() -> dict:
                 acc[key] = slot
             if inst == "M":
                 slot[0] += 1
+                dates_m.setdefault(key, set()).add(d)
                 dn = str(rec.get("daynight", "") or "").upper()
                 if dn == "D":
                     slot[2] += 1
@@ -86,6 +89,7 @@ def build() -> dict:
                     slot[5] += 1
             else:
                 slot[1] += 1
+                dates_v.setdefault(key, set()).add(d)
 
     rows = []
     for (aoi, ilat, ilon, y, m), s in sorted(acc.items()):
@@ -105,6 +109,10 @@ def build() -> dict:
             "modis": modis, "viirs": viirs,
             "day_frac": round(s[2] / dd, 4) if dd else 0.5,
             "terra_frac": round(s[4] / tt, 4) if tt else 0.5,
+            # Observation opportunity: distinct acquisition dates per sensor.
+            # This is the mask the old `observed=1.0` feature pretended to have.
+            "days_modis": len(dates_m.get(key, ())),
+            "days_viirs": len(dates_v.get(key, ())),
         })
     OUT.parent.mkdir(parents=True, exist_ok=True)
     with OUT.open("w", encoding="utf-8", newline="") as fh:

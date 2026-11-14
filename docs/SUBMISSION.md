@@ -1,6 +1,6 @@
 # Submission checklist — Harmonization of MODIS and VIIRS Hot Spots
 
-- [ ] Repo sạch, build xanh: backend **84 tests**, frontend typecheck/lint/build.
+- [ ] Repo sạch, build xanh: backend **90 tests**, frontend typecheck/lint/build.
 - [ ] `make demo` chạy 1 process trên :8000 (API + SPA).
 - [ ] Chạy `python -m scripts.firms.check_release` — phải OK (gồm
       pytest, raw subset checksum, benchmark, evaluate raw/sample, docs, env,

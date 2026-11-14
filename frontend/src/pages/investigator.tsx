@@ -23,10 +23,11 @@ interface ChatMessage {
   rawText?: string;
   citations?: string[];
   via?: string;
+  isStreaming?: boolean;
 }
 
 export function InvestigatorPage() {
-  const { lang } = useLang();
+  const { lang, t } = useLang();
   const vi = lang === "vi";
 
   const [sp] = useSearchParams();
@@ -37,7 +38,7 @@ export function InvestigatorPage() {
   const [yearStr, monthStr] = ymParam.split("-");
   const year = parseInt(yearStr, 10) || 2025;
   const month = parseInt(monthStr, 10) || 3;
-  const method = sp.get("method") || "stat";
+  const method = "stat"; // SensorFormer anchor-only (residual gate OFF)
 
   // 3 context-driven prompt chips
   const promptChips = [
@@ -96,61 +97,116 @@ export function InvestigatorPage() {
     setMessages((prev) => [
       ...prev,
       { id: userMsgId, role: "user", rawText: q },
+      {
+        id: botMsgId,
+        role: "assistant",
+        finding: "",
+        isStreaming: true,
+        via: "Scientific Grounding Stream",
+      },
     ]);
     if (!queryText) setInput("");
     setBusy(true);
 
     try {
-      const res = await api.investigate({
-        question: q,
-        aoi,
-        data,
-        method,
-        year,
-        month,
-        use_llm: false, // Strict deterministic calculation
-      });
-
-      setMessages((prev) => [
-        ...prev,
+      await api.investigateStream(
         {
-          id: botMsgId,
-          role: "assistant",
-          finding: res.answer,
-          evidenceText: res.evidence
-            ? `Dẫn xuất từ ${Object.keys(res.evidence).length} trường dữ liệu kiểm toán qua công cụ [${res.tools_used.join(", ")}].`
-            : `Verified from telemetry analysis engine.`,
-          uncertainty: res.limitations.length > 0 ? res.limitations.join(" ") : undefined,
-          actions: [
-            { label: vi ? "Kiểm tra trong Calendar" : "Inspect Calendar", to: `/calendar?aoi=${aoi}&data=${data}` },
-            { label: vi ? "Đối soát trong Sensor Lab" : "Sensor Lab", to: `/lab?tab=xray&aoi=${aoi}&data=${data}` },
-            { label: vi ? "Xem sổ chứng cứ" : "Evidence Ledger", to: `/evidence?aoi=${aoi}&data=${data}&ym=${ymParam}` },
-          ],
-          via: res.llm_used ? "LLM Grounded Synthesis" : "Deterministic Rule Engine",
+          question: q,
+          aoi,
+          data,
+          method,
+          year,
+          month,
+          use_llm: false,
         },
-      ]);
+        {
+          onMeta: (meta) => {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === botMsgId
+                  ? {
+                      ...msg,
+                      evidenceText: meta.evidence
+                        ? vi
+                          ? `Dẫn xuất từ ${Object.keys(meta.evidence).length} trường dữ liệu kiểm toán qua công cụ [${meta.tools_used.join(", ")}].`
+                          : `Derived from ${Object.keys(meta.evidence).length} audit fields via tools [${meta.tools_used.join(", ")}].`
+                        : vi
+                        ? `Xác thực từ dữ liệu viễn thám chuẩn hóa.`
+                        : `Verified from standardized telemetry observations.`,
+                      uncertainty: meta.limitations?.length ? meta.limitations.join(" ") : undefined,
+                      actions: [
+                        { label: vi ? "Xem trong Calendar" : "View in Calendar", to: `/calendar?aoi=${aoi}&data=${data}` },
+                        { label: vi ? "Đối soát trong Sensor Lab" : "Sensor Lab", to: `/lab?tab=xray&aoi=${aoi}&data=${data}` },
+                        { label: vi ? "Xem sổ chứng cứ" : "Evidence Ledger", to: `/evidence?aoi=${aoi}&data=${data}&ym=${ymParam}` },
+                      ],
+                    }
+                  : msg,
+              ),
+            );
+          },
+          onDelta: (delta) => {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === botMsgId
+                  ? {
+                      ...msg,
+                      finding: (msg.finding || "") + delta,
+                    }
+                  : msg,
+              ),
+            );
+          },
+          onDone: (fullAnswer) => {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === botMsgId
+                  ? {
+                      ...msg,
+                      finding: fullAnswer || msg.finding,
+                      isStreaming: false,
+                    }
+                  : msg,
+              ),
+            );
+          },
+          onError: (err) => {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === botMsgId
+                  ? {
+                      ...msg,
+                      rawText: vi
+                        ? `Lỗi kết nối phân tích: ${describeError(err)}.`
+                        : `Analysis connection note: ${describeError(err)}.`,
+                      isStreaming: false,
+                    }
+                  : msg,
+              ),
+            );
+          },
+        },
+      );
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: botMsgId,
-          role: "assistant",
-          rawText: vi
-            ? `Hệ thống phân tích: ${describeError(err)}. Nhấp vào các liên kết bên phải để xem trực tiếp số liệu tính toán.`
-            : `Analysis engine note: ${describeError(err)}. Use the evidence stack on the right to inspect computed metrics directly.`,
-          actions: [
-            { label: vi ? "Xem số liệu tính toán" : "View computed metrics", to: `/calendar?aoi=${aoi}&data=${data}` },
-          ],
-          via: "Diagnostic Fallback",
-        },
-      ]);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === botMsgId
+            ? {
+                ...msg,
+                rawText: vi
+                  ? `Hệ thống phân tích: ${describeError(err)}. Nhấp vào các liên kết bên phải để xem trực tiếp số liệu tính toán.`
+                  : `Analysis engine note: ${describeError(err)}. Use the evidence stack on the right to inspect computed metrics directly.`,
+                isStreaming: false,
+              }
+            : msg,
+        ),
+      );
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="px-4 sm:px-6 lg:px-8 py-6 max-w-7xl mx-auto w-full space-y-6 pb-24">
       {/* 1. Top Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-[#111C2E] p-4 sm:p-5 shadow-sm">
         <div className="flex items-center gap-3">
@@ -160,16 +216,14 @@ export function InvestigatorPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white">
-                AI Scientific Investigator
+                {t("ai.title")}
               </h1>
               <span className="font-mono text-xs font-semibold uppercase px-2.5 py-0.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-300">
-                Grounding Engine Active
+                {t("ai.badge")}
               </span>
             </div>
             <p className="text-xs text-slate-300">
-              {vi
-                ? "Diễn giải chuỗi dữ liệu khoa học có căn cứ kiểm chứng, không suy diễn hoặc sinh số liệu giả."
-                : "Scientific evidence-grounded queries: strictly deterministic findings with verified telemetry."}
+              {t("ai.desc")}
             </p>
           </div>
         </div>
@@ -180,7 +234,7 @@ export function InvestigatorPage() {
           className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-200 transition min-h-[40px]"
         >
           <FileCheck2 className="h-4 w-4 text-cyan-400" />
-          <span>{vi ? "Mở sổ bằng chứng" : "Open Evidence Ledger"}</span>
+          <span>{t("ai.month_evidence")}</span>
         </Link>
       </div>
 
@@ -194,7 +248,7 @@ export function InvestigatorPage() {
           {/* Context-driven Prompt Chips (Exactly 3) */}
           <div className="space-y-1.5">
             <span className="text-xs font-semibold text-slate-400 px-1">
-              {vi ? "Gợi ý câu hỏi theo bối cảnh:" : "Context-Driven Inquiries:"}
+              {t("ai.context_inquiries")}
             </span>
             <div className="flex flex-wrap gap-2">
               {promptChips.map((p) => (
@@ -222,12 +276,12 @@ export function InvestigatorPage() {
                     "rounded-xl p-4 space-y-3 text-xs leading-relaxed",
                     isUser
                       ? "ml-8 sm:ml-12 border border-cyan-500/30 bg-cyan-950/20 text-cyan-100"
-                      : "mr-4 sm:mr-8 border border-slate-800 bg-slate-900/80 text-slate-200"
+                      : "mr-4 sm:mr-8 border border-slate-800 bg-slate-900/80 text-slate-200",
                   )}
                 >
                   <div className="flex items-center justify-between border-b border-slate-800 pb-2 text-xs font-mono">
                     <span className="font-bold text-slate-400 uppercase">
-                      {isUser ? (vi ? "Nhà nghiên cứu" : "Researcher Query") : (vi ? "Chuyên gia AI" : "Scientific Investigator")}
+                      {isUser ? t("ai.user_query") : t("ai.bot_name")}
                     </span>
                     {m.via && <span className="text-cyan-400">{m.via}</span>}
                   </div>
@@ -235,19 +289,31 @@ export function InvestigatorPage() {
                   {m.rawText && <p className="text-sm text-slate-200">{m.rawText}</p>}
 
                   {/* 4-Part Structured Response Template */}
+                  {m.isStreaming && !m.finding && (
+                    <div className="flex items-center gap-2 text-cyan-300 text-xs font-mono py-2">
+                      <div className="h-3.5 w-3.5 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
+                      <span>{t("ai.streaming_status")}</span>
+                    </div>
+                  )}
+
                   {m.finding && (
                     <div className="space-y-1">
                       <div className="font-bold text-white text-sm">
-                        {vi ? "1. Kết luận ngắn:" : "1. Finding:"}
+                        {t("ai.finding_heading")}
                       </div>
-                      <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">{m.finding}</p>
+                      <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
+                        {m.finding}
+                        {m.isStreaming && (
+                          <span className="inline-block w-1.5 h-3.5 ml-1 bg-cyan-400 animate-pulse align-middle" />
+                        )}
+                      </p>
                     </div>
                   )}
 
                   {m.evidenceText && (
                     <div className="space-y-1 pt-2 border-t border-slate-800">
                       <div className="font-bold text-cyan-300 text-xs">
-                        {vi ? "2. Số liệu & Bằng chứng hỗ trợ:" : "2. Verifiable Evidence:"}
+                        {t("ai.evidence_heading")}
                       </div>
                       <p className="font-mono text-xs text-slate-300 bg-slate-950 p-2.5 rounded-lg border border-slate-800">
                         {m.evidenceText}
@@ -258,7 +324,7 @@ export function InvestigatorPage() {
                   {m.uncertainty && (
                     <div className="space-y-1 pt-2 border-t border-slate-800">
                       <div className="font-bold text-amber-300 text-xs">
-                        {vi ? "3. Điểm chưa chắc chắn & Ranh giới:" : "3. Uncertainty & Limits:"}
+                        {t("ai.uncertainty_heading")}
                       </div>
                       <p className="text-slate-400 text-xs leading-relaxed">{m.uncertainty}</p>
                     </div>
@@ -267,7 +333,7 @@ export function InvestigatorPage() {
                   {m.actions && m.actions.length > 0 && (
                     <div className="space-y-1.5 pt-2 border-t border-slate-800">
                       <div className="font-bold text-slate-300 text-xs">
-                        {vi ? "4. Thao tác tiếp theo:" : "4. Next Actions:"}
+                        {t("ai.actions_heading")}
                       </div>
                       <div className="flex flex-wrap gap-2 pt-0.5">
                         {m.actions.map((act) => (
@@ -299,11 +365,7 @@ export function InvestigatorPage() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={
-                vi
-                  ? "Đặt câu hỏi nghiên cứu về dữ liệu hoặc cảm biến…"
-                  : "Ask a grounded research question about this dataset…"
-              }
+              placeholder={t("ai.input_placeholder")}
               disabled={busy}
               className="flex-1 rounded-xl border border-slate-700 bg-[#111C2E] px-4 py-3 text-xs sm:text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none min-h-[44px]"
             />
@@ -312,7 +374,7 @@ export function InvestigatorPage() {
               disabled={busy || !input.trim()}
               className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-orange-600 hover:bg-orange-500 px-5 py-3 text-xs font-bold text-white shadow-sm transition disabled:opacity-50 min-h-[44px]"
             >
-              <span>{vi ? "Hỏi" : "Send"}</span>
+              <span>{t("ai.btn_send")}</span>
               <Send className="h-4 w-4" />
             </button>
           </form>
@@ -325,7 +387,7 @@ export function InvestigatorPage() {
               <div className="flex items-center gap-2">
                 <FileCheck2 className="h-4 w-4 text-cyan-400" />
                 <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                  {vi ? "Sổ chứng cứ thực tế" : "Active Evidence Stack"}
+                  {t("ai.evidence_ledger_title")}
                 </h2>
               </div>
               <span className="font-mono text-xs text-slate-400">
@@ -336,19 +398,19 @@ export function InvestigatorPage() {
             {/* Context Facts Summary */}
             <div className="space-y-3 font-mono text-xs">
               <div className="flex justify-between items-center py-1.5 border-b border-slate-800/60">
-                <span className="text-slate-400 font-sans">{vi ? "Vùng phân tích:" : "Study Area:"}</span>
+                <span className="text-slate-400 font-sans">{t("ai.study_area")}</span>
                 <span className="text-white font-bold">{aoi.toUpperCase()}</span>
               </div>
               <div className="flex justify-between items-center py-1.5 border-b border-slate-800/60">
-                <span className="text-slate-400 font-sans">{vi ? "Nguồn dữ liệu:" : "Data Feed:"}</span>
+                <span className="text-slate-400 font-sans">{t("ai.data_feed")}</span>
                 <span className="text-amber-300 font-bold">{data.toUpperCase()}</span>
               </div>
               <div className="flex justify-between items-center py-1.5 border-b border-slate-800/60">
-                <span className="text-slate-400 font-sans">{vi ? "Phương pháp:" : "Harmonization:"}</span>
+                <span className="text-slate-400 font-sans">{t("ai.harmonization")}</span>
                 <span className="text-purple-300 font-bold">{method.toUpperCase()} Baseline</span>
               </div>
               <div className="flex justify-between items-center py-1.5 border-b border-slate-800/60">
-                <span className="text-slate-400 font-sans">{vi ? "Độ tin cậy:" : "Integrity Status:"}</span>
+                <span className="text-slate-400 font-sans">{t("ai.integrity_status")}</span>
                 <span className="text-emerald-400 font-bold">Standard Archive</span>
               </div>
             </div>
@@ -356,12 +418,12 @@ export function InvestigatorPage() {
             {/* Quick Diagnostic Insights */}
             <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-2 text-xs">
               <span className="font-bold text-white block">
-                {vi ? "Nguyên tắc suy luận khoa học" : "Grounding Principles"}
+                {t("ai.reasoning_title")}
               </span>
               <ul className="space-y-1.5 text-slate-300 list-disc pl-4 leading-relaxed">
-                <li>{vi ? "Không tự sáng tác số liệu điểm nóng nếu backend không trả về." : "No synthetic counts are invented if absent from the backend."}</li>
-                <li>{vi ? "Dữ liệu thiếu do mây che được báo rõ, không quy về 0." : "Missing observation days are flagged, never coerced to zero."}</li>
-                <li>{vi ? "Chỉ số hiệu chuẩn là ước lượng thống kê, không phải đo thực địa." : "Harmonized indexes are statistical estimates, not field truths."}</li>
+                <li>{t("ai.rule1")}</li>
+                <li>{t("ai.rule2")}</li>
+                <li>{t("ai.rule3")}</li>
               </ul>
             </div>
 
@@ -373,7 +435,7 @@ export function InvestigatorPage() {
               >
                 <div className="flex items-center gap-2">
                   <CalendarDays className="h-4 w-4 text-cyan-400" />
-                  <span>{vi ? "Mở tháng này trên Calendar" : "Inspect month on Calendar"}</span>
+                  <span>{t("ai.inspect_calendar")}</span>
                 </div>
                 <ArrowRight className="h-4 w-4 text-slate-500" />
               </Link>
@@ -384,7 +446,7 @@ export function InvestigatorPage() {
               >
                 <div className="flex items-center gap-2">
                   <Satellite className="h-4 w-4 text-orange-400" />
-                  <span>{vi ? "Đối chiếu sai khác cảm biến" : "Compare sensor discrepancies"}</span>
+                  <span>{t("ai.compare_sensor")}</span>
                 </div>
                 <ArrowRight className="h-4 w-4 text-slate-500" />
               </Link>

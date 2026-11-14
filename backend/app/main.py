@@ -22,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from app.firms import calendar as cal
 from app.firms import (coverage as cov, dl, evaluation, evidence as evd,
                        explain as ex, harmonize, hts, llm, ml_cal, ml_v4, sf_lite,
+                       stan,
                        spatial, store, ts_v2 as tst)
 from app.firms.schema import FirmsRecord
 
@@ -245,15 +246,18 @@ def _block_raw_ml_ts(method: str, data: str, aoi: str = "vietnam") -> None:
     data fingerprint, feature version and algorithm family as the code and
     the raw set currently on disk; otherwise the request fails loudly (409).
     """
-    if method == "hts":
+    if method in ("hts", "stan"):
         if data != "raw":
             raise HTTPException(
-                409, "HTS requires raw NASA data; the synthetic sample has no "
-                     "1-degree tiles. Use method=stat for the sample.")
-        if not hts.status(MODEL_DIR)["available"]:
-            raise HTTPException(
-                422, "no HTS series artifact; run "
-                     "python -m scripts.firms.build_hts_series")
+                409, f"{method.upper()} requires raw NASA data; the synthetic "
+                     "sample has no 1-degree tiles. Use method=stat for the sample.")
+        check = ((MODEL_DIR / "hts_series_raw.json") if method == "hts"
+                 else (MODEL_DIR / "stan_series_raw.json"))
+        if not check.exists():
+            hint = ("python -m scripts.firms.build_hts_series"
+                    if method == "hts" else
+                    "python -m scripts.firms.build_stan_series")
+            raise HTTPException(422, f"no {method} series artifact; run {hint}")
         return
     if method not in ("ml", "ts") or data != "raw":
         return
@@ -610,10 +614,11 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
     cache_cap = (daily_cap if (focus_ym or simulate_year or not cache_result)
                  else 5000)
     model_key = "none"
-    if method in ("ml", "ts", "hts"):
+    if method in ("ml", "ts", "hts", "stan"):
         mp = MODEL_DIR / ({"ml": f"cal_{aoi}_raw.json",
                            "ts": f"ts_{aoi}_raw.json",
-                           "hts": "hts_series_raw.json"}[method])
+                           "hts": "hts_series_raw.json",
+                           "stan": "stan_series_raw.json"}[method])
         if mp.exists():
             model_key = hashlib.sha256(mp.read_bytes()).hexdigest()[:10]
     manifest_key = "none"
@@ -733,6 +738,18 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
             _accumulate(c)
             if _retain(str(c["date"])[:10]):
                 retained.append(c)
+    elif method == "stan":
+        targets = stan.targets(aoi)
+        if not targets:
+            raise HTTPException(404, f"No STAN series for aoi={aoi}")
+        cell_days, ml_meta = hts.apply_monthly(
+            harmonize.harmonize_daily(agg, ratios), targets,
+            method_id="stan_safe_v1", requested="stan",
+            candidate=False, gate_passed=True)
+        for c in cell_days:
+            _accumulate(c)
+            if _retain(str(c["date"])[:10]):
+                retained.append(c)
     else:
         rel_iqr = float(ratios.get("_fallback_rel_iqr", 0.0) or 0.0)
         calibrated = ratios.get("_calibration_status", "calibrated") == "calibrated"
@@ -823,7 +840,8 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
            "data_source": _data_source_label(data),
            "method_id": {"stat": "seasonal_ratio_v1", "ml": "ml_b2res_v4",
                          "ts": "ts_logratio_pool_v2",
-                         "hts": "hts_anchor_v1"}.get(method, "seasonal_ratio_v1"),
+                         "hts": "hts_anchor_v1",
+                         "stan": "stan_safe_v1"}.get(method, "seasonal_ratio_v1"),
            "effective_method": (ml_meta or {}).get("effective_method",
                                                    "seasonal_ratio_v1"),
            "calibration": calibration,
@@ -853,6 +871,9 @@ def _harmonize_from_records(records: list[dict], daily_cap: int = 2000,
                               platform_set: str = "all") -> dict:
     """Validate -> QA -> dedup -> harmonize. Single path for sample/raw/upload (P0-07)."""
     _block_raw_ml_ts(method, data, aoi)
+    if method in ("hts", "stan"):
+        raise HTTPException(409, f"{method.upper()} is not available for uploaded "
+                                 "datasets; use method=stat")
     clean: list[dict] = []
     rejected = 0
     qa_counts: dict[str, int] = {}
@@ -912,7 +933,8 @@ def _harmonize_from_records(records: list[dict], daily_cap: int = 2000,
             "forecast": _forecast(calen, latest["date"] if latest else None),
             "data_source": _data_source_label(data),
             "method_id": ({"ml": "ml_b2res_v4", "ts": "ts_logratio_pool_v2",
-                           "hts": "hts_anchor_v1"}.get(method, "seasonal_ratio_v1")),
+                           "hts": "hts_anchor_v1",
+                           "stan": "stan_safe_v1"}.get(method, "seasonal_ratio_v1")),
             "effective_method": (ml_meta or {}).get("effective_method",
                                                     "seasonal_ratio_v1"),
             "calibration": calibration,
@@ -945,8 +967,8 @@ def firms_harmonize(payload: dict):
         raise HTTPException(404, "No records in this AOI; widen the bbox or POST records")
     t0 = time.perf_counter()
     method = str(payload.get("method", "stat"))
-    if method not in ("stat", "ml", "ts", "hts"):
-        raise HTTPException(400, "method must be stat|ml|ts|hts")
+    if method not in ("stat", "ml", "ts", "hts", "stan"):
+        raise HTTPException(400, "method must be stat|ml|ts|hts|stan")
     qa_min = str(payload.get("qa_min", "all"))
     platform_set = str(payload.get("platform_set", "all"))
     if qa_min not in ("all", "nominal", "high"):
@@ -962,7 +984,8 @@ def firms_harmonize(payload: dict):
                               "(hotspot detections, not fires; MODIS-only cells are estimates)",
                       "ml": "daily 0.05deg grid + B2-anchored residual HGB (ml_b2res_v4; abstains to the seasonal ratio when blocked CV shows no robust gain)",
                       "ts": "daily 0.05deg grid + pooled log-ratio Transformer (ts_logratio_pool_v2) monthly post-adjustment; months without 12-month context keep the statistical value",
-                      "hts": "daily 0.05deg grid + hierarchical 1-degree tile seasonal anchor (hts_anchor_v1, candidate); MODIS-only cells are rescaled to the tile target, VIIRS-observed cells are untouched"}[method])
+                      "hts": "daily 0.05deg grid + hierarchical 1-degree tile seasonal anchor (hts_anchor_v1, candidate); MODIS-only cells are rescaled to the tile target, VIIRS-observed cells are untouched",
+                      "stan": "daily 0.05deg grid + STAN spatial-temporal negative-binomial model (stan_safe_v1, main); STAN targets for 2024+ with HTS fallback before 2024; VIIRS-observed cells are untouched"}[method])
     return JSONResponse(out)
 
 
@@ -971,7 +994,7 @@ def firms_calendar(limit: int = Query(2000, ge=1, le=2000000),
                    bbox: str | None = Query(None, description="minLon,minLat,maxLon,maxLat"),
                    aoi: str = Query("vietnam", description="preset region"),
                    data: str = Query("sample", pattern="^(sample|raw)$"),
-                   method: str = Query("stat", pattern="^(stat|ml|ts|hts)$"),
+                   method: str = Query("stat", pattern="^(stat|ml|ts|hts|stan)$"),
                    qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
                    platform_set: str = Query("all", pattern="^(all|snpp)$"),
                    dataset: str | None = Query(None, description="session upload id (upload:<hex>)")):
@@ -1009,7 +1032,7 @@ def firms_export(limit: int = Query(2000000, ge=100, le=2000000),
                  bbox: str | None = Query(None, description="minLon,minLat,maxLon,maxLat"),
                  aoi: str = Query("vietnam", description="preset region"),
                  data: str = Query("sample", pattern="^(sample|raw)$"),
-                 method: str = Query("stat", pattern="^(stat|ml|ts|hts)$"),
+                 method: str = Query("stat", pattern="^(stat|ml|ts|hts|stan)$"),
                  qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
                  platform_set: str = Query("all", pattern="^(all|snpp)$"),
                  dataset: str | None = Query(None, description="session upload id")):
@@ -1205,7 +1228,7 @@ async def firms_upload_dataset(request: Request, file: UploadFile = File(...)):
 def firms_brief(aoi: str = Query("vietnam", description="preset region"),
                 bbox: str | None = Query(None, description="minLon,minLat,maxLon,maxLat"),
                 data: str = Query("sample", pattern="^(sample|raw)$"),
-                method: str = Query("stat", pattern="^(stat|ml|ts|hts)$"),
+                method: str = Query("stat", pattern="^(stat|ml|ts|hts|stan)$"),
                 qa_min: str = Query("all", pattern="^(all|nominal|high)$"),
                 platform_set: str = Query("all", pattern="^(all|snpp)$"),
                 dataset: str | None = Query(None, description="session upload id")):
@@ -1390,6 +1413,54 @@ def firms_sf_status(aoi: str = Query("vietnam"),
             **{k: v for k, v in (meta or {}).items() if k != "predictions"}}
 
 
+def _stan_meta(kind: str = "safe") -> dict | None:
+    import json as _json
+    name = "stan_safe_raw.json" if kind == "safe" else "stan_retro_raw.json"
+    p = MODEL_DIR / name
+    if not p.exists():
+        return None
+    try:
+        return _json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, _json.JSONDecodeError):
+        return None
+
+
+@app.get("/api/firms/stan-status")
+def firms_stan_status():
+    """STAN: tuned spatial-temporal NB model. Safe variant is not retrospective."""
+    safe, retro = _stan_meta("safe"), _stan_meta("retro")
+    if not safe and not retro:
+        return {"trained": False, "method_id": "stan_v1",
+                "hint": "python -m app.firms.stan"}
+    return {"trained": True, "candidate": False, "served": True,
+            "role": "main",
+            "safe": {k: v for k, v in (safe or {}).items() if k != "predictions"},
+            "retrospective": {k: v for k, v in (retro or {}).items()
+                              if k != "predictions"}}
+
+
+def _spatial_meta() -> dict | None:
+    import json as _json
+    p = MODEL_DIR / "spatial_hgb_raw.json"
+    if not p.exists():
+        return None
+    try:
+        return _json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, _json.JSONDecodeError):
+        return None
+
+
+@app.get("/api/firms/spatial-status")
+def firms_spatial_status():
+    """Retrospective spatial HGB. Requires neighbouring VIIRS; not a forecast."""
+    meta = _spatial_meta()
+    if not meta:
+        return {"trained": False, "method_id": "spatial_hgb_v1",
+                "hint": "python -m app.firms.spatial_hgb"}
+    return {"trained": True, "candidate": True, "served": False,
+            **{k: v for k, v in meta.items() if k != "predictions"}}
+
+
 @app.get("/api/firms/hts-status")
 def firms_hts_status():
     """Hierarchical tile-seasonal anchor: candidate, never silently served."""
@@ -1451,6 +1522,20 @@ def _backtest_from_manifest(manifest: dict, aoi: str, data: str,
     samples = [s for s in manifest.get("samples", []) if s.get("aoi") == aoi]
     sf_models, sf_meta = sf_lite.load_artifact(data, MODEL_DIR)
     sf_preds = (sf_meta or {}).get("predictions") or {}
+    hts_meta = None
+    if data == "raw":
+        import json as _json
+        hp = MODEL_DIR / "hts_anchor_raw.json"
+        if hp.exists():
+            try:
+                hts_meta = _json.loads(hp.read_text(encoding="utf-8"))
+            except (OSError, _json.JSONDecodeError):
+                hts_meta = None
+    hts_row = ((hts_meta or {}).get("per_aoi") or {}).get(aoi)
+    spatial_meta = _spatial_meta()
+    spatial_row = (((spatial_meta or {}).get("per_aoi") or {}).get(aoi) or {}).get("spatial")
+    stan_meta = _stan_meta("safe")
+    stan_row = (((stan_meta or {}).get("official", {}).get("per_aoi") or {}).get(aoi) or {}).get("stan")
     rows = []
     for s in samples:
         sid = f"{aoi}:{int(s['year'])}-{int(s['month']):02d}"
@@ -1470,10 +1555,22 @@ def _backtest_from_manifest(manifest: dict, aoi: str, data: str,
         "metrics": {**(per.get("metrics", {})),
                     **({"sf_lite_v1": (sf_meta.get("per_aoi") or {}).get(aoi)}
                        if sf_meta and (sf_meta.get("per_aoi") or {}).get(aoi)
-                       else {})},
+                       else {}),
+                    **({"hts_anchor_v1": hts_row} if hts_row else {}),
+                    **({"spatial_hgb_v1": spatial_row} if spatial_row else {}),
+                    **({"stan_safe_v1": stan_row} if stan_row else {})},
         "sf_lite": sf_meta,
         "sf_lite_comparison": (sf_meta or {}).get("comparisons", {}).get("sf_vs_b2"),
         "sf_lite_deployed": bool((sf_meta or {}).get("deployed")),
+        "hts": hts_meta,
+        "hts_comparison": (hts_meta or {}).get("comparisons", {}).get("hts_vs_b2"),
+        "hts_candidate": bool(hts_meta) and not bool((hts_meta or {}).get("gate", {}).get("passed")),
+        "spatial": _spatial_meta(),
+        "spatial_comparison": (_spatial_meta() or {}).get("comparisons", {}).get("spatial_vs_b2"),
+        "spatial_retrospective": bool((_spatial_meta() or {}).get("retrospective")),
+        "stan": stan_meta,
+        "stan_official": (stan_meta or {}).get("official"),
+        "stan_candidate": bool(stan_meta),
         "hgb_full_test": per.get("hgb_full_test"),
         "hgb_residual_enabled": per.get("hgb_residual_enabled"),
         "hgb_fallback_baseline": per.get("hgb_fallback_baseline"),
@@ -1601,7 +1698,27 @@ def firms_xray(aoi: str = Query("vietnam"),
     else:
         b1_log, b2_log = evaluation.ratios_from_train(pairs)
         ratio_source = "in_sample fallback (no manifest)"
-    metrics = per.get("metrics") if per else None
+    metrics = dict(per.get("metrics") or {}) if per else {}
+    if data == "raw":
+        hp = MODEL_DIR / "hts_anchor_raw.json"
+        if hp.exists():
+            try:
+                _hm = json.loads(hp.read_text(encoding="utf-8"))
+                _row = ((_hm.get("per_aoi") or {}).get(aoi))
+                if _row:
+                    metrics["hts_anchor_v1"] = {k: v for k, v in _row.items()
+                                                if k in ("mae", "wape", "bias", "n")}
+            except (OSError, json.JSONDecodeError):
+                pass
+        _sm = _spatial_meta()
+        _srow = (((_sm or {}).get("per_aoi") or {}).get(aoi) or {}).get("spatial")
+        if _srow:
+            metrics["spatial_hgb_v1"] = _srow
+        _stm = _stan_meta("safe")
+        _strow = (((_stm or {}).get("official", {}).get("per_aoi") or {}).get(aoi) or {}).get("stan")
+        if _strow:
+            metrics["stan_safe_v1"] = _strow
+    metrics = metrics or None
     _ml_model, ml_meta = ml_cal.load_artifact(aoi, MODEL_DIR,
                                               tag=(data if data == "raw" else "sample"))
     _, ts_meta = tst.load_artifact(aoi, MODEL_DIR,
@@ -1907,7 +2024,7 @@ def firms_spatial_check(aoi: str = Query("vietnam"),
 @app.get("/api/firms/evidence")
 def firms_evidence(aoi: str = Query("vietnam"),
                    data: str = Query("raw", pattern="^(sample|raw)$"),
-                   method: str = Query("stat", pattern="^(stat|ml|ts|hts)$"),
+                   method: str = Query("stat", pattern="^(stat|ml|ts|hts|stan)$"),
                    year: int = Query(2025, ge=2000, le=2100),
                    month: int = Query(1, ge=1, le=12),
                    bbox: str | None = Query(None),
@@ -1934,8 +2051,8 @@ def firms_explain_month(payload: dict):
     month = int(payload.get("month", 1))
     if aoi not in AOIS:
         raise HTTPException(400, f"Unknown aoi {aoi!r}")
-    if data not in ("sample", "raw") or method not in ("stat", "ml", "ts", "hts"):
-        raise HTTPException(400, "data must be sample|raw and method stat|ml|ts|hts")
+    if data not in ("sample", "raw") or method not in ("stat", "ml", "ts", "hts", "stan"):
+        raise HTTPException(400, "data must be sample|raw and method stat|ml|ts|hts|stan")
     if not (2000 <= year <= 2100 and 1 <= month <= 12):
         raise HTTPException(400, "year/month out of range")
     qa_min = str(payload.get("qa_min", "all"))
@@ -2049,8 +2166,8 @@ def firms_investigate(payload: dict):
     method = str(payload.get("method", "stat"))
     if aoi not in AOIS:
         raise HTTPException(400, f"Unknown aoi {aoi!r}")
-    if data not in ("sample", "raw") or method not in ("stat", "ml", "ts", "hts"):
-        raise HTTPException(400, "data must be sample|raw and method stat|ml|ts|hts")
+    if data not in ("sample", "raw") or method not in ("stat", "ml", "ts", "hts", "stan"):
+        raise HTTPException(400, "data must be sample|raw and method stat|ml|ts|hts|stan")
     year = payload.get("year")
     month = payload.get("month")
     focus = (f"{int(year)}-{int(month):02d}"
@@ -2102,6 +2219,85 @@ def firms_investigate(payload: dict):
     })
 
 
+@app.post("/api/firms/investigate-stream")
+def firms_investigate_stream(payload: dict):
+    """Streaming endpoint for AI Scientific Investigator."""
+    q = str(payload.get("question", "")).strip()
+    if not q or len(q) > 1000:
+        raise HTTPException(400, "Provide question (1-1000 chars)")
+    aoi = str(payload.get("aoi", "vietnam"))
+    data = str(payload.get("data", "sample"))
+    method = str(payload.get("method", "stat"))
+    if aoi not in AOIS:
+        raise HTTPException(400, f"Unknown aoi {aoi!r}")
+    if data not in ("sample", "raw") or method not in ("stat", "ml", "ts", "hts", "stan"):
+        raise HTTPException(400, "data must be sample|raw and method stat|ml|ts|hts|stan")
+    year = payload.get("year")
+    month = payload.get("month")
+    focus = (f"{int(year)}-{int(month):02d}"
+             if year and month and 1 <= int(month) <= 12 else None)
+    out = _analysis_for_evidence(aoi, data, method, payload.get("bbox"),
+                                 str(payload.get("qa_min", "all")),
+                                 str(payload.get("platform_set", "all")),
+                                 focus_ym=focus)
+    facts = ex.gather_facts(out["calendar"], out["daily_cells"], out["ratios"],
+                            out.get("qa", {}).get("clean", 0),
+                            payload.get("bbox"), method=out.get("method_id"),
+                            evaluation=_evaluation_facts(aoi, data),
+                            coverage=out.get("coverage"),
+                            filters=out.get("filters"))
+    facts["data_source"] = _data_source_label(data)
+    facts["latest"] = out["latest"]
+    evidence = None
+    if focus:
+        evidence = evd.build_evidence(out, out.get("daily") or [], aoi, data,
+                                      method, int(year), int(month))
+    tools_used = ["calendar", "evaluation", "coverage"]
+    if evidence:
+        tools_used.append("evidence")
+    if any(w in q.lower() for w in ("sensor", "modis", "viirs", "platform", "cảm biến", "cam bien")):
+        tools_used.append("sensor_context")
+    rule = ex.answer(q, facts, out["critical_periods"], out["latest"], dl.describe())
+    llm_facts = {**facts, "evidence": evidence,
+                 "top_months": out["critical_periods"][:5],
+                 "tools_used": tools_used,
+                 "limitations": [
+                     "AOI-month MAE against a VIIRS reference, not fire ground truth.",
+                     "A missing detection is not proof of no fire (cloud/smoke/sub-pixel).",
+                     "Australia remains a sparse 5-day-window series.",
+                     "Cell-day estimates are not spatially validated.",
+                 ]}
+
+    def event_stream():
+        meta = {
+            "tools_used": tools_used,
+            "evidence": evidence,
+            "facts": facts,
+            "suggestions": rule["suggestions"],
+            "limitations": llm_facts["limitations"],
+            "citations": (evidence or {}).get("citations", []),
+        }
+        yield f"event: meta\ndata: {json.dumps(meta, ensure_ascii=False)}\n\n"
+        use_llm = payload.get("use_llm", True)
+        full_text = []
+        if use_llm:
+            for item in llm.stream_llm(q, llm_facts, rule["answer"]):
+                full_text.append(item.get("delta", ""))
+                yield f"event: delta\ndata: {json.dumps(item, ensure_ascii=False)}\n\n"
+        else:
+            words = rule["answer"].split(" ")
+            for i, word in enumerate(words):
+                token = word if i == 0 else " " + word
+                full_text.append(token)
+                yield f"event: delta\ndata: {json.dumps({'delta': token, 'llm_used': False}, ensure_ascii=False)}\n\n"
+                time.sleep(0.012)
+        done_payload = {"full_answer": "".join(full_text), "status": "completed"}
+        yield f"event: done\ndata: {json.dumps(done_payload, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+
 @app.get("/api/firms/llm-status")
 def firms_llm_status():
     return llm.available()
@@ -2119,8 +2315,8 @@ def firms_ask_llm(payload: dict):
     if data not in ("sample", "raw"):
         raise HTTPException(400, "data must be sample|raw")
     method = str(payload.get("method", "stat"))
-    if method not in ("stat", "ml", "ts", "hts"):
-        raise HTTPException(400, "method must be stat|ml|ts|hts")
+    if method not in ("stat", "ml", "ts", "hts", "stan"):
+        raise HTTPException(400, "method must be stat|ml|ts|hts|stan")
     qa_min = str(payload.get("qa_min", "all"))
     platform_set = str(payload.get("platform_set", "all"))
     _block_raw_ml_ts(method, data, aoi)
@@ -2172,8 +2368,8 @@ def firms_ask(payload: dict):
     if data not in ("sample", "raw"):
         raise HTTPException(400, "data must be sample|raw")
     method = str(payload.get("method", "stat"))
-    if method not in ("stat", "ml", "ts", "hts"):
-        raise HTTPException(400, "method must be stat|ml|ts|hts")
+    if method not in ("stat", "ml", "ts", "hts", "stan"):
+        raise HTTPException(400, "method must be stat|ml|ts|hts|stan")
     qa_min = str(payload.get("qa_min", "all"))
     platform_set = str(payload.get("platform_set", "all"))
     _block_raw_ml_ts(method, data, aoi)

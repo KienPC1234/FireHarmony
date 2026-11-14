@@ -34,7 +34,7 @@ const AOIS = [
 ];
 
 export function EvidencePage() {
-  const { lang } = useLang();
+  const { t, lang } = useLang();
   const vi = lang === "vi";
 
   const [sp, setSp] = useSearchParams();
@@ -107,7 +107,7 @@ export function EvidencePage() {
       : "INSUFFICIENT";
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="px-4 sm:px-6 lg:px-8 py-6 max-w-7xl mx-auto w-full space-y-6 pb-24">
       {/* 1. Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-[#111C2E] p-4 sm:p-5 shadow-sm">
         <div className="flex items-center gap-3">
@@ -117,16 +117,14 @@ export function EvidencePage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white">
-                {vi ? "Sổ chứng cứ & Toàn vẹn dữ liệu" : "Evidence & Data Integrity Ledger"}
+                {t("evidence.title")}
               </h1>
               <span className="font-mono text-xs font-semibold uppercase px-2.5 py-0.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-300">
                 {data.toUpperCase()}
               </span>
             </div>
             <p className="text-xs text-slate-300">
-              {vi
-                ? "Dữ liệu tháng này đủ để so sánh hai cảm biến không?"
-                : "Is this month's data sufficient to compare both sensors?"}
+              {t("evidence.desc")}
             </p>
           </div>
         </div>
@@ -138,14 +136,14 @@ export function EvidencePage() {
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-200 transition min-h-[40px]"
           >
             <CalendarDays className="h-4 w-4 text-cyan-400" />
-            <span>{vi ? "Xem trên Fire Calendar" : "View in Fire Calendar"}</span>
+            <span>{t("evidence.view_calendar")}</span>
           </Link>
           <Link
             to="/methods"
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-200 transition min-h-[40px]"
           >
             <FlaskConical className="h-4 w-4 text-purple-400" />
-            <span>{vi ? "Kiểm tra phương pháp" : "Inspect Method"}</span>
+            <span>{t("evidence.check_method")}</span>
           </Link>
         </div>
       </div>
@@ -154,50 +152,64 @@ export function EvidencePage() {
       <GlobalContextBar />
 
       {/* 3. Primary Verdict Banner */}
-      <div
-        className={cn(
-          "rounded-2xl border p-5 shadow-sm space-y-2",
-          eligibility === "ELIGIBLE"
-            ? "border-emerald-500/40 bg-emerald-950/20 text-emerald-200"
-            : eligibility === "PARTIAL"
-            ? "border-amber-500/40 bg-amber-950/20 text-amber-200"
-            : "border-rose-500/40 bg-rose-950/20 text-rose-200"
-        )}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="rounded-2xl border border-slate-800 bg-[#0B1220]/95 p-5 shadow-sm space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
           <div className="flex items-center gap-2.5">
-            <CheckCircle2
+            <div
               className={cn(
-                "h-5 w-5",
+                "flex h-8 w-8 items-center justify-center rounded-lg border",
                 eligibility === "ELIGIBLE"
-                  ? "text-emerald-400"
+                  ? "border-emerald-500/40 bg-emerald-950/40 text-emerald-300"
                   : eligibility === "PARTIAL"
-                  ? "text-amber-400"
-                  : "text-rose-400"
+                  ? "border-amber-500/40 bg-amber-950/40 text-amber-300"
+                  : "border-slate-700 bg-slate-900 text-slate-300",
               )}
-            />
-            <span className="font-extrabold text-base tracking-wide">
-              {vi ? "KẾT LUẬN ĐỐI SOÁT:" : "INTEGRITY VERDICT:"}{" "}
-              {eligibility === "ELIGIBLE"
-                ? (vi ? "ĐỦ ĐIỀU KIỆN HIỆU CHỈNH" : "ELIGIBLE FOR CALIBRATION")
-                : eligibility === "PARTIAL"
-                ? (vi ? "MỘT PHẦN (CẦN LƯU Ý KHI SO SÁNH)" : "PARTIAL RECORD (CAVEAT APPLIES)")
-                : (vi ? "CHƯA ĐỦ ĐIỀU KIỆN ĐỐI SOÁT" : "INSUFFICIENT DATA")}
-            </span>
+            >
+              <CheckCircle2 className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  {t("evidence.audit_conclusion")}
+                </span>
+                <span
+                  className={cn(
+                    "px-2 py-0.5 rounded text-[11px] font-mono font-bold uppercase border",
+                    eligibility === "ELIGIBLE"
+                      ? "border-emerald-500/40 bg-emerald-950/40 text-emerald-300"
+                      : eligibility === "PARTIAL"
+                      ? "border-amber-500/40 bg-amber-950/40 text-amber-300"
+                      : "border-amber-500/30 bg-amber-950/20 text-amber-200",
+                  )}
+                >
+                  {eligibility === "ELIGIBLE"
+                    ? t("evidence.eligible_title")
+                    : eligibility === "PARTIAL"
+                    ? t("evidence.partial_title")
+                    : t("evidence.insufficient_title")}
+                </span>
+              </div>
+            </div>
           </div>
 
-          <span className="font-mono text-xs font-bold px-3 py-1 rounded-full border border-current bg-black/20">
-            {pairedDays} / {daysInMonth} {vi ? "ngày đối chiếu khả dụng" : "paired days"} ({Math.round(coverageRatio * 100)}%)
-          </span>
+          <div className="flex items-center gap-2 font-mono text-xs">
+            <span className="text-slate-400">{t("evidence.paired_coverage")}</span>
+            <span className="font-bold text-white">
+              {pairedDays} / {daysInMonth} {t("evidence.days_unit")} ({Math.round(coverageRatio * 100)}%)
+            </span>
+            <span className="text-slate-600 hidden sm:inline">|</span>
+            <span className="text-slate-400 hidden sm:inline">{t("evidence.threshold")}</span>
+            <span className="font-semibold text-cyan-300 hidden sm:inline">{(threshold * 100).toFixed(0)}%</span>
+          </div>
         </div>
 
-        <p className="text-xs text-slate-300 leading-relaxed font-sans pt-1">
+        <p className="text-xs text-slate-300 leading-relaxed font-sans">
           {eligibility === "ELIGIBLE"
             ? (vi
               ? `Tỷ lệ ngày yêu cầu và xử lý thành công đạt ${(coverageRatio * 100).toFixed(0)}% (vượt ngưỡng yêu cầu ${(threshold * 100).toFixed(0)}%). Dữ liệu hai cảm biến đủ điều kiện để so sánh đối chiếu đa thập kỷ.`
               : `Request coverage reached ${(coverageRatio * 100).toFixed(0)}% (exceeding the ${(threshold * 100).toFixed(0)}% requirement). Both sensors provide sufficient co-observations for multi-decadal harmonization.`)
             : (vi
-              ? `Tỷ lệ đối chiếu chỉ đạt ${(coverageRatio * 100).toFixed(0)}%, dưới ngưỡng tiêu chuẩn ${(threshold * 100).toFixed(0)}%. Chuỗi hiệu chuẩn chỉ mang tính tham khảo và có nhãn cảnh báo.`
+              ? `Tỷ lệ đối chiếu đạt ${(coverageRatio * 100).toFixed(0)}% (dưới ngưỡng tiêu chuẩn ${(threshold * 100).toFixed(0)}%). Chuỗi hiệu chuẩn chỉ mang tính tham khảo và có nhãn cảnh báo độ bất định.`
               : `Paired coverage reached ${(coverageRatio * 100).toFixed(0)}%, falling short of the ${(threshold * 100).toFixed(0)}% threshold. Harmonized values are tagged as uncalibrated approximations.`)}
         </p>
       </div>
@@ -208,7 +220,7 @@ export function EvidencePage() {
           {/* AOI Selector */}
           <div className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5">
             <Globe className="h-4 w-4 text-cyan-400" />
-            <span className="text-slate-400 font-semibold">{vi ? "Vùng:" : "AOI:"}</span>
+            <span className="text-slate-400 font-semibold">{t("evidence.area")}</span>
             <select
               value={aoi}
               onChange={(e) => handleAoiChange(e.target.value)}
@@ -225,7 +237,7 @@ export function EvidencePage() {
           {/* Target Month */}
           <div className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5">
             <CalendarDays className="h-4 w-4 text-orange-400" />
-            <span className="text-slate-400 font-semibold">{vi ? "Tháng:" : "Month:"}</span>
+            <span className="text-slate-400 font-semibold">{t("evidence.month")}</span>
             <input
               type="month"
               value={`${year}-${String(month).padStart(2, "0")}`}
@@ -237,13 +249,13 @@ export function EvidencePage() {
 
         <div className="flex items-center gap-2 text-xs text-slate-400">
           <Database className="h-4 w-4 text-amber-400" />
-          <span>{vi ? "Nguồn dữ liệu:" : "Data source:"}</span>
+          <span>{t("evidence.data_source")}</span>
           <span className="font-mono text-white font-semibold">{data.toUpperCase()}</span>
         </div>
       </div>
 
       {loading ? (
-        <Loading label={vi ? "Đang kiểm toán sổ bằng chứng quan trắc..." : "Auditing sensor coverage ledger..."} />
+        <Loading label={t("evidence.auditing")} />
       ) : error ? (
         <ErrorState error={error} />
       ) : (
@@ -252,7 +264,7 @@ export function EvidencePage() {
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4 space-y-1">
               <span className="text-xs font-semibold text-slate-400 block">
-                {vi ? "Số ngày yêu cầu dữ liệu" : "Data Request Days"}
+                {t("evidence.request_days")}
               </span>
               <div className="text-2xl font-bold font-mono text-blue-400">
                 {requestDays} / {daysInMonth}
@@ -264,7 +276,7 @@ export function EvidencePage() {
 
             <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4 space-y-1">
               <span className="text-xs font-semibold text-slate-400 block">
-                {vi ? "Số ngày ghi nhận điểm nóng" : "Days with Detections"}
+                {t("evidence.detection_days")}
               </span>
               <div className="text-2xl font-bold font-mono text-teal-400">
                 {daysWithDetections} / {daysInMonth}
@@ -276,7 +288,7 @@ export function EvidencePage() {
 
             <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4 space-y-1">
               <span className="text-xs font-semibold text-slate-400 block">
-                {vi ? "Số ngày đối chiếu khả dụng" : "Comparable Paired Days"}
+                {t("evidence.paired_days_label")}
               </span>
               <div
                 className={cn(
@@ -301,7 +313,7 @@ export function EvidencePage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
               <div>
                 <h3 className="text-sm font-bold text-white tracking-tight">
-                  {vi ? "Ma trận quan trắc theo ngày (Cảm biến x Ngày)" : "Daily Observation Matrix (Sensor x Date)"}
+                  {t("evidence.matrix_heading")}
                 </h3>
                 <p className="text-xs text-slate-400">
                   {vi
@@ -314,7 +326,7 @@ export function EvidencePage() {
               <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
                 <div className="flex items-center gap-1.5">
                   <div className="h-3 w-3 rounded bg-emerald-500" />
-                  <span className="text-slate-300">{vi ? "Có cả hai" : "Co-Observed"}</span>
+                  <span className="text-slate-300">{t("evidence.co_observed")}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <div className="h-3 w-3 rounded bg-blue-500" />
@@ -326,7 +338,7 @@ export function EvidencePage() {
                 </div>
                 <div className="flex items-center gap-1.5">
                   <div className="h-3 w-3 rounded bg-slate-700" />
-                  <span className="text-slate-400">{vi ? "Không yêu cầu" : "Not Requested"}</span>
+                  <span className="text-slate-400">{t("evidence.not_requested")}</span>
                 </div>
               </div>
             </div>
@@ -368,12 +380,12 @@ export function EvidencePage() {
                               })
                             }
                             className={cn(
-                              "h-7 w-full rounded flex items-center justify-center font-bold transition text-xs",
+                              "h-7 w-full rounded flex items-center justify-center font-bold transition text-xs font-mono",
                               hasDetect
-                                ? "bg-blue-500 text-white"
+                                ? "bg-blue-500/25 text-blue-200 border border-blue-500/50 hover:bg-blue-500/40"
                                 : active
-                                ? "bg-blue-950/70 text-blue-300 border border-blue-500/30"
-                                : "bg-slate-900 text-slate-600",
+                                ? "bg-slate-900 text-blue-400/80 border border-slate-800 hover:border-slate-700"
+                                : "bg-slate-950/40 text-slate-700",
                             )}
                             title={`Ngày ${i + 1}: ${dayData ? dayData.modis_detections : 0} điểm nhiệt`}
                           >
@@ -407,12 +419,12 @@ export function EvidencePage() {
                               })
                             }
                             className={cn(
-                              "h-7 w-full rounded flex items-center justify-center font-bold transition text-xs",
+                              "h-7 w-full rounded flex items-center justify-center font-bold transition text-xs font-mono",
                               hasDetect
-                                ? "bg-teal-500 text-slate-950"
+                                ? "bg-teal-500/25 text-teal-200 border border-teal-500/50 hover:bg-teal-500/40"
                                 : active
-                                ? "bg-teal-950/70 text-teal-300 border border-teal-500/30"
-                                : "bg-slate-900 text-slate-600",
+                                ? "bg-slate-900 text-teal-400/80 border border-slate-800 hover:border-slate-700"
+                                : "bg-slate-950/40 text-slate-700",
                             )}
                             title={`Ngày ${i + 1}: ${dayData ? dayData.viirs_detections : 0} điểm nhiệt`}
                           >
@@ -425,7 +437,7 @@ export function EvidencePage() {
 
                   {/* Paired Eligibility Row */}
                   <tr>
-                    <td className="py-2.5 pr-3 font-semibold text-cyan-300 whitespace-nowrap">
+                    <td className="py-2.5 pr-3 font-semibold text-slate-300 whitespace-nowrap">
                       {vi ? "Trạng thái đối chiếu" : "Paired Status"}
                     </td>
                     {Array.from({ length: daysInMonth }, (_, i) => {
@@ -435,10 +447,10 @@ export function EvidencePage() {
                         <td key={i} className="p-1 text-center">
                           <div
                             className={cn(
-                              "h-5 w-full rounded flex items-center justify-center text-xs font-bold",
+                              "h-5 w-full rounded flex items-center justify-center text-[10px] font-mono font-bold",
                               paired
-                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                                : "bg-slate-900/60 text-slate-600",
+                                ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                                : "bg-slate-950/40 text-slate-700",
                             )}
                           >
                             {paired ? "OK" : "-"}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
+  ChevronDown,
   HelpCircle,
   Satellite,
 } from "lucide-react";
@@ -61,6 +62,7 @@ export function LabPage() {
   const [backtestData, setBacktestData] = useState<Awaited<ReturnType<typeof api.backtest>> | null>(null);
 
   const [burned, setBurned] = useState("");
+  const [protocolExpanded, setProtocolExpanded] = useState(false);
 
   const updateUrl = (newTab: Tab, newAoi: string, newData: string) => {
     setSp({ tab: newTab, aoi: newAoi, data: newData });
@@ -86,21 +88,80 @@ export function LabPage() {
     updateUrl(tab, aoi, newData);
   };
 
-  // Fetch X-Ray and Backtest data whenever AOI or data source changes
+  // Invalidate cached data when AOI or Data Feed changes
+  useEffect(() => {
+    setXrayData(null);
+    setBacktestData(null);
+    setSim(null);
+    setSpots(null);
+    setSpatialRes(null);
+    setCrossRes(null);
+  }, [aoi, dsrc]);
+
+  // Auto-fetch active tab experiment data so judges never see blank dashed boxes
   useEffect(() => {
     let active = true;
-    api.xray(aoi, dsrc).then((xr) => {
-      if (active) setXrayData(xr);
-    }).catch(() => undefined);
-
-    api.backtest(aoi, dsrc).then((bt) => {
-      if (active) setBacktestData(bt);
-    }).catch(() => undefined);
-
+    if ((tab === "xray" || tab === "replay") && (!xrayData || !backtestData)) {
+      setBusy(true);
+      Promise.all([
+        api.xray(aoi, dsrc).catch((err) => {
+          if (active) setErr(describeError(err));
+          return null;
+        }),
+        api.backtest(aoi, dsrc).catch((err) => {
+          if (active) setErr(describeError(err));
+          return null;
+        }),
+      ])
+        .then(([xr, bt]) => {
+          if (!active) return;
+          if (xr) setXrayData(xr);
+          if (bt) setBacktestData(bt);
+        })
+        .finally(() => {
+          if (active) setBusy(false);
+        });
+    } else if (tab === "simulator" && !sim) {
+      setBusy(true);
+      api.simulate(aoi, dsrc, year, sensors)
+        .then((res) => {
+          if (active) setSim(res);
+        })
+        .catch((e) => {
+          if (active) setErr(describeError(e));
+        })
+        .finally(() => {
+          if (active) setBusy(false);
+        });
+    } else if (tab === "blindspots" && !spots) {
+      setBusy(true);
+      api.blindSpots(aoi, dsrc, year, month)
+        .then((res) => {
+          if (active) setSpots(res);
+        })
+        .catch((e) => {
+          if (active) setErr(describeError(e));
+        })
+        .finally(() => {
+          if (active) setBusy(false);
+        });
+    } else if (tab === "spatial" && !spatialRes) {
+      setBusy(true);
+      api.spatialCheck(aoi, dsrc, year, month)
+        .then((res) => {
+          if (active) setSpatialRes(res);
+        })
+        .catch((e) => {
+          if (active) setErr(describeError(e));
+        })
+        .finally(() => {
+          if (active) setBusy(false);
+        });
+    }
     return () => {
       active = false;
     };
-  }, [aoi, dsrc]);
+  }, [tab, aoi, dsrc, year, month, sim, spots, spatialRes, sensors, xrayData, backtestData]);
 
   async function run() {
     setBusy(true);
@@ -146,6 +207,15 @@ export function LabPage() {
       return [...prev, id];
     });
   }
+
+  const handleSelectSensorPreset = (presetSensors: string[]) => {
+    setSensors(presetSensors);
+    setBusy(true);
+    api.simulate(aoi, dsrc, year, presetSensors)
+      .then(setSim)
+      .catch((e) => setErr(describeError(e)))
+      .finally(() => setBusy(false));
+  };
 
   // Task descriptions & questions for current tab
   const tabDetails: Record<
@@ -223,7 +293,7 @@ export function LabPage() {
   const currentDetails = tabDetails[tab] || tabDetails.xray;
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="px-4 sm:px-6 lg:px-8 py-6 max-w-7xl mx-auto w-full space-y-6 pb-24">
       {/* 1. Top Header Banner */}
       <div className="rounded-2xl border border-slate-800 bg-[#111C2E] p-4 sm:p-5 shadow-sm space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -312,32 +382,48 @@ export function LabPage() {
       {/* 4. Global Context Bar */}
       <GlobalContextBar />
 
-      {/* 5. Guided Experiment Protocol Card */}
-      <div className="rounded-xl border border-slate-800 bg-[#111C2E] p-4 text-xs space-y-2">
-        <div className="flex items-center gap-2 text-cyan-400 font-bold uppercase tracking-wider text-xs">
-          <HelpCircle className="h-4 w-4" />
-          <span>{vi ? "Mục tiêu & Hướng dẫn thử nghiệm" : "Experiment Objective & Protocol"}</span>
+      {/* 5. Guided Experiment Protocol Bar (Collapsible to save vertical viewport) */}
+      <div className="rounded-xl border border-slate-800 bg-[#0B1220] overflow-hidden text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-900/60">
+          <div className="flex items-center gap-2 min-w-0">
+            <HelpCircle className="h-4 w-4 text-cyan-400 shrink-0" />
+            <span className="font-bold text-white shrink-0 uppercase tracking-wide text-[11px]">
+              {vi ? "Mục tiêu khoa học:" : "Research Objective:"}
+            </span>
+            <span className="text-slate-300 font-sans truncate">{currentDetails.question}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setProtocolExpanded(!protocolExpanded)}
+            className="flex items-center gap-1 font-semibold text-cyan-400 hover:text-cyan-300 transition shrink-0"
+          >
+            <span>{protocolExpanded ? (vi ? "Thu gọn" : "Collapse") : (vi ? "Xem quy thức & giới hạn" : "View Protocol & Limits")}</span>
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", protocolExpanded && "rotate-180")} />
+          </button>
         </div>
-        <div className="grid gap-3 sm:grid-cols-3 text-slate-300">
-          <div>
-            <span className="font-semibold text-white block mb-0.5">
-              {vi ? "1. Câu hỏi khoa học:" : "1. Research Question:"}
-            </span>
-            <p className="text-slate-400 leading-relaxed">{currentDetails.question}</p>
+
+        {protocolExpanded && (
+          <div className="grid gap-3 sm:grid-cols-3 p-4 border-t border-slate-800/80 bg-slate-950/40 text-slate-300">
+            <div>
+              <span className="font-semibold text-white block mb-0.5">
+                {vi ? "1. Câu hỏi khoa học:" : "1. Research Question:"}
+              </span>
+              <p className="text-slate-400 leading-relaxed font-sans">{currentDetails.question}</p>
+            </div>
+            <div>
+              <span className="font-semibold text-white block mb-0.5">
+                {vi ? "2. Nguyên lý thực hiện:" : "2. How It Works:"}
+              </span>
+              <p className="text-slate-400 leading-relaxed font-sans">{currentDetails.howItWorks}</p>
+            </div>
+            <div>
+              <span className="font-semibold text-white block mb-0.5">
+                {vi ? "3. Giới hạn cần lưu ý:" : "3. Scientific Limitations:"}
+              </span>
+              <p className="text-slate-400 leading-relaxed font-sans">{currentDetails.limits}</p>
+            </div>
           </div>
-          <div>
-            <span className="font-semibold text-white block mb-0.5">
-              {vi ? "2. Nguyên lý thực hiện:" : "2. How It Works:"}
-            </span>
-            <p className="text-slate-400 leading-relaxed">{currentDetails.howItWorks}</p>
-          </div>
-          <div>
-            <span className="font-semibold text-white block mb-0.5">
-              {vi ? "3. Giới hạn cần lưu ý:" : "3. Scientific Limitations:"}
-            </span>
-            <p className="text-slate-400 leading-relaxed">{currentDetails.limits}</p>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* 6. Main Layout: Left Controls + Right Canvas */}
@@ -418,6 +504,15 @@ export function LabPage() {
                 </div>
               </div>
 
+              {busy && !xrayData && (
+                <div className="flex flex-col items-center justify-center p-16 rounded-xl border border-slate-800 bg-[#111C2E]/60 text-slate-400 space-y-3">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+                  <span className="text-xs font-mono">
+                    {vi ? "Đang truy xuất chuỗi thời gian đối soát X-Ray..." : "Retrieving X-Ray audit time series..."}
+                  </span>
+                </div>
+              )}
+
               {xrayData && xrayPerspective === "trajectory" && (
                 <XrayTimelineView months={xrayData.months} units={xrayData.units} />
               )}
@@ -455,7 +550,7 @@ export function LabPage() {
 
           {/* TAB 3: MISSION SIMULATOR */}
           {tab === "simulator" && (
-            <SimulatorTab sim={sim} sensors={sensors} />
+            <SimulatorTab sim={sim} sensors={sensors} onSelectPreset={handleSelectSensorPreset} />
           )}
 
           {/* TAB 4: BLIND SPOTS */}

@@ -75,7 +75,7 @@ feature, width labeling, artifact hashing and status separation; full evidence:
 
 ## Verification snapshot
 
-- Backend: 84 tests, including the new P0-01/P0-02/P0-07 regressions.
+- Backend: 90 tests, including the new P0-01/P0-02/P0-07 regressions.
 - `make_benchmark --check`, `evaluate --data raw|sample --verify`,
   `render_docs --check`, `check_env`, `rebuild_subset`: OK.
 - Frontend: typecheck/lint/build, Playwright 4/4.

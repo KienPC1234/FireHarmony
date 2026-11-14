@@ -44,15 +44,15 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
 
   const [revealed, setRevealed] = useState(false);
   const [showFailuresOnly, setShowFailuresOnly] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<"ml" | "ts">("ml");
 
   const months = useMemo(() => backtest?.months ?? [], [backtest]);
 
   // Transform data for chart based on revealed state
   const chartData = useMemo(() => {
     return months.map((m) => {
-      const pred = selectedModel === "ts" && m.ts_pred !== null ? m.ts_pred : m.ml_pred;
-      // B2 anchor comes from the persisted evaluation row, never a hardcoded multiplier.
+      // SensorFormer = seasonal anchor + residual. The residual gate is OFF on the
+      // current holdout, so the served value is the anchor (never a hardcoded multiplier).
+      const pred = m.b2_pred;
       const b2_anchor = m.b2_pred;
       const residual = Math.round(pred - m.viirs_ref);
       const absErrModel = Math.abs(pred - m.viirs_ref);
@@ -71,7 +71,7 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
         isFailure,
       };
     });
-  }, [months, revealed, selectedModel]);
+  }, [months, revealed]);
 
   const displayedMonths = useMemo(() => {
     if (!showFailuresOnly) return chartData;
@@ -86,7 +86,9 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
     return (
       <div className="flex flex-col items-center justify-center py-24 text-slate-400 gap-3">
         <RefreshCw className="h-6 w-6 animate-spin text-cyan-400" />
-        <span className="text-xs font-mono">Loading frozen holdout replay dataset...</span>
+        <span className="text-xs font-mono">
+          {vi ? "Đang nạp tập dữ liệu kiểm thử holdout đóng băng..." : "Loading frozen holdout replay dataset..."}
+        </span>
       </div>
     );
   }
@@ -95,9 +97,13 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
     return (
       <div className="rounded-2xl border border-amber-500/30 bg-amber-950/10 p-8 text-center space-y-3">
         <HelpCircle className="h-8 w-8 text-amber-400 mx-auto" />
-        <h3 className="text-base font-bold text-white">Holdout Replay Unavailable</h3>
+        <h3 className="text-base font-bold text-white">
+          {vi ? "Chưa có dữ liệu Holdout Replay" : "Holdout Replay Unavailable"}
+        </h3>
         <p className="text-xs text-slate-400 max-w-md mx-auto">
-          No reproducible holdout evaluation registered for {aoi.toUpperCase()} ({data}). Switch to sample data or run training benchmark first.
+          {vi
+            ? `Chưa có bản ghi đánh giá holdout nào cho ${aoi.toUpperCase()} (${data}). Hãy chuyển sang dữ liệu mẫu hoặc chạy benchmark huấn luyện trước.`
+            : `No reproducible holdout evaluation registered for ${aoi.toUpperCase()} (${data}). Switch to sample data or run training benchmark first.`}
         </p>
       </div>
     );
@@ -204,33 +210,6 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
 
           {/* Model Switcher & Failure Toggle */}
           <div className="flex items-center gap-2 text-xs">
-            <div className="flex items-center rounded-lg border border-border/60 bg-slate-900/80 p-0.5 font-mono text-xs">
-              <button
-                type="button"
-                onClick={() => setSelectedModel("ml")}
-                className={cn(
-                  "rounded-md px-2.5 py-1 font-semibold transition",
-                  selectedModel === "ml"
-                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
-                    : "text-slate-400 hover:text-white",
-                )}
-              >
-                HGB Residual
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedModel("ts")}
-                className={cn(
-                  "rounded-md px-2.5 py-1 font-semibold transition",
-                  selectedModel === "ts"
-                    ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
-                    : "text-slate-400 hover:text-white",
-                )}
-              >
-                TS Transformer
-              </button>
-            </div>
-
             {revealed && (
               <button
                 type="button"
@@ -278,7 +257,7 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
               <Line
                 type="monotone"
                 dataKey="b2_anchor"
-                name={vi ? "Đường cơ sở mùa vụ B2" : "B2 Seasonal Baseline"}
+                name={vi ? "Neo mùa vụ (trong SensorFormer)" : "Seasonal anchor (inside SensorFormer)"}
                 stroke="#eab308"
                 strokeWidth={1.5}
                 strokeDasharray="4 4"
@@ -289,8 +268,8 @@ export function BlindReplayTab({ aoi, data, backtest, loading }: BlindReplayTabP
                 dataKey="predicted"
                 name={
                   vi
-                    ? `Dự đoán ${selectedModel === "ml" ? "HGB Residual" : "Transformer"}`
-                    : `${selectedModel === "ml" ? "HGB Residual" : "Transformer"} Prediction`
+                    ? "SensorFormer (neo mùa vụ, gate đóng)"
+                    : "SensorFormer (seasonal anchor, gate OFF)"
                 }
                 stroke="#a855f7"
                 strokeWidth={2.5}

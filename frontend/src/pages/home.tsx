@@ -34,7 +34,7 @@ export function HomePage() {
   const hasRawData = (dataStats?.raw_count ?? 0) > 0;
 
   return (
-    <div className="space-y-12 pb-16">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 max-w-6xl mx-auto w-full space-y-10 pb-24">
       {/* 1. Hero Console */}
       <section className="relative overflow-hidden rounded-2xl border border-slate-800 bg-[#111C2E] p-6 sm:p-10 shadow-sm">
         <div className="relative z-10 max-w-3xl space-y-4">

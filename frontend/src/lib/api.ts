@@ -218,12 +218,70 @@ export interface BacktestResponse {
     comparisons?: Record<string, ComparisonRow>;
     coverage80?: number;
     median_interval_width?: number;
+    mean_interval_width?: number;
+    quantile_crossings?: number;
     mean_gain_vs_b2?: number;
     b2_mae?: number;
-    ablation?: Record<string, MetricRow & { coverage80?: number; median_width?: number }>;
+    artifact_verified?: boolean;
+    ablation?: Record<string, MetricRow & { coverage80?: number; median_width?: number; mean_interval_width?: number; median_interval_width?: number }>;
   } | null;
   sf_lite_comparison?: ComparisonRow | null;
   sf_lite_deployed?: boolean;
+  hts?: {
+    method_id: string;
+    n_test: number;
+    b2_mae: number;
+    hts_mae: number;
+    mean_gain_vs_b2: number;
+    metrics?: MetricRow;
+    b2_metrics?: MetricRow;
+    headline?: MetricRow | null;
+    per_aoi?: Record<string, MetricRow & { b2_mae?: number; hts_mae?: number }>;
+    comparisons?: Record<string, ComparisonRow>;
+    gate?: { rule: string; passed: boolean };
+    status?: string;
+    deployed?: boolean;
+  } | null;
+  hts_comparison?: ComparisonRow | null;
+  hts_candidate?: boolean;
+  spatial?: {
+    method_id: string;
+    retrospective: boolean;
+    requires_neighbour_viirs: boolean;
+    n_test: number;
+    headline: MetricRow;
+    b2_headline: MetricRow;
+    hts_headline: MetricRow;
+    safe_headline: MetricRow;
+    per_aoi?: Record<string, Record<string, MetricRow>>;
+    comparisons?: Record<string, ComparisonRow>;
+    spatial_holdout?: { held_tiles: number; spatial_mae: number; hts_mae: number };
+    rolling?: Record<string, { pred: number; hts: number; b2: number }>;
+  } | null;
+  spatial_comparison?: ComparisonRow | null;
+  spatial_retrospective?: boolean;
+  stan?: {
+    method_id: string;
+    variant: string;
+    retrospective: boolean;
+    uses_neighbour_viirs_same_month: boolean;
+    params: number;
+    metrics: MetricRow;
+    hts_metrics: MetricRow;
+    official?: {
+      n: number;
+      metrics: MetricRow;
+      hts_metrics: MetricRow;
+      b2_metrics: MetricRow;
+      headline: MetricRow;
+      hts_headline: MetricRow;
+      b2_headline: MetricRow;
+      per_aoi?: Record<string, Record<string, MetricRow>>;
+      comparisons?: Record<string, ComparisonRow>;
+    };
+  } | null;
+  stan_official?: Record<string, unknown> | null;
+  stan_candidate?: boolean;
   evaluated?: boolean;
   scored_years?: number[];
   candidate_holdout_years?: number[];
@@ -258,6 +316,9 @@ export const api = {
   sample: (limit = 200, aoi = "vietnam") => get<{ count: number; records: Record<string, unknown>[] }>(`/api/firms/sample?limit=${limit}&aoi=${aoi}`),
   aois: () => get<{ aois: Aoi[] }>("/api/firms/aois"),
   dataStatus: () => get<{ datasets: Array<{ aoi: string; sample_rows: number; sample_bytes: number }>; raw_count: number; raw_files: Array<{ file: string; bytes: number }> }>("/api/firms/data-status"),
+  htsStatus: () => get<{ trained: boolean; candidate?: boolean; served?: boolean; n_test?: number; hts_mae?: number; b2_mae?: number; mean_gain_vs_b2?: number; per_aoi?: Record<string, MetricRow>; comparisons?: Record<string, ComparisonRow>; gate?: { rule: string; passed: boolean }; series?: Record<string, unknown> }>("/api/firms/hts-status"),
+  stanStatus: () => get<{ trained: boolean; candidate?: boolean; served?: boolean; safe?: Record<string, unknown>; retrospective?: Record<string, unknown> }>("/api/firms/stan-status"),
+  spatialStatus: () => get<{ trained: boolean; candidate?: boolean; served?: boolean; retrospective?: boolean; requires_neighbour_viirs?: boolean; headline?: MetricRow; b2_headline?: MetricRow; hts_headline?: MetricRow; safe_headline?: MetricRow; per_aoi?: Record<string, Record<string, MetricRow>>; comparisons?: Record<string, ComparisonRow>; spatial_holdout?: { held_tiles: number; spatial_mae: number; hts_mae: number } }>("/api/firms/spatial-status"),
   calendar: (limit = 25000, bbox?: string, aoi = "vietnam", data = "sample", method = "stat", dataset?: string, qa_min = "all", platform_set = "all") =>
     get<CalendarResponse>(`/api/firms/calendar?limit=${limit}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}`, dataTimeout(data)),
   harmonize: (records: Record<string, unknown>[]) =>
@@ -286,6 +347,75 @@ export const api = {
   investigate: (body: { question: string; aoi: string; data: string; method?: string; year?: number; month?: number; use_llm?: boolean }) =>
     post<{ answer: string; llm_used: boolean; tools_used: string[]; evidence: Record<string, unknown> | null; limitations: string[]; suggestions: string[]; citations: string[] }>(
       "/api/firms/investigate", body, dataTimeout(body.data)),
+  investigateStream: async (
+    body: { question: string; aoi: string; data: string; method?: string; year?: number; month?: number; use_llm?: boolean },
+    callbacks: {
+      onMeta?: (meta: {
+        tools_used: string[];
+        evidence: Record<string, unknown> | null;
+        facts: Record<string, unknown>;
+        suggestions: string[];
+        limitations: string[];
+        citations: string[];
+      }) => void;
+      onDelta?: (delta: string, llm_used?: boolean) => void;
+      onDone?: (full_answer: string) => void;
+      onError?: (error: Error) => void;
+    },
+    signal?: AbortSignal,
+  ) => {
+    try {
+      const res = await fetch(`${BASE}/api/firms/investigate-stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal,
+      });
+      if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`);
+      if (!res.body) throw new Error("No readable stream response");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() ?? "";
+
+        for (const block of lines) {
+          const trimmed = block.trim();
+          if (!trimmed) continue;
+          let eventType = "message";
+          let dataStr = "";
+          for (const line of trimmed.split("\n")) {
+            if (line.startsWith("event: ")) eventType = line.slice(7).trim();
+            else if (line.startsWith("data: ")) dataStr = line.slice(6).trim();
+          }
+          if (!dataStr) continue;
+          try {
+            const parsed = JSON.parse(dataStr);
+            if (eventType === "meta" && callbacks.onMeta) {
+              callbacks.onMeta(parsed);
+            } else if (eventType === "delta" && callbacks.onDelta) {
+              callbacks.onDelta(parsed.delta ?? "", parsed.llm_used);
+            } else if (eventType === "done" && callbacks.onDone) {
+              callbacks.onDone(parsed.full_answer ?? "");
+            }
+          } catch {
+            // Partial chunk
+          }
+        }
+      }
+    } catch (err: unknown) {
+      const e = err as { name?: string } | null;
+      if (e?.name === "AbortError") return;
+      if (callbacks.onError) callbacks.onError(err as Error);
+      else throw err;
+    }
+  },
   spatialCheck: (aoi: string, data: string, year: number, month: number) =>
     get<SpatialResponse>(
       `/api/firms/spatial-check?aoi=${aoi}&data=${data}&year=${year}&month=${month}`, dataTimeout(data)),

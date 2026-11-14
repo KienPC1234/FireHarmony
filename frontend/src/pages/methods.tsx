@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import {
   BookOpen,
+  BrainCircuit,
   ExternalLink,
+  Layers,
   ShieldAlert,
+  ShieldCheck,
   Sparkles,
   Terminal,
   Upload,
@@ -11,12 +14,15 @@ import { api, describeError, ApiError, type BacktestResponse } from "@/lib/api";
 import { parseCsv } from "@/lib/csv";
 import { useLang } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { ModelArchitectureDiagram } from "@/components/methods/ModelArchitectureDiagram";
+import { Latex } from "@/components/common/Latex";
 
 const METHOD_SPECS = [
   {
     id: "b0_raw_modis",
     name: { vi: "B0: Raw MODIS (Chưa hiệu chỉnh)", en: "B0: Raw MODIS (Unadjusted Baseline)" },
     category: { vi: "Baseline đối chứng", en: "Unadjusted Baseline" },
+    formula: "\\hat{y} = x_{modis}",
     input: { vi: "Số điểm nóng MODIS C6.1 thô theo ngày", en: "Daily raw MODIS C6.1 hotspot counts" },
     target: { vi: "Cộng dồn trực tiếp", en: "Direct additive aggregation" },
     assumptions: {
@@ -33,6 +39,7 @@ const METHOD_SPECS = [
     id: "b1_global_ratio",
     name: { vi: "B1: Hệ số nhân cố định (Global Ratio)", en: "B1: Scalar Global Ratio" },
     category: { vi: "Tỷ lệ thực nghiệm tĩnh", en: "Empirical Multiplier" },
+    formula: "\\hat{y} = x_{modis} \\cdot k_{global}",
     input: { vi: "Điểm nóng MODIS tổng tháng", en: "Monthly aggregated MODIS counts" },
     target: { vi: "Ước lượng tương đương VIIRS qua hệ số k đơn lẻ", en: "Scalar k VIIRS-equivalent activity estimate" },
     assumptions: {
@@ -49,6 +56,7 @@ const METHOD_SPECS = [
     id: "b2_seasonal_ratio",
     name: { vi: "B2: Hệ số mùa 12 tháng (Triển khai chính)", en: "B2: Seasonal Ratio (Operational Baseline)" },
     category: { vi: "Chu kỳ thiên văn 12 tháng", en: "Empirical Monthly Harmonic" },
+    formula: "\\hat{y} = x_{modis} \\cdot k_m^{B2}",
     input: { vi: "MODIS tháng + 12 hệ số k_m thực nghiệm theo từng tháng", en: "Monthly MODIS + 12 empirical seasonal k_m ratios" },
     target: { vi: "Chỉ số hoạt động tương đương VIIRS theo mùa", en: "Seasonally harmonized VIIRS-equivalent activity index" },
     assumptions: {
@@ -62,35 +70,81 @@ const METHOD_SPECS = [
     },
   },
   {
-    id: "hgb_b2res_v4",
-    name: { vi: "ML: Cây quyết định Histogram Gradient Boosting", en: "ML: Residual Histogram Gradient Boosting" },
-    category: { vi: "Mô hình cây phần dư", en: "Stacked Residual Machine Learning" },
-    input: { vi: "Neo mùa B2 + chuỗi 3 tháng trượt MODIS + chỉ số tháng", en: "B2 seasonal anchor + 3-month trailing MODIS + month index" },
-    target: { vi: "Học phần dư trên nền B2: log(VIIRS) - log(B2)", en: "Residual learning over B2 anchor: log(VIIRS) - log(B2)" },
+    id: "sf_lite_v1",
+    name: { vi: "SensorFormer: kiến trúc phục vụ duy nhất", en: "SensorFormer: Single Served Architecture" },
+    category: { vi: "Neo mùa vụ + phần dư có cổng", en: "Seasonal Anchor + Gated Residual" },
+    formula: "\\hat{y} = x_{modis} \\cdot k_m^{B2} \\cdot \\exp(\\Delta \\hat{r} \\cdot \\text{Gate})",
+    input: { vi: "Cửa sổ 12 tháng MODIS (log), pha tháng, tỷ lệ ban ngày/Terra, embedding vùng", en: "12-month MODIS window (log), month phase, day/Terra fractions, AOI embedding" },
+    target: { vi: "Phần dư trên neo B2: log(VIIRS/MODIS) − b2_log[tháng]", en: "Residual on the B2 anchor: log(VIIRS/MODIS) − b2_log[month]" },
     assumptions: {
-      vi: "Tương tác phi tuyến của phần dư có thể học được mà không bị overfit năm cực đoan.",
-      en: "Non-linear residual interactions can be learned without overfitting extreme years.",
+      vi: "Sai lệch cảm biến có cấu trúc theo vùng và mùa; phần dư chỉ được bật khi vượt gate ≥2% và CI < 0.",
+      en: "Sensor bias is structured by region and season; the residual is enabled only if it clears the >=2% gate with CI < 0.",
     },
-    abstains: { vi: "Từ chối và tự động quay về B2 nếu MAE kiểm thử tệ hơn B2.", en: "Gated: abstains and defaults to B2 if test MAE is worse than B2." },
+    abstains: {
+      vi: "Gate đóng trên holdout 2024–2025 → tự động phục vụ neo mùa vụ (anchor-only).",
+      en: "Gate is closed on the 2024–2025 holdout → serves the seasonal anchor (anchor-only).",
+    },
     failures: {
-      vi: "Kém hơn B2 ở các tháng ít cháy do phương sai mẫu nhỏ làm bất ổn cây quyết định.",
-      en: "Underperforms B2 in low-fire months due to small sample variance destabilizing trees.",
+      vi: "MAE 2.458 cao hơn neo 2.387; attention không chứng minh được lợi ích ở quy mô 231 cửa sổ.",
+      en: "MAE 2,458 is worse than the 2,387 anchor; attention does not earn its place at 231 windows.",
     },
   },
   {
-    id: "ts_logratio_pool_v2",
-    name: { vi: "TS: Transformer chú ý chuỗi thời gian", en: "TS: Pooled Temporal Transformer" },
-    category: { vi: "Mạng chú ý học sâu", en: "Deep Temporal Attention Network" },
-    input: { vi: "Chuỗi 12 tháng trượt của log-MODIS + embedding không gian AOI", en: "12-month trailing log-MODIS + spatial AOI embeddings" },
-    target: { vi: "Mục tiêu log-ratio: log(VIIRS / MODIS)", en: "Log-ratio target: log(VIIRS / MODIS)" },
+    id: "hts_anchor_v1",
+    name: { vi: "HTS: Neo mùa vụ theo ô 1° (candidate)", en: "HTS: 1° Tile-Seasonal Anchor (candidate)" },
+    category: { vi: "Phân cấp không gian - tháng", en: "Spatial-Monthly Hierarchy" },
+    formula: "\\hat{y} = \\sum_{tile} \\left( x_{tile} \\cdot \\left[ w k_{tile,m} + (1-w) k_{aoi,m}^{B2} \\right] \\right)",
+    input: { vi: "Mỗi ô 1°: chuỗi MODIS tháng + tỷ lệ mùa của chính ô, co về B2", en: "Per 1° tile: MODIS months + tile seasonal ratio shrunk toward B2" },
+    target: { vi: "Tổng VIIRS tương đương theo ô-tháng, cộng lên AOI", en: "VIIRS-equivalent per tile-month, summed to the AOI" },
     assumptions: {
-      vi: "Cơ chế chú ý qua lịch sử nhiều tháng nắm bắt được tích lũy khô hạn.",
-      en: "Multi-month temporal attention captures compounding antecedent drought signals.",
+      vi: "Sai lệch cảm biến có cấu trúc không gian; ô sparse được co về mùa vụ vùng (w=n/(n+3)).",
+      en: "Sensor bias is spatially structured; sparse tiles shrink to the regional seasonal ratio (w=n/(n+3)).",
     },
-    abstains: { vi: "Từ chối nếu có ít hơn 12 tháng liên tục trong luồng dữ liệu.", en: "Abstains if fewer than 12 contiguous months exist in stream." },
+    abstains: {
+      vi: "Sample không có ô 1° → từ chối (409). Raw thiếu tháng → giữ giá trị thống kê.",
+      en: "Sample has no 1° tiles → abstains (409). Missing raw months keep the statistical value.",
+    },
     failures: {
-      vi: "Nhạy cảm với các đợt bùng phát đơn lẻ không có dấu hiệu báo trước trong chuỗi.",
-      en: "Vulnerable to sudden flash-fire outbreaks lacking antecedent trajectory signals.",
+      vi: "MAE 2.230,7 vs B2 2.386,9 (−6,5%), cả 3 vùng giảm, nhưng CI [−362, +44] còn chứa 0.",
+      en: "MAE 2,230.7 vs B2 2,386.9 (−6.5%), all 3 AOIs improve, but CI [−362, +44] still includes 0.",
+    },
+  },
+  {
+    id: "spatial_hgb_v1",
+    name: { vi: "Spatial HGB: hồi quy phần dư theo ô lân cận (retrospective)", en: "Spatial HGB: Neighbour-Tile Residual (retrospective)" },
+    category: { vi: "Học có giám sát + bối cảnh không gian", en: "Supervised + Spatial Context" },
+    input: { vi: "HTS anchor + MODIS ô + VIIRS cùng tháng của 8 ô lân cận", en: "HTS anchor + tile MODIS + same-month VIIRS of 8 neighbouring tiles" },
+    target: { vi: "Phần dư log-ratio trên HTS, cộng ô-tháng lên AOI", en: "Log-ratio residual on HTS, summed from tiles to the AOI" },
+    assumptions: {
+      vi: "Cháy lan giữa các ô lân cận; VIIRS cùng tháng của ô bên cạnh đã được quan trắc khi tái dựng lịch sử.",
+      en: "Fire spreads across neighbouring tiles; same-month VIIRS in adjacent tiles is already observed when reconstructing history.",
+    },
+    abstains: {
+      vi: "Không dùng cho dự báo hay tháng thiếu VIIRS lân cận; biến thể forecast-safe không thắng HTS.",
+      en: "Not for forecasting or months without neighbouring VIIRS; the forecast-safe variant does not beat HTS.",
+    },
+    failures: {
+      vi: "MAE 1.313 vs B2 2.387 (−45%), cả 3 vùng và spatial holdout đều thắng; nhưng đây là nội suy không gian, không phải calibrate MODIS→VIIRS thuần.",
+      en: "MAE 1,313 vs B2 2,387 (−45%), wins all regions and the spatial holdout; but this is spatial imputation, not pure MODIS→VIIRS calibration.",
+    },
+  },
+  {
+    id: "stan_safe_v1",
+    name: { vi: "STAN: Spatial-Temporal Anchor Network (chủ lực, forecast-safe)", en: "STAN: Spatial-Temporal Anchor Network (main, forecast-safe)" },
+    category: { vi: "Count likelihood + mùa + không gian", en: "Count Likelihood + Season + Space" },
+    input: { vi: "Cửa sổ 12 tháng MODIS + days_modis + lân cận (MODIS cùng tháng, VIIRS tháng trước) + HTS anchor", en: "12-month MODIS window + days_modis + neighbours (same-month MODIS, previous-month VIIRS) + HTS anchor" },
+    target: { vi: "Negative-binomial cho VIIRS count, mean = anchor × exp(δ)", en: "Negative-binomial for VIIRS count, mean = anchor × exp(δ)" },
+    assumptions: {
+      vi: "Đếm overdispersed; mùa điều biến đặc trưng (FiLM); cháy lan theo ô lân cận; exposure theo số ngày quan sát.",
+      en: "Over-dispersed counts; season modulates features (FiLM); fire spreads across neighbours; exposure follows observed days.",
+    },
+    abstains: {
+      vi: "Không dùng VIIRS cùng tháng của ô lân cận. Tháng thiếu cửa sổ 12 tháng dùng HTS fallback.",
+      en: "Does not use same-month neighbour VIIRS. Months without a 12-month window fall back to HTS.",
+    },
+    failures: {
+      vi: "Official 72: MAE 2.128,7 vs B2 2.386,9 (−10,8%), CI [−534,8, −19,1]; thắng HTS ở cả 3 vùng nhưng CI so với HTS còn chứa 0. LOO: Việt Nam/Amazon thua HTS, Australia gần hoà.",
+      en: "Official 72: MAE 2,128.7 vs B2 2,386.9 (−10.8%), CI [−534.8, −19.1]; beats HTS in all 3 regions but the HTS CI includes 0. LOO: Vietnam/Amazon lose to HTS, Australia is a near-tie.",
     },
   },
 ];
@@ -115,21 +169,27 @@ const BENCH_ROWS = [
     tagClass: "bg-emerald-500/15 border-emerald-500/30 text-emerald-300 font-bold",
   },
   {
-    id: "hgb_b2res_v4",
-    label: { vi: "ML Cây phần dư HGBoost (ml_b2res_v4)", en: "ML: Residual Decision Tree (ml_b2res_v4)" },
-    tag: { vi: "Gated ML", en: "Gated ML" },
-    tagClass: "bg-cyan-500/15 border-cyan-500/30 text-cyan-300",
+    id: "hts_anchor_v1",
+    label: { vi: "HTS: neo mùa vụ theo ô 1° (candidate)", en: "HTS: 1° tile-seasonal anchor (candidate)" },
+    tag: { vi: "Candidate · CI chứa 0", en: "Candidate · CI includes 0" },
+    tagClass: "bg-amber-500/15 border-amber-500/30 text-amber-300",
   },
   {
-    id: "ts_logratio_pool_v2",
-    label: { vi: "Transformer chuỗi thời gian (ts_logratio_pool_v2)", en: "TS: Pooled Transformer (ts_logratio_pool_v2)" },
-    tag: { vi: "Đối chiếu sâu", en: "Deep Attention" },
+    id: "stan_safe_v1",
+    label: { vi: "STAN: mạng không-thời gian theo count (forecast-safe)", en: "STAN: spatial-temporal count network (forecast-safe)" },
+    tag: { vi: "Chủ lực · vượt B2", en: "Main model · beats B2" },
+    tagClass: "bg-emerald-500/15 border-emerald-500/30 text-emerald-300",
+  },
+  {
+    id: "spatial_hgb_v1",
+    label: { vi: "Spatial HGB: ô lân cận (retrospective)", en: "Spatial HGB: neighbour tiles (retrospective)" },
+    tag: { vi: "Retrospective · cần VIIRS lân cận", en: "Retrospective · needs neighbour VIIRS" },
     tagClass: "bg-purple-500/15 border-purple-500/30 text-purple-300",
   },
   {
     id: "sf_lite_v1",
-    label: { vi: "SensorFormer Lite (sf_lite_v1, thí nghiệm)", en: "SensorFormer Lite (sf_lite_v1, experimental)" },
-    tag: { vi: "Thí nghiệm", en: "Experimental" },
+    label: { vi: "SensorFormer: neo + phần dư (gate đóng)", en: "SensorFormer: anchor + residual (gate OFF)" },
+    tag: { vi: "Kiến trúc phục vụ", en: "Served Architecture" },
     tagClass: "bg-sky-500/15 border-sky-500/30 text-sky-300",
   },
 ];
@@ -138,22 +198,33 @@ export function MethodsPage() {
   const { lang } = useLang();
   const vi = lang === "vi";
 
-  const [activeSection, setActiveSection] = useState<string>("sources");
+  const [activeSection, setActiveSection] = useState<string>("steps");
   const [file, setFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<string>("");
   const [uploadLoading, setUploadLoading] = useState(false);
   const [bench, setBench] = useState<BacktestResponse | null>(null);
   const [benchErr, setBenchErr] = useState("");
+  const [benchData, setBenchData] = useState<"raw" | "sample">("raw");
 
   useEffect(() => {
     let alive = true;
+    // The clean ZIP ships the frozen benchmark but not the 820 MB raw pull.
+    // Ask the server what exists and fall back to the deterministic sample.
     api
-      .backtest("vietnam", "raw")
-      .then((r) => {
-        if (alive) setBench(r);
-      })
-      .catch((e) => {
-        if (alive) setBenchErr(describeError(e));
+      .dataStatus()
+      .then((st) => ((st.raw_count ?? 0) > 0 ? "raw" : "sample") as "raw" | "sample")
+      .catch(() => "sample" as const)
+      .then((mode) => {
+        if (!alive) return;
+        setBenchData(mode);
+        return api
+          .backtest("vietnam", mode)
+          .then((r) => {
+            if (alive) setBench(r);
+          })
+          .catch((e) => {
+            if (alive) setBenchErr(describeError(e));
+          });
       });
     return () => {
       alive = false;
@@ -194,7 +265,7 @@ export function MethodsPage() {
   ];
 
   return (
-    <div className="space-y-8 pb-16 max-w-5xl mx-auto">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 space-y-8 max-w-6xl mx-auto w-full pb-24">
       {/* 1. Header */}
       <div className="rounded-2xl border border-slate-800 bg-[#111C2E] p-6 shadow-sm space-y-3">
         <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3.5 py-1 text-xs font-semibold text-cyan-300">
@@ -321,23 +392,141 @@ export function MethodsPage() {
         </section>
       )}
 
-      {/* SECTION 2: HARMONIZATION STEPS */}
+      {/* SECTION 2: HARMONIZATION STEPS & ARCHITECTURE DIAGRAM */}
       {activeSection === "steps" && (
-        <section className="rounded-2xl border border-slate-800 bg-[#111C2E] p-6 shadow-sm space-y-4">
-          <div className="space-y-1 border-b border-slate-800 pb-3">
-            <h2 className="text-base font-bold text-white">
-              {vi ? "Quy trình & Mô hình hiệu chỉnh" : "Harmonization Steps & Model Specifications"}
-            </h2>
-            <p className="text-xs text-slate-400">
-              {vi ? "Các thông số toán học, giả định và điều kiện từ chối của từng phương pháp." : "Mathematical parameters, assumptions, and abstention conditions."}
-            </p>
+        <section className="space-y-6">
+          {/* Interactive Neural Network & Pipeline Architecture Diagram */}
+          <ModelArchitectureDiagram />
+
+          {/* Deep-Dive Architectural & Mathematical Formulation Cards */}
+          <div className="grid gap-4 lg:grid-cols-3">
+            {/* Card 1: Objective & Formulation */}
+            <div className="rounded-2xl border border-slate-800 bg-[#0B1220] p-5 shadow-sm space-y-3.5 flex flex-col justify-between">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-cyan-400 font-bold text-xs uppercase tracking-wider">
+                  <BrainCircuit className="h-4 w-4" />
+                  <span>{vi ? "Mục tiêu & Dự báo phần dư" : "Residual Log-Ratio Objective"}</span>
+                </div>
+                <h3 className="text-sm font-bold text-white">
+                  {vi ? "Dự báo phần dư Log-Ratio thay vì điểm nhiệt thô" : "Log-Ratio Residuals vs Raw Hotspot Counts"}
+                </h3>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {vi
+                    ? "SensorFormer không dự đoán trực tiếp số vụ cháy từ con số không nhằm triệt tiêu hiện tượng hallucination và tránh giá trị âm. Mạng chỉ dự báo phần dư độ lệch so với hệ số mùa chuẩn B2:"
+                    : "SensorFormer avoids predicting raw fire counts from scratch to prevent hallucination and non-physical negative counts. It strictly predicts multiplicative log-ratio residuals against baseline B2:"}
+                </p>
+                <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-3 text-cyan-300 overflow-x-auto">
+                  <div className="text-[11px] space-y-2 font-mono">
+                    <Latex math="\Delta \hat{r} = \log\left(\frac{y_{\text{viirs}}}{x_{\text{modis}}}\right) - \log\left(k_m^{\text{B2}}\right)" block />
+                    <Latex math="\hat{y} = x_{\text{modis}} \cdot k_m^{\text{B2}} \cdot \exp(\Delta \hat{r} \cdot \text{Gate})" block />
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-lg bg-cyan-950/30 border border-cyan-800/40 p-2.5 text-[11px] text-cyan-200 leading-snug">
+                {vi
+                  ? "Bảo toàn quy luật vật lý: Khi Gate = 0, mô hình thoái biến chính xác về neo B2, triệt tiêu hoàn toàn rủi ro ngoại suy sai lệch."
+                  : "Physical preservation: When Gate = 0, the model gracefully degrades to B2, eliminating catastrophic extrapolation risk."}
+              </div>
+            </div>
+
+            {/* Card 2: Tensor Shape Pipeline & Attention */}
+            <div className="rounded-2xl border border-slate-800 bg-[#0B1220] p-5 shadow-sm space-y-3.5 flex flex-col justify-between">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs uppercase tracking-wider">
+                  <Layers className="h-4 w-4" />
+                  <span>{vi ? "Luồng Tensor & Phân vị Monotone" : "Tensor Flow & Quantile Head"}</span>
+                </div>
+                <h3 className="text-sm font-bold text-white">
+                  {vi ? "Kích thước Tensor qua từng lớp" : "Tensor Dimensions Across Layers"}
+                </h3>
+                <div className="space-y-2 text-xs font-mono text-slate-300">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                    <span className="text-slate-400 font-sans">{vi ? "1. Đầu vào (Cửa sổ 12T):" : "1. Input Window (12M):"}</span>
+                    <span className="text-white font-bold">[B, 12, 1]</span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                    <span className="text-slate-400 font-sans">{vi ? "2. Ghép đặc trưng phụ:" : "2. Feature Concatenation:"}</span>
+                    <span className="text-white font-bold">[B, 12, 4]</span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                    <span className="text-slate-400 font-sans">{vi ? "3. Embedding không gian:" : "3. Spatial Embedding:"}</span>
+                    <span className="text-white font-bold">[B, 12, 64]</span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                    <span className="text-slate-400 font-sans">{vi ? "4. Multi-Head Attention:" : "4. Multi-Head Attention:"}</span>
+                    <span className="text-cyan-300 font-bold">[B, 12, 64] (4 heads)</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 font-sans">{vi ? "5. Phân vị không giao cắt:" : "5. Quantiles Head:"}</span>
+                    <span className="text-emerald-300 font-bold">[B, 3] (P10, P50, P90)</span>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-2.5 text-indigo-300 overflow-x-auto text-[11px]">
+                  <Latex math="\mathcal{L} = \sum_{q} \max(q u, (q-1) u) + \lambda \sum \max(0, \Delta q_{\text{cross}})" block />
+                </div>
+              </div>
+              <div className="rounded-lg bg-indigo-950/30 border border-indigo-800/40 p-2.5 text-[11px] text-indigo-200 leading-snug">
+                {vi
+                  ? "Cơ chế Attention phát hiện tương quan trễ theo mùa mà không bị triệt tiêu gradient như mô hình RNN/LSTM truyền thống."
+                  : "Self-attention captures non-local seasonal lag correlations without recurrent gradient vanishing typical of LSTM/RNNs."}
+              </div>
+            </div>
+
+            {/* Card 3: Circuit Breaker Statistical Gate */}
+            <div className="rounded-2xl border border-slate-800 bg-[#0B1220] p-5 shadow-sm space-y-3.5 flex flex-col justify-between">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider">
+                  <ShieldCheck className="h-4 w-4" />
+                  <span>{vi ? "Cổng An toàn Thống kê" : "Statistical Circuit Breaker"}</span>
+                </div>
+                <h3 className="text-sm font-bold text-white">
+                  {vi ? "Tiêu chí kích hoạt Gate & Holdout 2024-2025" : "Gate Activation Criteria & Holdout Bench"}
+                </h3>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {vi
+                    ? "SensorFormer chỉ được phép can thiệp nếu cải thiện ít nhất 2% MAE so với B2 và khoảng tin cậy 95% Bootstrap không chứa 0:"
+                    : "SensorFormer is only enabled if it beats baseline B2 by at least 2% MAE and the 95% bootstrap CI strictly excludes zero:"}
+                </p>
+                <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-3 space-y-2 text-xs font-mono">
+                  <div className="flex justify-between items-center text-slate-300 border-b border-slate-800 pb-1">
+                    <span>B2 Baseline MAE:</span>
+                    <span className="font-bold text-emerald-400">2,386.9</span>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-300 border-b border-slate-800 pb-1">
+                    <span>SensorFormer MAE:</span>
+                    <span className="font-bold text-sky-400">2,458.5 (+3.0%)</span>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-300">
+                    <span>HTS Candidate MAE:</span>
+                    <span className="font-bold text-amber-400">2,230.7 (-6.5%)</span>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-lg bg-emerald-950/30 border border-emerald-800/40 p-2.5 text-[11px] text-emerald-200 leading-snug">
+                {vi
+                  ? "Kết luận: SensorFormer không vượt qua gate (Gate = 0), hệ thống phục vụ an toàn bằng neo B2. HTS tiếp tục là ứng viên do CI [-362, +44] còn cắt 0."
+                  : "Verdict: SensorFormer failed gate threshold (Gate = 0), safely serving B2. HTS remains candidate as CI [-362, +44] crosses zero."}
+              </div>
+            </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left font-mono text-xs border-collapse">
+          {/* Mathematical Specifications Table */}
+          <div className="rounded-2xl border border-slate-800 bg-[#0B1220] p-6 shadow-sm space-y-4">
+            <div className="space-y-1 border-b border-slate-800 pb-3">
+              <h2 className="text-base font-bold text-white">
+                {vi ? "Đặc tả toán học & Tiêu chí vận hành từng mô hình" : "Mathematical Specifications & Operating Criteria"}
+              </h2>
+              <p className="text-xs text-slate-400">
+                {vi ? "Các thông số, giả định vật lý và điều kiện từ chối (abstention) của từng phương pháp trong đường ống." : "Parameters, physical assumptions, and abstention criteria for each pipeline candidate."}
+              </p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left font-mono text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400 uppercase text-xs">
                   <th className="py-2.5 pr-4">{vi ? "Mô hình & Phương pháp" : "Model & Method"}</th>
+                  <th className="py-2.5 pr-4">{vi ? "Công thức toán học" : "Mathematical Formula"}</th>
                   <th className="py-2.5 pr-4">{vi ? "Biến mục tiêu" : "Target Variable"}</th>
                   <th className="py-2.5 pr-4">{vi ? "Giả định khoa học" : "Scientific Assumptions"}</th>
                   <th className="py-2.5 pr-4">{vi ? "Điều kiện từ chối" : "Abstention Conditions"}</th>
@@ -351,6 +540,11 @@ export function MethodsPage() {
                       <div className="font-sans font-bold text-white">{vi ? spec.name.vi : spec.name.en}</div>
                       <div className="text-xs text-cyan-400">{vi ? spec.category.vi : spec.category.en}</div>
                     </td>
+                    <td className="py-3 pr-4">
+                      <div className="bg-slate-900/80 px-2.5 py-1.5 rounded-lg border border-slate-800/80 text-cyan-300 font-sans inline-block whitespace-nowrap">
+                        <Latex math={spec.formula} />
+                      </div>
+                    </td>
                     <td className="py-3 pr-4 text-slate-300">{vi ? spec.target.vi : spec.target.en}</td>
                     <td className="py-3 pr-4 font-sans text-xs text-slate-300 max-w-xs">{vi ? spec.assumptions.vi : spec.assumptions.en}</td>
                     <td className="py-3 pr-4 font-sans text-xs text-slate-300 max-w-xs">{vi ? spec.abstains.vi : spec.abstains.en}</td>
@@ -360,8 +554,9 @@ export function MethodsPage() {
               </tbody>
             </table>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
+    )}
 
       {/* SECTION 3: BENCHMARK */}
       {activeSection === "benchmark" && (
@@ -381,6 +576,13 @@ export function MethodsPage() {
                 vi ? "Đang nạp dữ liệu kiểm thử trực tiếp từ hệ thống API..." : "Loading benchmark data from API..."
               )}
             </p>
+            {benchData === "sample" && (
+              <p className="text-xs text-amber-300/90 leading-relaxed font-mono">
+                {vi
+                  ? "Bản ZIP sạch không kèm 820 MB raw NASA; bảng này chạy trên dữ liệu mẫu tất định. Chạy make data + rebuild_subset để bật raw."
+                  : "The clean ZIP omits the 820 MB raw NASA pull; this table runs on the deterministic sample. Run make data + rebuild_subset to enable raw."}
+              </p>
+            )}
           </div>
 
           <div className="overflow-x-auto">
@@ -399,6 +601,12 @@ export function MethodsPage() {
                   BENCH_ROWS.map((row) => {
                     const m = row.id === "sf_lite_v1"
                       ? bench.sf_lite?.headline
+                      : row.id === "hts_anchor_v1"
+                      ? bench.hts?.headline
+                      : row.id === "spatial_hgb_v1"
+                      ? bench.spatial?.headline
+                      : row.id === "stan_safe_v1"
+                      ? bench.stan?.official?.headline
                       : bench.headline?.metrics[row.id];
                     if (!m) return null;
                     const tag = row.id === "hgb_b2res_v4" && !bench.hgb_residual_enabled
@@ -407,8 +615,15 @@ export function MethodsPage() {
                       ? (bench.sf_lite?.deployed
                         ? { vi: "Gate PASS", en: "Gate PASS" }
                         : { vi: "Gate OFF · không phục vụ", en: "Gate OFF · not served" })
+                      : row.id === "hts_anchor_v1"
+                      ? { vi: "Candidate · chưa vượt gate", en: "Candidate · gate not passed" }
+                      : row.id === "spatial_hgb_v1"
+                      ? { vi: "Retrospective · không dùng để dự báo", en: "Retrospective · not a forecast" }
+                      : row.id === "stan_safe_v1"
+                      ? { vi: "Chủ lực · forecast-safe", en: "Main · forecast-safe" }
                       : row.tag;
-                    const tone = row.id === "sf_lite_v1" && !bench.sf_lite?.deployed
+                    const tone = (row.id === "sf_lite_v1" && !bench.sf_lite?.deployed)
+                      || row.id === "hts_anchor_v1"
                       ? "bg-amber-500/15 border-amber-500/30 text-amber-300"
                       : row.tagClass;
                     return (
@@ -442,23 +657,77 @@ export function MethodsPage() {
             </table>
           </div>
 
-          {bench?.sf_lite && (
-            <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 p-4 text-xs text-slate-300 leading-relaxed font-sans space-y-1">
-              <p className="font-bold text-sky-300">
-                {vi ? "SensorFormer Lite — kết quả thí nghiệm" : "SensorFormer Lite — experimental result"}
+          {bench?.stan?.official && (
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4 text-xs text-slate-300 leading-relaxed font-sans space-y-1">
+              <p className="font-bold text-emerald-300">
+                {vi ? "STAN — mô hình chủ lực (forecast-safe)" : "STAN — main model (forecast-safe)"}
               </p>
               <p>
                 {vi
-                  ? `MAE ${Math.round(bench.sf_lite.metrics.mae).toLocaleString()} so với B2 ${Math.round(bench.sf_lite.b2_mae ?? 0).toLocaleString()}; mean gain ${((bench.sf_lite.mean_gain_vs_b2 ?? 0) * 100).toFixed(1)}%. `
-                  : `MAE ${Math.round(bench.sf_lite.metrics.mae).toLocaleString()} vs B2 ${Math.round(bench.sf_lite.b2_mae ?? 0).toLocaleString()}; mean gain ${((bench.sf_lite.mean_gain_vs_b2 ?? 0) * 100).toFixed(1)}%. `}
-                {bench.sf_lite.deployed
-                  ? (vi ? "Mô hình vượt gate và được phép phục vụ." : "It passed the gate and may be served.")
-                  : (vi ? "Không vượt gate nên KHÔNG được phục vụ; B2 vẫn là mặc định." : "It did not pass the gate, so it is NOT served; B2 remains the default.")}
+                  ? `Đang phục vụ chính (raw; trước 2024 dùng HTS fallback). Official 72 tháng: MAE ${Math.round(bench.stan.official.metrics.mae).toLocaleString()} so với B2 ${Math.round(bench.stan.official.b2_metrics.mae).toLocaleString()} (giảm ${(100 - 100 * bench.stan.official.metrics.mae / bench.stan.official.b2_metrics.mae).toFixed(1)}%), CI [${Math.round(bench.stan.official.comparisons?.stan_vs_b2?.ci95?.[0] ?? 0).toLocaleString()}, ${Math.round(bench.stan.official.comparisons?.stan_vs_b2?.ci95?.[1] ?? 0).toLocaleString()}]. Việt Nam ${Math.round(bench.stan.official.per_aoi?.vietnam?.stan?.mae ?? 0).toLocaleString()}, Amazon ${Math.round(bench.stan.official.per_aoi?.amazon?.stan?.mae ?? 0).toLocaleString()}, Australia ${Math.round(bench.stan.official.per_aoi?.australia?.stan?.mae ?? 0).toLocaleString()}.`
+                  : `Served as the main model (raw; HTS fallback before 2024). Official 72 months: MAE ${Math.round(bench.stan.official.metrics.mae).toLocaleString()} vs B2 ${Math.round(bench.stan.official.b2_metrics.mae).toLocaleString()} (−${(100 - 100 * bench.stan.official.metrics.mae / bench.stan.official.b2_metrics.mae).toFixed(1)}%), CI [${Math.round(bench.stan.official.comparisons?.stan_vs_b2?.ci95?.[0] ?? 0).toLocaleString()}, ${Math.round(bench.stan.official.comparisons?.stan_vs_b2?.ci95?.[1] ?? 0).toLocaleString()}]. Vietnam ${Math.round(bench.stan.official.per_aoi?.vietnam?.stan?.mae ?? 0).toLocaleString()}, Amazon ${Math.round(bench.stan.official.per_aoi?.amazon?.stan?.mae ?? 0).toLocaleString()}, Australia ${Math.round(bench.stan.official.per_aoi?.australia?.stan?.mae ?? 0).toLocaleString()}.`}
               </p>
               <p className="text-slate-400">
                 {vi
-                  ? `Khoảng 10–90%: coverage thực nghiệm ${(100 * (bench.sf_lite.coverage80 ?? 0)).toFixed(1)}% (mục tiêu 80%), độ rộng trung vị ${Math.round(bench.sf_lite.median_interval_width ?? 0).toLocaleString()}. Ablation: no_gate MAE ${Math.round(bench.sf_lite.ablation?.no_gate?.mae ?? 0).toLocaleString()}, no_attn MAE ${Math.round(bench.sf_lite.ablation?.no_attn?.mae ?? 0).toLocaleString()}.`
-                  : `10–90% band: empirical coverage ${(100 * (bench.sf_lite.coverage80 ?? 0)).toFixed(1)}% (target 80%), median width ${Math.round(bench.sf_lite.median_interval_width ?? 0).toLocaleString()}. Ablation: no_gate MAE ${Math.round(bench.sf_lite.ablation?.no_gate?.mae ?? 0).toLocaleString()}, no_attn MAE ${Math.round(bench.sf_lite.ablation?.no_attn?.mae ?? 0).toLocaleString()}.`}
+                  ? `Thiết kế: dilated TCN 1/2/4 + FiLM theo mùa + target-month cross-attention + negative-binomial; ${bench.stan.params.toLocaleString()} tham số. Không dùng VIIRS cùng tháng của ô lân cận. Ablation: bỏ FiLM tệ hơn ~13%; Poisson gần tương đương; d=96 tốt hơn d=64/32. LOO: Việt Nam/Amazon thua HTS, Australia gần hoà.`
+                  : `Design: dilated TCN 1/2/4 + seasonal FiLM + target-month cross-attention + negative-binomial; ${bench.stan.params.toLocaleString()} params. It does not use same-month neighbour VIIRS. Ablation: removing FiLM is ~13% worse; Poisson is close; d=96 beats d=64/32. LOO: Vietnam/Amazon lose to HTS; Australia is a near-tie.`}
+              </p>
+            </div>
+          )}
+
+          {bench?.spatial && (
+            <div className="rounded-xl border border-purple-500/30 bg-purple-950/20 p-4 text-xs text-slate-300 leading-relaxed font-sans space-y-1">
+              <p className="font-bold text-purple-300">
+                {vi ? "Spatial HGB — tái dựng không gian (không phải dự báo)" : "Spatial HGB — spatial reconstruction (not a forecast)"}
+              </p>
+              <p>
+                {vi
+                  ? `72 tháng: MAE ${Math.round(bench.spatial.headline.mae).toLocaleString()} so với B2 ${Math.round(bench.spatial.b2_headline.mae).toLocaleString()} (giảm ${(100 - 100 * bench.spatial.headline.mae / bench.spatial.b2_headline.mae).toFixed(1)}%). Spatial holdout (${bench.spatial.spatial_holdout?.held_tiles ?? 0} ô chưa thấy): ${Math.round(bench.spatial.spatial_holdout?.spatial_mae ?? 0).toLocaleString()} vs HTS ${Math.round(bench.spatial.spatial_holdout?.hts_mae ?? 0).toLocaleString()}.`
+                  : `72 months: MAE ${Math.round(bench.spatial.headline.mae).toLocaleString()} vs B2 ${Math.round(bench.spatial.b2_headline.mae).toLocaleString()} (−${(100 - 100 * bench.spatial.headline.mae / bench.spatial.b2_headline.mae).toFixed(1)}%). Spatial holdout (${bench.spatial.spatial_holdout?.held_tiles ?? 0} unseen tiles): ${Math.round(bench.spatial.spatial_holdout?.spatial_mae ?? 0).toLocaleString()} vs HTS ${Math.round(bench.spatial.spatial_holdout?.hts_mae ?? 0).toLocaleString()}.`}
+              </p>
+              <p className="text-slate-400">
+                {vi
+                  ? `Lợi ích đến từ VIIRS cùng tháng của ô lân cận. Biến thể forecast-safe (chỉ VIIRS tháng trước + MODIS cùng tháng) đạt ${Math.round(bench.spatial.safe_headline.mae).toLocaleString()}, không thắng HTS ${Math.round(bench.spatial.hts_headline.mae).toLocaleString()}. Vì vậy mô hình chỉ dùng cho tái dựng/gap-fill, không dùng để tuyên bố dự báo.`
+                  : `The gain comes from same-month VIIRS in neighbouring tiles. The forecast-safe variant (previous-month VIIRS + same-month MODIS only) scores ${Math.round(bench.spatial.safe_headline.mae).toLocaleString()}, not beating HTS ${Math.round(bench.spatial.hts_headline.mae).toLocaleString()}. It is therefore a reconstruction/gap-fill model, not a forecasting claim.`}
+              </p>
+            </div>
+          )}
+
+          {bench?.hts && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-4 text-xs text-slate-300 leading-relaxed font-sans space-y-1">
+              <p className="font-bold text-amber-300">
+                {vi ? "HTS — ứng viên tốt nhất (chưa vượt gate 95%)" : "HTS — strongest candidate (95% gate not passed)"}
+              </p>
+              <p>
+                {vi
+                  ? `Holdout 72 tháng: MAE ${Math.round(bench.hts.hts_mae).toLocaleString()} so với B2 ${Math.round(bench.hts.b2_mae).toLocaleString()} (giảm ${(bench.hts.mean_gain_vs_b2 * 100).toFixed(1)}%). Việt Nam ${Math.round(bench.hts.per_aoi?.vietnam?.mae ?? 0).toLocaleString()}, Amazon ${Math.round(bench.hts.per_aoi?.amazon?.mae ?? 0).toLocaleString()}, Australia ${Math.round(bench.hts.per_aoi?.australia?.mae ?? 0).toLocaleString()}. CI 95% [${Math.round(bench.hts.comparisons?.hts_vs_b2?.ci95?.[0] ?? 0).toLocaleString()}, +${Math.round(bench.hts.comparisons?.hts_vs_b2?.ci95?.[1] ?? 0).toLocaleString()}], P(better)=${((bench.hts.comparisons?.hts_vs_b2?.prob_a_better ?? 0) * 100).toFixed(0)}%.`
+                  : `72-month holdout: MAE ${Math.round(bench.hts.hts_mae).toLocaleString()} vs B2 ${Math.round(bench.hts.b2_mae).toLocaleString()} (−${(bench.hts.mean_gain_vs_b2 * 100).toFixed(1)}% MAE). Vietnam ${Math.round(bench.hts.per_aoi?.vietnam?.mae ?? 0).toLocaleString()}, Amazon ${Math.round(bench.hts.per_aoi?.amazon?.mae ?? 0).toLocaleString()}, Australia ${Math.round(bench.hts.per_aoi?.australia?.mae ?? 0).toLocaleString()}. 95% CI [${Math.round(bench.hts.comparisons?.hts_vs_b2?.ci95?.[0] ?? 0).toLocaleString()}, +${Math.round(bench.hts.comparisons?.hts_vs_b2?.ci95?.[1] ?? 0).toLocaleString()}], P(better)=${((bench.hts.comparisons?.hts_vs_b2?.prob_a_better ?? 0) * 100).toFixed(0)}%.`}
+              </p>
+              <p className="text-slate-400">
+                {vi
+                  ? "Raw-only: chọn method=hts trong Calendar khi dùng NASA raw. Sample trả 409 vì không có ô 1°. Không tự thay B2; badge candidate là bắt buộc."
+                  : "Raw-only: choose method=hts in Calendar with NASA raw. Sample returns 409 (no 1° tiles). It never replaces B2 automatically; the candidate badge is required."}
+              </p>
+            </div>
+          )}
+
+          {bench?.sf_lite && (
+            <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 p-4 text-xs text-slate-300 leading-relaxed font-sans space-y-1">
+              <p className="font-bold text-sky-300">
+                {vi ? "SensorFormer Lite: kết quả thí nghiệm" : "SensorFormer Lite: experimental result"}
+              </p>
+              <p>
+                {vi
+                  ? `SensorFormer (neo + phần dư): MAE ${Math.round(bench.sf_lite.metrics.mae).toLocaleString()} so với neo ${Math.round(bench.sf_lite.b2_mae ?? 0).toLocaleString()}; mean gain ${((bench.sf_lite.mean_gain_vs_b2 ?? 0) * 100).toFixed(1)}%. `
+                  : `SensorFormer (anchor + residual): MAE ${Math.round(bench.sf_lite.metrics.mae).toLocaleString()} vs anchor ${Math.round(bench.sf_lite.b2_mae ?? 0).toLocaleString()}; mean gain ${((bench.sf_lite.mean_gain_vs_b2 ?? 0) * 100).toFixed(1)}%. `}
+                {bench.sf_lite.deployed
+                  ? (vi ? "Gate mở: phần dư được phép phục vụ." : "Gate open: the residual may be served.")
+                  : (vi ? "Gate đóng: chỉ phục vụ neo mùa vụ, phần dư không bật." : "Gate closed: only the seasonal anchor is served; the residual is off.")}
+              </p>
+              <p className="text-slate-400">
+                {vi
+                  ? `Khoảng 10–90%: coverage thực nghiệm ${(100 * (bench.sf_lite.coverage80 ?? 0)).toFixed(1)}% (mục tiêu 80%), độ rộng trung bình ${Math.round(bench.sf_lite.mean_interval_width ?? 0).toLocaleString()}, trung vị ${Math.round(bench.sf_lite.median_interval_width ?? 0).toLocaleString()}. Ablation: no_gate MAE ${Math.round(bench.sf_lite.ablation?.no_gate?.mae ?? 0).toLocaleString()}, no_attn MAE ${Math.round(bench.sf_lite.ablation?.no_attn?.mae ?? 0).toLocaleString()}.`
+                  : `10–90% band: empirical coverage ${(100 * (bench.sf_lite.coverage80 ?? 0)).toFixed(1)}% (target 80%), mean width ${Math.round(bench.sf_lite.mean_interval_width ?? 0).toLocaleString()}, median ${Math.round(bench.sf_lite.median_interval_width ?? 0).toLocaleString()}. Ablation: no_gate MAE ${Math.round(bench.sf_lite.ablation?.no_gate?.mae ?? 0).toLocaleString()}, no_attn MAE ${Math.round(bench.sf_lite.ablation?.no_attn?.mae ?? 0).toLocaleString()}.`}
               </p>
             </div>
           )}

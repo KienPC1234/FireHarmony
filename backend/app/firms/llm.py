@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 import urllib.request
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
@@ -131,3 +132,46 @@ def ask_llm(question: str, facts: dict, fallback_answer: str) -> dict:
         return {"answer": fallback_answer, "llm_used": False,
                 "model": OLLAMA_MODEL, "provider": "ollama",
                 "reason": f"Ollama call failed ({e}); offline rule-based answer"}
+
+
+def stream_llm(question: str, facts: dict, fallback_answer: str):
+    """Generator yielding text chunks for streaming LLM response."""
+    body = json.dumps({
+        "model": OLLAMA_MODEL,
+        "messages": [
+            {"role": "system", "content": SYSTEM},
+            {"role": "user", "content": f"QUESTION: {question}\nVERIFIED FACTS:\n{json.dumps(facts, ensure_ascii=False)[:12000]}"},
+        ],
+        "stream": True,
+        "options": {"temperature": 0.1},
+    }).encode()
+    req = urllib.request.Request(
+        OLLAMA_HOST.rstrip("/") + "/api/chat", data=body,
+        headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=45) as r:
+            full_text = []
+            for line in r:
+                if not line:
+                    continue
+                try:
+                    chunk = json.loads(line.decode("utf-8"))
+                    delta = chunk.get("message", {}).get("content", "")
+                    if delta:
+                        full_text.append(delta)
+                        yield {"delta": delta, "llm_used": True}
+                    if chunk.get("done", False):
+                        break
+                except Exception:
+                    continue
+            accumulated = "".join(full_text).strip()
+            if not accumulated:
+                raise ValueError("Empty streaming response from Ollama")
+    except Exception as e:
+        # Fallback: stream the verified deterministic rule answer in natural token bursts
+        words = fallback_answer.split(" ")
+        for i, word in enumerate(words):
+            token = word if i == 0 else " " + word
+            yield {"delta": token, "llm_used": False, "reason": str(e)}
+            time.sleep(0.012)
+

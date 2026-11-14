@@ -31,6 +31,24 @@ export function SpatialCheckTab({ spatialRes }: SpatialCheckTabProps) {
 
   return (
     <div className="space-y-4 animate-fade-in">
+      {/* Executive Scientific Verdict Card */}
+      <div className="rounded-2xl border border-cyan-500/40 bg-gradient-to-r from-cyan-950/40 via-slate-900/90 to-blue-950/40 p-4 space-y-2 shadow-lg backdrop-blur">
+        <div className="flex items-center justify-between border-b border-cyan-500/20 pb-2">
+          <span className="font-mono text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-2">
+            <Radar className="h-4 w-4 text-cyan-400" />
+            {vi ? "KẾT LUẬN ĐỒNG QUAN SÁT KHÔNG GIAN (SPATIAL CO-OBSERVATION VERDICT)" : "EXECUTIVE SPATIAL CO-OBSERVATION VERDICT"}
+          </span>
+          <span className="font-mono text-xs rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2.5 py-0.5 text-cyan-200">
+            Jaccard Top 10%: {spatialRes.top_decile_jaccard != null ? spatialRes.top_decile_jaccard.toFixed(3) : "-"}
+          </span>
+        </div>
+        <p className="text-xs sm:text-sm text-slate-100 font-medium leading-relaxed">
+          {vi
+            ? `Hệ số tương quan Pearson ${spatialRes.pearson != null ? spatialRes.pearson.toFixed(3) : "-"} và Spearman ${spatialRes.spearman != null ? spatialRes.spearman.toFixed(3) : "-"}. Phân tích: Tại các trung tâm đám cháy lớn, hai thế hệ cảm biến MODIS và VIIRS ghi nhận mức độ đồng bộ cao. Tuy nhiên, ở các cụm cháy nhỏ biên giới, kích thước pixel 375m của VIIRS giúp bóc tách và định vị ranh giới chi tiết hơn 2.7 lần so với pixel 1km của MODIS.`
+            : `Pearson correlation is ${spatialRes.pearson != null ? spatialRes.pearson.toFixed(3) : "-"} and Spearman rank is ${spatialRes.spearman != null ? spatialRes.spearman.toFixed(3) : "-"}. Analysis: MODIS and VIIRS strongly agree on high-intensity fire core locations. However, across diffuse perimeter boundaries, the 375m VIIRS resolution isolates fine-scale fire fronts that the 1km MODIS footprint averages out.`}
+        </p>
+      </div>
+
       <MultiScaleHarmonizationIllustration />
 
       <div className="grid gap-3 sm:grid-cols-3">

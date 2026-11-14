@@ -23,7 +23,7 @@ from pathlib import Path
 import numpy as np
 
 from app.firms import sf_tile
-from app.firms.evaluation import _delta_ci
+from app.firms.evaluation import _delta_ci, _metrics
 
 BENCH = Path(__file__).resolve().parents[2] / "data" / "firms" / "benchmark"
 OUT = Path(__file__).resolve().parents[2] / "data" / "firms" / "models" / "hts_anchor_raw.json"
@@ -81,15 +81,18 @@ def main() -> dict:
     h = np.array([s["hts"] for s in samples])
     mae_b2 = float(np.mean(np.abs(b - y)))
     mae_hts = float(np.mean(np.abs(h - y)))
+    headline_idx = [i for i, s in enumerate(samples)
+                    if s["aoi"] in ("vietnam", "amazon")]
+    headline = _metrics(y[headline_idx], h[headline_idx])
     per_aoi = {}
     for aoi in sf_tile.AOIS:
         idx = [i for i, s in enumerate(samples) if s["aoi"] == aoi]
         if not idx:
             continue
         per_aoi[aoi] = {
+            **_metrics(y[idx], h[idx]),
             "b2_mae": round(float(np.mean(np.abs(b[idx] - y[idx]))), 2),
             "hts_mae": round(float(np.mean(np.abs(h[idx] - y[idx]))), 2),
-            "n": len(idx),
         }
     row_ci = _delta_ci(samples, "hts", "b2")
     year_ci = _delta_ci(samples, "hts", "b2", block="year")
@@ -107,6 +110,9 @@ def main() -> dict:
         "b2_mae": round(mae_b2, 4),
         "hts_mae": round(mae_hts, 4),
         "mean_gain_vs_b2": round(gain, 4),
+        "metrics": _metrics(y, h),
+        "b2_metrics": _metrics(y, b),
+        "headline": headline,
         "per_aoi": per_aoi,
         "comparisons": {"hts_vs_b2": row_ci,
                         "hts_vs_b2_year_block": year_ci},

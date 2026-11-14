@@ -75,3 +75,5 @@ backend/data/firms/request_ledger.jsonl
 !backend/data/firms/models/sf_lite*.pt
 !backend/data/firms/models/srf_lite*.pt
 !backend/data/firms/models/srf*.pt
+
+!backend/data/firms/models/stan*.pt

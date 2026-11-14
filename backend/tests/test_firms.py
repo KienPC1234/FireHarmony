@@ -1174,6 +1174,113 @@ def test_T47_hts_evidence_serves_a_candidate_month():
     assert st["served"] is False and st["candidate"] is True
 
 
+def test_T48_spatial_hgb_wins_but_is_explicitly_retrospective():
+    """Neighbour VIIRS is a valid retrospective covariate, not a forecast input."""
+    import json
+    meta = json.loads((BACKEND_DIR / "data/firms/models/spatial_hgb_raw.json")
+                      .read_text(encoding="utf-8"))
+    assert meta["retrospective"] is True
+    assert meta["requires_neighbour_viirs"] is True
+    assert meta["headline"]["n"] == 72
+    assert meta["headline"]["mae"] < 0.6 * meta["b2_headline"]["mae"]
+    assert meta["headline"]["mae"] < 0.65 * meta["hts_headline"]["mae"]
+    ci = meta["comparisons"]["spatial_vs_b2"]["ci95"]
+    assert ci[1] < 0
+    ci_h = meta["comparisons"]["spatial_vs_hts"]["ci95"]
+    assert ci_h[1] < 0
+    for aoi, row in meta["per_aoi"].items():
+        assert row["spatial"]["mae"] < row["hts"]["mae"], aoi
+    # Spatial holdout: whole tiles never seen in training.
+    ho = meta["spatial_holdout"]
+    assert ho["held_tiles"] > 150
+    assert ho["spatial_mae"] < ho["hts_mae"]
+    # Ablation: without same-month neighbour VIIRS the gain disappears.
+    assert meta["safe_headline"]["mae"] > meta["hts_headline"]["mae"]
+    # Rolling-origin: the spatial model wins every pre-holdout year too.
+    for year, row in meta["rolling"].items():
+        assert row["pred"] < row["hts"], year
+
+
+def test_T49_spatial_status_is_a_candidate_not_a_served_default():
+    st = client.get("/api/firms/spatial-status").json()
+    assert st["trained"] is True
+    assert st["candidate"] is True and st["served"] is False
+    assert st["retrospective"] is True
+    assert st["requires_neighbour_viirs"] is True
+
+
+def test_T50_stan_safe_beats_b2_without_retrospective_leakage():
+    """Tuned STAN: FiLM + TCN + target query + NB, no same-month neighbour VIIRS."""
+    import json
+    meta = json.loads((BACKEND_DIR / "data/firms/models/stan_safe_raw.json")
+                      .read_text(encoding="utf-8"))
+    assert meta["variant"] == "forecast_safe"
+    assert meta["retrospective"] is False
+    assert meta["uses_neighbour_viirs_same_month"] is False
+    off = meta["official"]
+    assert off["n"] == 72
+    assert off["metrics"]["mae"] < 0.95 * off["b2_metrics"]["mae"]
+    ci = off["comparisons"]["stan_vs_b2"]["ci95"]
+    assert ci[1] < 0
+    # Point estimates beat HTS in every AOI (HTS CI may still include 0).
+    for aoi, row in off["per_aoi"].items():
+        assert row["stan"]["mae"] < row["hts"]["mae"], aoi
+    # The retrospective twin is flagged; it is not the served claim. Do not
+    # assert it is better: in the deterministic run it is within seed noise.
+    retro = json.loads((BACKEND_DIR / "data/firms/models/stan_retro_raw.json")
+                       .read_text(encoding="utf-8"))
+    assert retro["retrospective"] is True
+    assert retro["uses_neighbour_viirs_same_month"] is True
+    # Leave-one-region-out is stored and is not a hidden success.
+    loo = meta["loo_region"]
+    assert set(loo) == {"vietnam", "amazon", "australia"}
+    assert loo["amazon"]["metrics"]["mae"] > loo["amazon"]["hts_metrics"]["mae"]
+
+
+def test_T51_stan_status_exposes_both_variants():
+    st = client.get("/api/firms/stan-status").json()
+    assert st["trained"] is True
+    assert st["served"] is True and st["role"] == "main"
+    assert st["safe"]["variant"] == "forecast_safe"
+    assert st["retrospective"]["retrospective"] is True
+
+
+def test_T52_stan_series_is_the_served_main_target():
+    import json
+    import numpy as np
+    base = BACKEND_DIR / "data/firms/models"
+    series = json.loads((base / "stan_series_raw.json").read_text(encoding="utf-8"))
+    assert series["role"] == "main"
+    assert series["months"]["vietnam"] > 150
+    assert series["series"]["vietnam"]["2025-01"]["source"] == "stan"
+    assert series["series"]["vietnam"]["2023-01"]["source"] == "hts"
+    # The 2024-25 targets reproduce the published STAN MAE (serve simulation).
+    import csv
+    y, p = [], []
+    with (BACKEND_DIR / "data/firms/benchmark/evaluation_samples_raw.csv").open(
+            encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            ym = f"{r['year']}-{int(r['month']):02d}"
+            tgt = series["series"][r["aoi"]].get(ym, {}).get("target")
+            if tgt is not None:
+                y.append(float(r["viirs_ref"]))
+                p.append(float(tgt))
+    mae = float(np.mean(np.abs(np.array(p) - np.array(y))))
+    assert abs(mae - 2128.4) < 5.0
+
+
+def test_T53_stan_method_serves_raw_and_rejects_sample():
+    r = client.get("/api/firms/evidence",
+                   params={"aoi": "vietnam", "data": "sample", "method": "stan",
+                           "year": 2025, "month": 1})
+    assert r.status_code == 409
+    ev = client.get("/api/firms/evidence",
+                    params={"aoi": "vietnam", "data": "raw", "method": "stan",
+                            "year": 2025, "month": 1}).json()
+    assert ev["method_id"] == "stan_safe_v1"
+    assert ev["effective_method"] == "stan_safe_v1"
+
+
 def test_T24_dedup_and_qa_sensitivity_are_measured():
     from app.firms import harmonize
     rows = [

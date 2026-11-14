@@ -1,0 +1,770 @@
+{
+ "method_id": "spatial_hgb_v1",
+ "algorithm_version": "spatial-hgb-v1.0",
+ "method": "spatial_hgb_residual_on_hts",
+ "data": "raw",
+ "retrospective": true,
+ "requires_neighbour_viirs": true,
+ "feature_note": "Spatial features use same-month VIIRS of neighbouring 1-degree tiles. Valid for retrospective harmonization, invalid for a forecast; the `spatial_safe` variant excludes them.",
+ "features": [
+  "logm",
+  "logm_prev",
+  "logm_3",
+  "d1",
+  "sin",
+  "cos",
+  "latr",
+  "lonr",
+  "sinlat",
+  "coslat",
+  "sinlon",
+  "coslon",
+  "anchor",
+  "tile_clim",
+  "days_modis",
+  "days_viirs",
+  "nbr_modis_log",
+  "nbr_viirs_log",
+  "nbr_ratio",
+  "nbr_ratio_prev"
+ ],
+ "safe_features": [
+  "logm",
+  "logm_prev",
+  "logm_3",
+  "d1",
+  "sin",
+  "cos",
+  "latr",
+  "lonr",
+  "sinlat",
+  "coslat",
+  "sinlon",
+  "coslon",
+  "anchor",
+  "tile_clim",
+  "days_modis",
+  "days_viirs",
+  "nbr_modis_log",
+  "nbr_ratio_prev",
+  "nbr_viirs_prev_log"
+ ],
+ "n_train": 30398,
+ "n_test": 72,
+ "rolling": {
+  "2021": {
+   "n_aoi_months": 36,
+   "b2": 2211.0,
+   "hts": 1721.3,
+   "pred": 1014.2
+  },
+  "2022": {
+   "n_aoi_months": 36,
+   "b2": 2921.5,
+   "hts": 2753.5,
+   "pred": 2256.6
+  },
+  "2023": {
+   "n_aoi_months": 36,
+   "b2": 2078.7,
+   "hts": 1459.9,
+   "pred": 1264.8
+  },
+  "2024": {
+   "n_aoi_months": 72,
+   "b2": 2506.8,
+   "hts": 2211.1,
+   "pred": 1312.8
+  }
+ },
+ "per_aoi": {
+  "vietnam": {
+   "spatial": {
+    "mae": 467.0778,
+    "wape": 0.033975,
+    "bias": -98.3852,
+    "n": 24
+   },
+   "spatial_safe": {
+    "mae": 644.4552,
+    "wape": 0.046878,
+    "bias": -50.8851,
+    "n": 24
+   },
+   "hts": {
+    "mae": 783.9017,
+    "wape": 0.057021,
+    "bias": 3.5425,
+    "n": 24
+   },
+   "b2": {
+    "mae": 844.1616,
+    "wape": 0.061404,
+    "bias": -132.3574,
+    "n": 24
+   }
+  },
+  "amazon": {
+   "spatial": {
+    "mae": 2169.7937,
+    "wape": 0.050114,
+    "bias": -1206.2927,
+    "n": 24
+   },
+   "spatial_safe": {
+    "mae": 4439.0957,
+    "wape": 0.102525,
+    "bias": -697.257,
+    "n": 24
+   },
+   "hts": {
+    "mae": 4250.1056,
+    "wape": 0.098161,
+    "bias": 264.5697,
+    "n": 24
+   },
+   "b2": {
+    "mae": 4647.7437,
+    "wape": 0.107344,
+    "bias": -313.4031,
+    "n": 24
+   }
+  },
+  "australia": {
+   "spatial": {
+    "mae": 1301.5862,
+    "wape": 0.089997,
+    "bias": -906.0174,
+    "n": 24
+   },
+   "spatial_safe": {
+    "mae": 1823.8308,
+    "wape": 0.126107,
+    "bias": -566.8432,
+    "n": 24
+   },
+   "hts": {
+    "mae": 1599.1516,
+    "wape": 0.110572,
+    "bias": 52.6104,
+    "n": 24
+   },
+   "b2": {
+    "mae": 1668.8351,
+    "wape": 0.11539,
+    "bias": 715.6354,
+    "n": 24
+   }
+  }
+ },
+ "comparisons": {
+  "spatial_vs_b2": {
+   "method_a": "spatial",
+   "method_b": "b2_seasonal_ratio",
+   "delta_mae": -1074.0943,
+   "ci95": [
+    -1832.148,
+    -466.8226
+   ],
+   "prob_a_better": 1.0,
+   "n": 72,
+   "n_boot": 2000,
+   "unit": "AOI-month row bootstrap (not independent hotspots)"
+  },
+  "spatial_vs_hts": {
+   "method_a": "spatial",
+   "method_b": "hts_anchor",
+   "delta_mae": -898.2338,
+   "ci95": [
+    -1515.6663,
+    -382.6007
+   ],
+   "prob_a_better": 1.0,
+   "n": 72,
+   "n_boot": 2000,
+   "unit": "AOI-month row bootstrap (not independent hotspots)"
+  },
+  "spatial_safe_vs_hts": {
+   "method_a": "spatial_safe",
+   "method_b": "hts_anchor",
+   "delta_mae": 91.4076,
+   "ci95": [
+    -196.0541,
+    448.5878
+   ],
+   "prob_a_better": 0.2945,
+   "n": 72,
+   "n_boot": 2000,
+   "unit": "AOI-month row bootstrap (not independent hotspots)"
+  },
+  "spatial_vs_b2_year_block": {
+   "method_a": "spatial",
+   "method_b": "b2_seasonal_ratio",
+   "delta_mae": -1074.0943,
+   "ci95": [
+    -1764.9535,
+    -383.235
+   ],
+   "prob_a_better": 1.0,
+   "n": 72,
+   "n_boot": 2000,
+   "unit": "year-block cluster bootstrap (2 blocks; coarse, respects within-block correlation)"
+  }
+ },
+ "headline": {
+  "mae": 1312.8192,
+  "wape": 0.055077,
+  "bias": -736.8984,
+  "n": 72
+ },
+ "b2_headline": {
+  "mae": 2386.9135,
+  "wape": 0.100139,
+  "bias": 89.9583,
+  "n": 72
+ },
+ "hts_headline": {
+  "mae": 2211.053,
+  "wape": 0.092762,
+  "bias": 106.9075,
+  "n": 72
+ },
+ "safe_headline": {
+  "mae": 2302.4606,
+  "wape": 0.096596,
+  "bias": -438.3284,
+  "n": 72
+ },
+ "spatial_holdout": {
+  "held_tiles": 210,
+  "train_rows": 5574,
+  "n_aoi_months": 75,
+  "spatial_mae": 640.6,
+  "hts_mae": 869.6,
+  "per_aoi": {
+   "vietnam": {
+    "spatial_mae": 203.3,
+    "hts_mae": 363.1,
+    "n": 25
+   },
+   "amazon": {
+    "spatial_mae": 982.7,
+    "hts_mae": 1452.4,
+    "n": 25
+   },
+   "australia": {
+    "spatial_mae": 735.7,
+    "hts_mae": 793.4,
+    "n": 25
+   }
+  }
+ },
+ "dataset_sha256": "f2c6a7565ce696183b3215f5af7197f6c9d4821f35b767ffee66527cfa9c2180",
+ "created_at": "2026-11-12T00:31:39.397375+00:00",
+ "predictions": {
+  "amazon:2024-01": {
+   "spatial": 6738.541,
+   "spatial_safe": 6477.173,
+   "hts": 6590.583,
+   "b2": 6636.778,
+   "viirs_ref": 7655.0
+  },
+  "amazon:2024-02": {
+   "spatial": 15840.285,
+   "spatial_safe": 14786.522,
+   "hts": 14963.817,
+   "b2": 12209.021,
+   "viirs_ref": 19738.0
+  },
+  "amazon:2024-03": {
+   "spatial": 15908.004,
+   "spatial_safe": 14506.916,
+   "hts": 15307.763,
+   "b2": 13989.388,
+   "viirs_ref": 18106.0
+  },
+  "amazon:2024-04": {
+   "spatial": 3312.181,
+   "spatial_safe": 3513.64,
+   "hts": 3892.684,
+   "b2": 3740.851,
+   "viirs_ref": 3189.0
+  },
+  "amazon:2024-05": {
+   "spatial": 6002.632,
+   "spatial_safe": 6112.527,
+   "hts": 6740.342,
+   "b2": 6995.733,
+   "viirs_ref": 5706.0
+  },
+  "amazon:2024-06": {
+   "spatial": 13708.633,
+   "spatial_safe": 13212.75,
+   "hts": 14529.217,
+   "b2": 14406.191,
+   "viirs_ref": 14846.0
+  },
+  "amazon:2024-07": {
+   "spatial": 41513.34,
+   "spatial_safe": 54984.762,
+   "hts": 58749.759,
+   "b2": 60715.361,
+   "viirs_ref": 41279.0
+  },
+  "amazon:2024-08": {
+   "spatial": 267387.124,
+   "spatial_safe": 253281.487,
+   "hts": 263017.955,
+   "b2": 260630.339,
+   "viirs_ref": 282102.0
+  },
+  "amazon:2024-09": {
+   "spatial": 318888.427,
+   "spatial_safe": 315527.878,
+   "hts": 313727.476,
+   "b2": 309320.274,
+   "viirs_ref": 329415.0
+  },
+  "amazon:2024-10": {
+   "spatial": 87682.139,
+   "spatial_safe": 90924.005,
+   "hts": 91800.498,
+   "b2": 93130.554,
+   "viirs_ref": 85303.0
+  },
+  "amazon:2024-11": {
+   "spatial": 59748.793,
+   "spatial_safe": 66037.092,
+   "hts": 65657.231,
+   "b2": 63645.247,
+   "viirs_ref": 54571.0
+  },
+  "amazon:2024-12": {
+   "spatial": 16695.358,
+   "spatial_safe": 17242.015,
+   "hts": 18739.576,
+   "b2": 17908.614,
+   "viirs_ref": 15545.0
+  },
+  "amazon:2025-01": {
+   "spatial": 3537.066,
+   "spatial_safe": 3541.576,
+   "hts": 3680.519,
+   "b2": 3218.0,
+   "viirs_ref": 3635.0
+  },
+  "amazon:2025-02": {
+   "spatial": 747.871,
+   "spatial_safe": 830.758,
+   "hts": 938.453,
+   "b2": 936.081,
+   "viirs_ref": 807.0
+  },
+  "amazon:2025-03": {
+   "spatial": 2362.735,
+   "spatial_safe": 2838.182,
+   "hts": 2910.176,
+   "b2": 2549.139,
+   "viirs_ref": 2067.0
+  },
+  "amazon:2025-04": {
+   "spatial": 803.449,
+   "spatial_safe": 819.216,
+   "hts": 925.034,
+   "b2": 1073.66,
+   "viirs_ref": 821.0
+  },
+  "amazon:2025-05": {
+   "spatial": 2638.009,
+   "spatial_safe": 2439.018,
+   "hts": 2905.018,
+   "b2": 2842.393,
+   "viirs_ref": 2962.0
+  },
+  "amazon:2025-06": {
+   "spatial": 8052.757,
+   "spatial_safe": 8074.814,
+   "hts": 8717.592,
+   "b2": 8548.071,
+   "viirs_ref": 8393.0
+  },
+  "amazon:2025-07": {
+   "spatial": 10025.149,
+   "spatial_safe": 9507.615,
+   "hts": 10479.162,
+   "b2": 10426.253,
+   "viirs_ref": 11212.0
+  },
+  "amazon:2025-08": {
+   "spatial": 36001.722,
+   "spatial_safe": 36125.572,
+   "hts": 36346.174,
+   "b2": 36814.011,
+   "viirs_ref": 39025.0
+  },
+  "amazon:2025-09": {
+   "spatial": 33614.385,
+   "spatial_safe": 33400.232,
+   "hts": 34794.404,
+   "b2": 34096.592,
+   "viirs_ref": 35427.0
+  },
+  "amazon:2025-10": {
+   "spatial": 33810.543,
+   "spatial_safe": 34493.879,
+   "hts": 35760.849,
+   "b2": 35488.01,
+   "viirs_ref": 34071.0
+  },
+  "amazon:2025-11": {
+   "spatial": 17364.379,
+   "spatial_safe": 23653.828,
+   "hts": 23950.043,
+   "b2": 22662.142,
+   "viirs_ref": 16433.0
+  },
+  "amazon:2025-12": {
+   "spatial": 7805.453,
+   "spatial_safe": 10074.376,
+   "hts": 10365.347,
+   "b2": 9635.625,
+   "viirs_ref": 6832.0
+  },
+  "australia:2024-01": {
+   "spatial": 2915.447,
+   "spatial_safe": 2870.071,
+   "hts": 3113.695,
+   "b2": 3565.571,
+   "viirs_ref": 3591.0
+  },
+  "australia:2024-02": {
+   "spatial": 1555.815,
+   "spatial_safe": 1645.532,
+   "hts": 1783.196,
+   "b2": 1829.803,
+   "viirs_ref": 1491.0
+  },
+  "australia:2024-03": {
+   "spatial": 2207.821,
+   "spatial_safe": 2314.536,
+   "hts": 2611.446,
+   "b2": 2685.744,
+   "viirs_ref": 2251.0
+  },
+  "australia:2024-04": {
+   "spatial": 18008.114,
+   "spatial_safe": 20078.255,
+   "hts": 20521.76,
+   "b2": 19906.564,
+   "viirs_ref": 19653.0
+  },
+  "australia:2024-05": {
+   "spatial": 16234.558,
+   "spatial_safe": 15994.842,
+   "hts": 17129.317,
+   "b2": 17483.118,
+   "viirs_ref": 17162.0
+  },
+  "australia:2024-06": {
+   "spatial": 16513.11,
+   "spatial_safe": 15666.11,
+   "hts": 16179.284,
+   "b2": 16328.438,
+   "viirs_ref": 17022.0
+  },
+  "australia:2024-07": {
+   "spatial": 9196.684,
+   "spatial_safe": 13193.634,
+   "hts": 13796.34,
+   "b2": 13542.234,
+   "viirs_ref": 4811.0
+  },
+  "australia:2024-08": {
+   "spatial": 14100.846,
+   "spatial_safe": 12346.791,
+   "hts": 13675.694,
+   "b2": 14582.821,
+   "viirs_ref": 15445.0
+  },
+  "australia:2024-09": {
+   "spatial": 16870.86,
+   "spatial_safe": 17812.171,
+   "hts": 18086.893,
+   "b2": 19384.368,
+   "viirs_ref": 18076.0
+  },
+  "australia:2024-10": {
+   "spatial": 16072.132,
+   "spatial_safe": 15496.883,
+   "hts": 16603.555,
+   "b2": 17540.498,
+   "viirs_ref": 17748.0
+  },
+  "australia:2024-11": {
+   "spatial": 33076.459,
+   "spatial_safe": 36020.139,
+   "hts": 36428.461,
+   "b2": 39196.351,
+   "viirs_ref": 33091.0
+  },
+  "australia:2024-12": {
+   "spatial": 9301.035,
+   "spatial_safe": 9309.088,
+   "hts": 9745.786,
+   "b2": 10145.994,
+   "viirs_ref": 9494.0
+  },
+  "australia:2025-01": {
+   "spatial": 7758.831,
+   "spatial_safe": 9908.052,
+   "hts": 8880.266,
+   "b2": 10503.842,
+   "viirs_ref": 9862.0
+  },
+  "australia:2025-02": {
+   "spatial": 2633.699,
+   "spatial_safe": 2762.647,
+   "hts": 2908.114,
+   "b2": 3267.12,
+   "viirs_ref": 3027.0
+  },
+  "australia:2025-03": {
+   "spatial": 4348.149,
+   "spatial_safe": 4497.16,
+   "hts": 4897.357,
+   "b2": 4962.149,
+   "viirs_ref": 4429.0
+  },
+  "australia:2025-04": {
+   "spatial": 9470.699,
+   "spatial_safe": 9495.405,
+   "hts": 10699.315,
+   "b2": 10846.07,
+   "viirs_ref": 11856.0
+  },
+  "australia:2025-05": {
+   "spatial": 24917.929,
+   "spatial_safe": 23967.402,
+   "hts": 25392.454,
+   "b2": 26371.721,
+   "viirs_ref": 28369.0
+  },
+  "australia:2025-06": {
+   "spatial": 17965.114,
+   "spatial_safe": 17202.77,
+   "hts": 17700.071,
+   "b2": 18508.636,
+   "viirs_ref": 20136.0
+  },
+  "australia:2025-07": {
+   "spatial": 11750.56,
+   "spatial_safe": 11521.45,
+   "hts": 12303.548,
+   "b2": 12469.595,
+   "viirs_ref": 12700.0
+  },
+  "australia:2025-08": {
+   "spatial": 19380.821,
+   "spatial_safe": 18002.399,
+   "hts": 19018.455,
+   "b2": 20046.141,
+   "viirs_ref": 22262.0
+  },
+  "australia:2025-09": {
+   "spatial": 13013.698,
+   "spatial_safe": 13430.925,
+   "hts": 14286.366,
+   "b2": 15517.661,
+   "viirs_ref": 13335.0
+  },
+  "australia:2025-10": {
+   "spatial": 42583.327,
+   "spatial_safe": 45205.619,
+   "hts": 46581.537,
+   "b2": 49157.696,
+   "viirs_ref": 42287.0
+  },
+  "australia:2025-11": {
+   "spatial": 5571.078,
+   "spatial_safe": 5533.989,
+   "hts": 5827.025,
+   "b2": 5645.07,
+   "viirs_ref": 6049.0
+  },
+  "australia:2025-12": {
+   "spatial": 9909.796,
+   "spatial_safe": 9220.894,
+   "hts": 10193.713,
+   "b2": 10789.042,
+   "viirs_ref": 12954.0
+  },
+  "vietnam:2024-01": {
+   "spatial": 46269.867,
+   "spatial_safe": 45599.01,
+   "hts": 45029.766,
+   "b2": 44801.308,
+   "viirs_ref": 48895.0
+  },
+  "vietnam:2024-02": {
+   "spatial": 55777.633,
+   "spatial_safe": 54327.044,
+   "hts": 53819.156,
+   "b2": 54015.582,
+   "viirs_ref": 54716.0
+  },
+  "vietnam:2024-03": {
+   "spatial": 41317.486,
+   "spatial_safe": 41409.135,
+   "hts": 41024.775,
+   "b2": 40236.636,
+   "viirs_ref": 42874.0
+  },
+  "vietnam:2024-04": {
+   "spatial": 30896.603,
+   "spatial_safe": 30443.85,
+   "hts": 30815.445,
+   "b2": 30257.053,
+   "viirs_ref": 30635.0
+  },
+  "vietnam:2024-05": {
+   "spatial": 5735.627,
+   "spatial_safe": 5305.724,
+   "hts": 5045.396,
+   "b2": 4637.076,
+   "viirs_ref": 5833.0
+  },
+  "vietnam:2024-06": {
+   "spatial": 1581.996,
+   "spatial_safe": 1564.089,
+   "hts": 1642.459,
+   "b2": 1661.97,
+   "viirs_ref": 1658.0
+  },
+  "vietnam:2024-07": {
+   "spatial": 553.692,
+   "spatial_safe": 699.688,
+   "hts": 765.527,
+   "b2": 846.49,
+   "viirs_ref": 461.0
+  },
+  "vietnam:2024-08": {
+   "spatial": 2093.911,
+   "spatial_safe": 2006.131,
+   "hts": 2532.038,
+   "b2": 2524.7,
+   "viirs_ref": 2176.0
+  },
+  "vietnam:2024-09": {
+   "spatial": 621.685,
+   "spatial_safe": 740.285,
+   "hts": 753.038,
+   "b2": 732.791,
+   "viirs_ref": 606.0
+  },
+  "vietnam:2024-10": {
+   "spatial": 357.836,
+   "spatial_safe": 425.647,
+   "hts": 492.104,
+   "b2": 639.424,
+   "viirs_ref": 534.0
+  },
+  "vietnam:2024-11": {
+   "spatial": 946.194,
+   "spatial_safe": 912.789,
+   "hts": 1060.132,
+   "b2": 1066.169,
+   "viirs_ref": 990.0
+  },
+  "vietnam:2024-12": {
+   "spatial": 4400.048,
+   "spatial_safe": 4182.007,
+   "hts": 4602.45,
+   "b2": 4536.591,
+   "viirs_ref": 4594.0
+  },
+  "vietnam:2025-01": {
+   "spatial": 41179.935,
+   "spatial_safe": 42094.615,
+   "hts": 41749.254,
+   "b2": 41254.571,
+   "viirs_ref": 40473.0
+  },
+  "vietnam:2025-02": {
+   "spatial": 43898.223,
+   "spatial_safe": 42647.949,
+   "hts": 41872.313,
+   "b2": 41486.794,
+   "viirs_ref": 42955.0
+  },
+  "vietnam:2025-03": {
+   "spatial": 28073.148,
+   "spatial_safe": 30987.298,
+   "hts": 31303.165,
+   "b2": 31687.595,
+   "viirs_ref": 28755.0
+  },
+  "vietnam:2025-04": {
+   "spatial": 13706.086,
+   "spatial_safe": 15086.328,
+   "hts": 15885.703,
+   "b2": 15626.332,
+   "viirs_ref": 12548.0
+  },
+  "vietnam:2025-05": {
+   "spatial": 2928.411,
+   "spatial_safe": 2880.029,
+   "hts": 3269.787,
+   "b2": 3056.112,
+   "viirs_ref": 2763.0
+  },
+  "vietnam:2025-06": {
+   "spatial": 939.728,
+   "spatial_safe": 970.403,
+   "hts": 1090.571,
+   "b2": 1031.414,
+   "viirs_ref": 934.0
+  },
+  "vietnam:2025-07": {
+   "spatial": 722.678,
+   "spatial_safe": 706.567,
+   "hts": 871.137,
+   "b2": 728.161,
+   "viirs_ref": 827.0
+  },
+  "vietnam:2025-08": {
+   "spatial": 1231.056,
+   "spatial_safe": 1336.737,
+   "hts": 1630.479,
+   "b2": 1547.436,
+   "viirs_ref": 1267.0
+  },
+  "vietnam:2025-09": {
+   "spatial": 544.866,
+   "spatial_safe": 603.99,
+   "hts": 604.996,
+   "b2": 539.365,
+   "viirs_ref": 564.0
+  },
+  "vietnam:2025-10": {
+   "spatial": 481.503,
+   "spatial_safe": 528.406,
+   "hts": 611.778,
+   "b2": 522.304,
+   "viirs_ref": 596.0
+  },
+  "vietnam:2025-11": {
+   "spatial": 655.314,
+   "spatial_safe": 736.468,
+   "hts": 734.829,
+   "b2": 673.647,
+   "viirs_ref": 642.0
+  },
+  "vietnam:2025-12": {
+   "spatial": 2668.229,
+   "spatial_safe": 2527.568,
+   "hts": 2821.721,
+   "b2": 2656.903,
+   "viirs_ref": 3647.0
+  }
+ }
+}

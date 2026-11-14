@@ -227,6 +227,39 @@ How to read it:
 - Served only as `method=hts` on raw data; responses mark it candidate with
   `gate_passed=false`. The synthetic sample returns 409 (no tiles).
 
+### `stan_v1` (Spatial-Temporal Anchor Network — served main model)
+
+- NB2 count likelihood; mean = HTS anchor × exp(δ); 12-month dilated TCN
+  (1/2/4) with seasonal FiLM; target-month query cross-attention; neighbour
+  context without same-month neighbour VIIRS.
+- 171k params, 5 seeds, early stop on 2023, refit `< 2024`, one level factor
+  from 2023. Weights `models/stan_safe_raw.pt` (sha256 in the JSON).
+- **Official 72: MAE 2,128.7 vs B2 2,386.9 (−10.8%), CI [−534.8, −19.1];
+  Vietnam 646.0, Amazon 4,151.9, Australia 1,588.2.** Beats HTS point estimate
+  (2,211.1) but the HTS CI includes 0.
+- LOO: Vietnam 948.4 vs HTS 783.9, Amazon 5,292.9 vs 4,250.1, Australia
+  1,594.8 vs 1,599.2 (CI barely excludes 0). Region transfer is not solved.
+- Ablations: FiLM is the main structural win (no-FiLM +13%); 3 layers best;
+  Poisson ≈ NB; d=96 > d=64 > d=32. Retrospective twin (neighbour VIIRS)
+  reaches 2,105.4 but is flagged, not the forecast claim.
+- **Served as `method=stan` on raw data** (product decision): STAN targets for
+  2024+, HTS fallback before 2024; sample uses B2 and STAN returns 409.
+  `/api/firms/stan-status` reports `served=true, role=main`.
+- Caveats stay visible: HTS CI includes 0, and LOO fails for Vietnam/Amazon.
+
+### `spatial_hgb_v1` (neighbour-tile HGB — retrospective, candidate)
+
+- HGB on the HTS residual with eight-neighbour tile context (same-month MODIS
+  and VIIRS, previous-month ratio).
+- **Official 72 months: MAE 1,312.8 vs B2 2,386.9 (−45%) and HTS 2,211.1
+  (−41%)**; Vietnam 467.1, Amazon 2,169.8, Australia 1,301.6.
+- CI vs B2 **[−1,832, −467]**; vs HTS **[−1,516, −383]**. Spatial holdout on
+  210 unseen tiles: 640.6 vs 869.6.
+- **Retrospective only**: the forecast-safe variant without same-month neighbour
+  VIIRS scores 2,302.5, worse than HTS. It is spatial imputation/gap-fill, not a
+  MODIS-only forecast. Artifact `models/spatial_hgb_raw.json`;
+  `GET /api/firms/spatial-status`. Not wired into the calendar.
+
 ### `tileformer_v1` (region-agnostic residual — rejected)
 
 - 12-month tile window + dilated CNN + one transformer layer + smooth

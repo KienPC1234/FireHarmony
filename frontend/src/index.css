@@ -4,41 +4,26 @@
 
 @layer base {
   :root {
-    --surface-0: #0B1220;
-    --surface-1: #111C2E;
-    --surface-2: #17263B;
-    --text-primary: #F1F5F9;
-    --text-secondary: #C0CBD9;
-    --text-muted: #97A7B9;
-    --modis: #60A5FA;
-    --viirs: #2DD4BF;
-    --estimate: #C4B5FD;
-    --warning: #FBBF24;
-    --danger: #FB7185;
-    --action: #F97316;
+    /* NASA & Scientific Foundations */
+    --surface-space: #060B13;
+    --surface-panel: #0B1220;
+    --surface-card: #111C2E;
+    --surface-active: #17263B;
 
-    --background: 222 47% 6%;
-    --foreground: 210 40% 98%;
-    --card: 221 44% 8%;
-    --card-foreground: 210 40% 98%;
-    --primary: 199 89% 48%;
-    --primary-foreground: 222 47% 6%;
-    --secondary: 217 33% 13%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 12%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 15%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 72% 55%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 18%;
-    --input: 217 33% 20%;
-    --ring: 199 89% 48%;
-    --radius: 0.65rem;
-    --flame: 24 95% 58%;
-  }
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-medium: rgba(255, 255, 255, 0.16);
+    --border-focus: #38BDF8;
 
-  .dark {
+    --sensor-viirs: #2DD4BF;
+    --sensor-modis: #60A5FA;
+    --index-harmonized: #C084FC;
+
+    --status-nominal: #10B981;
+    --status-elevated: #F59E0B;
+    --status-critical: #EF4444;
+    --status-unknown: #64748B;
+
+    /* Tailwind Semantic Mappings */
     --background: 222 47% 5%;
     --foreground: 210 40% 98%;
     --card: 221 44% 8%;
@@ -56,7 +41,7 @@
     --border: 217 33% 18%;
     --input: 217 33% 20%;
     --ring: 199 89% 48%;
-    --flame: 24 95% 58%;
+    --radius: 0.75rem;
   }
 
   * {
@@ -71,7 +56,9 @@
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "cv11" 1, "ss01" 1, "rlig" 1, "calt" 1;
     text-rendering: optimizeLegibility;
-    background-color: #080d17;
+    background-color: #060B13;
+    font-size: 15px;
+    line-height: 1.5;
   }
 
   .font-mono,
@@ -88,12 +75,8 @@
   }
 
   :focus-visible {
-    outline: 2px solid hsl(var(--ring));
+    outline: 2px solid #38bdf8;
     outline-offset: 2px;
-  }
-
-  .prose-answer {
-    overflow-wrap: break-word;
   }
 
   input[type="range"] {
@@ -102,19 +85,12 @@
     height: 1.5rem;
     background: transparent;
     cursor: pointer;
-    accent-color: hsl(var(--primary));
+    accent-color: #38bdf8;
   }
   input[type="range"]::-webkit-slider-runnable-track {
     height: 6px;
     border-radius: 999px;
-    background:
-      linear-gradient(
-        to right,
-        hsl(var(--primary)) 0%,
-        hsl(var(--primary)) var(--fill, 50%),
-        hsl(var(--muted)) var(--fill, 50%),
-        hsl(var(--muted)) 100%
-      );
+    background: #1e293b;
   }
   input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
@@ -123,27 +99,9 @@
     height: 16px;
     width: 16px;
     border-radius: 999px;
-    background: hsl(var(--primary-foreground));
-    border: 2px solid hsl(var(--primary));
-    box-shadow: 0 0 12px -2px hsl(var(--primary) / 0.8);
-  }
-  input[type="range"]::-moz-range-track {
-    height: 6px;
-    border-radius: 999px;
-    background: hsl(var(--muted));
-  }
-  input[type="range"]::-moz-range-progress {
-    height: 6px;
-    border-radius: 999px;
-    background: hsl(var(--primary));
-  }
-  input[type="range"]::-moz-range-thumb {
-    height: 12px;
-    width: 12px;
-    border-radius: 999px;
-    background: hsl(var(--primary-foreground));
-    border: 2px solid hsl(var(--primary));
-    box-shadow: 0 0 12px -2px hsl(var(--primary) / 0.8);
+    background: #f8fafc;
+    border: 2px solid #38bdf8;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
   }
   input[type="range"]:disabled {
     cursor: not-allowed;
@@ -162,36 +120,36 @@
     background: white !important;
     color: black !important;
   }
-  .container {
-    max-width: none !important;
-  }
-  a {
-    color: black !important;
-    text-decoration: underline;
-  }
 }
 
-* {
-  scrollbar-width: thin;
-  scrollbar-color: hsl(var(--border)) transparent;
-}
-*::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-*::-webkit-scrollbar-thumb {
-  background-color: hsl(var(--border));
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background-clip: content-box;
-}
-*::-webkit-scrollbar-thumb:hover {
-  background-color: hsl(var(--muted-foreground) / 0.5);
+/* High-visibility, comfortable, draggable scrollbars */
+html, body {
+  scrollbar-color: rgba(255, 255, 255, 0.3) #080D1A;
 }
 
-/* Leaflet Dark Theme Overrides */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track {
+  background: #080D1A;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  border: 2px solid #080D1A;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #38bdf8;
+}
+::-webkit-scrollbar-thumb:active {
+  background: #0284c7;
+}
+
+/* Leaflet Dark Clean Styles */
 .leaflet-container {
-  background-color: #080d16 !important;
+  background-color: #060B13 !important;
   font-family: inherit !important;
 }
 .leaflet-bar {
@@ -201,183 +159,40 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
 }
 .leaflet-bar a {
-  background-color: rgba(13, 19, 33, 0.85) !important;
+  background-color: rgba(11, 18, 32, 0.90) !important;
   color: #e2e8f0 !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
   backdrop-filter: blur(8px);
 }
 .leaflet-bar a:hover {
-  background-color: rgba(30, 41, 59, 0.95) !important;
+  background-color: rgba(23, 38, 59, 0.95) !important;
   color: #38bdf8 !important;
 }
 .leaflet-popup-content-wrapper, .leaflet-popup-tip {
-  background: rgba(13, 19, 33, 0.92) !important;
+  background: rgba(11, 18, 32, 0.95) !important;
   backdrop-filter: blur(12px) !important;
   color: #f1f5f9 !important;
   border: 1px solid rgba(56, 189, 248, 0.3) !important;
-  border-radius: 8px !important;
+  border-radius: 10px !important;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7) !important;
 }
 .leaflet-tooltip {
-  background: rgba(13, 19, 33, 0.92) !important;
+  background: rgba(11, 18, 32, 0.95) !important;
   backdrop-filter: blur(8px) !important;
   color: #f1f5f9 !important;
   border: 1px solid rgba(255, 255, 255, 0.15) !important;
   border-radius: 6px !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 500 !important;
   padding: 4px 8px !important;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5) !important;
 }
-.leaflet-tooltip-top:before {
-  border-top-color: rgba(13, 19, 33, 0.92) !important;
-}
-.leaflet-tooltip-bottom:before {
-  border-bottom-color: rgba(13, 19, 33, 0.92) !important;
-}
 
 @layer utilities {
-  .bg-aurora {
-    background-image:
-      radial-gradient(60rem 32rem at 15% -10%, rgba(6, 182, 212, 0.08), transparent 60%),
-      radial-gradient(50rem 26rem at 85% -5%, rgba(99, 102, 241, 0.06), transparent 55%),
-      radial-gradient(40rem 24rem at 50% 105%, rgba(249, 115, 22, 0.05), transparent 60%);
-  }
-
-  .text-gradient {
-    background: linear-gradient(135deg, #f8fafc 0%, #cbd5e1 50%, #94a3b8 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-
-  .text-gradient-cyan {
-    background: linear-gradient(135deg, #ffffff 10%, #67e8f9 55%, #06b6d4 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-
-  .text-gradient-fire {
-    background: linear-gradient(135deg, #ffffff 0%, #fed7aa 40%, #f97316 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-
-  @media (forced-colors: active) {
-    .text-gradient,
-    .text-gradient-cyan,
-    .text-gradient-fire {
-      background: none;
-      color: CanvasText;
-      forced-color-adjust: auto;
-    }
-  }
-
-  .card-glow {
-    position: relative;
-    isolation: isolate;
-  }
-  .card-glow::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    opacity: 0;
-    border-radius: inherit;
-    transition: opacity 0.35s ease;
-    background: radial-gradient(
-      420px circle at var(--mx, 50%) var(--my, 0%),
-      rgba(6, 182, 212, 0.12),
-      transparent 65%
-    );
-  }
-  .card-glow:hover::before {
-    opacity: 1;
-  }
-
-  .glow-border {
-    box-shadow:
-      0 0 0 1px rgba(6, 182, 212, 0.25),
-      0 0 40px -10px rgba(6, 182, 212, 0.35);
-  }
-
-  .glow-border-orange {
-    box-shadow:
-      0 0 0 1px rgba(249, 115, 22, 0.3),
-      0 0 40px -10px rgba(249, 115, 22, 0.4);
-  }
-
   .bg-grid {
     background-image:
-      linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+      linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
     background-size: 32px 32px;
   }
-
-  .aerospace-panel {
-    background-color: rgba(13, 19, 33, 0.75);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-  }
-
-  .animate-float {
-    animation: aab-float 9s ease-in-out infinite;
-  }
-  .animate-shimmer {
-    background-size: 200% 100%;
-    animation: aab-shimmer 2.6s linear infinite;
-  }
-  .animate-fade-up {
-    animation: aab-fade-up 0.45s ease-out both;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .animate-float,
-  .animate-shimmer {
-    animation: none;
-  }
-}
-
-@keyframes aab-float {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-10px) rotate(0.6deg); }
-}
-
-@keyframes aab-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
-@keyframes aab-fade-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* The floating hero flame is the most prominent animation on the site and it
-   ran for ever, whatever the reader's motion preference was. The other
-   animations in this file are already handled in JS; this one is pure CSS. */
-@media (prefers-reduced-motion: reduce) {
-  .animate-float,
-  .animate-shimmer {
-    animation: none;
-  }
-}
-
-@keyframes aab-float {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-10px) rotate(0.6deg); }
-}
-
-@keyframes aab-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
-@keyframes aab-fade-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
 }

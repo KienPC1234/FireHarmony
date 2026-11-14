@@ -51,7 +51,11 @@ def status(model_dir: Path | None = None) -> dict:
     }
 
 
-def apply_monthly(daily_stat: list[dict], targets_by_month: dict[str, float]) -> tuple[list[dict], dict]:
+def apply_monthly(daily_stat: list[dict], targets_by_month: dict[str, float],
+                  method_id: str = "hts_anchor_v1",
+                  requested: str = "hts",
+                  candidate: bool = True,
+                  gate_passed: bool = False) -> tuple[list[dict], dict]:
     """Rescale MODIS-only cells so each month totals the HTS target.
 
     VIIRS-observed cells are never changed; only the estimated part is
@@ -86,8 +90,8 @@ def apply_monthly(daily_stat: list[dict], targets_by_month: dict[str, float]) ->
         if c.get("estimate_type") == "modis_upscaled_estimated" and ym in factors:
             c["harmonized_count"] = round(c["harmonized_count"] * factors[ym], 3)
             c["estimate_type"] = "hts_predicted"
-            c["method"] = "hts_anchor_v1"
-            c["effective_method"] = "hts_anchor_v1"
+            c["method"] = method_id
+            c["effective_method"] = method_id
             c["coverage_status"] = "unknown"
         else:
             c["effective_method"] = "stat:seasonal_ratio_v1"
@@ -97,11 +101,11 @@ def apply_monthly(daily_stat: list[dict], targets_by_month: dict[str, float]) ->
                     if str(c["date"])[:7] == ym)
         conservation.append(abs(total - targets_used[ym]))
     return daily_stat, {
-        "requested_method": "hts",
-        "effective_method": "hts_anchor_v1",
-        "model_method_id": "hts_anchor_v1",
-        "candidate": True,
-        "gate_passed": False,
+        "requested_method": requested,
+        "effective_method": method_id,
+        "model_method_id": method_id,
+        "candidate": candidate,
+        "gate_passed": gate_passed,
         "months_requested": len(month_totals),
         "months_scored": len(factors),
         "months_missing_target": len(missing),

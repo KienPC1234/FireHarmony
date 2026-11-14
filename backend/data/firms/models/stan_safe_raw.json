@@ -1,0 +1,786 @@
+{
+ "method_id": "stan_v1",
+ "algorithm_version": "stan-v1.0",
+ "variant": "forecast_safe",
+ "retrospective": false,
+ "uses_neighbour_viirs_same_month": false,
+ "params": 171362,
+ "n_train": 3042,
+ "n_test": 969,
+ "epochs_by_seed": {
+  "7": 63,
+  "17": 61,
+  "27": 45,
+  "37": 55,
+  "47": 58
+ },
+ "level_scale_2023": 0.9757,
+ "metrics": {
+  "mae": 1099.2518,
+  "wape": 0.085423,
+  "bias": -110.4005,
+  "n": 60
+ },
+ "hts_metrics": {
+  "mae": 1196.1781,
+  "wape": 0.092955,
+  "bias": 147.3625,
+  "n": 60
+ },
+ "per_aoi": {
+  "vietnam": {
+   "stan": {
+    "mae": 448.2186,
+    "wape": 0.064103,
+    "bias": 164.1441,
+    "n": 24
+   },
+   "hts": {
+    "mae": 555.227,
+    "wape": 0.079407,
+    "bias": 104.2639,
+    "n": 24
+   }
+  },
+  "amazon": {
+   "stan": {
+    "mae": 2263.7336,
+    "wape": 0.090423,
+    "bias": -460.9171,
+    "n": 24
+   },
+   "hts": {
+    "mae": 2388.8615,
+    "wape": 0.095421,
+    "bias": 234.3142,
+    "n": 24
+   }
+  },
+  "australia": {
+   "stan": {
+    "mae": 72.3543,
+    "wape": 0.251521,
+    "bias": 41.5437,
+    "n": 12
+   },
+   "hts": {
+    "mae": 92.7132,
+    "wape": 0.322294,
+    "bias": 59.6562,
+    "n": 12
+   }
+  }
+ },
+ "comparisons": {
+  "stan_vs_hts": {
+   "method_a": "stan",
+   "method_b": "hts_anchor",
+   "delta_mae": -96.9263,
+   "ci95": [
+    -319.8973,
+    109.9664
+   ],
+   "prob_a_better": 0.803,
+   "n": 60,
+   "n_boot": 2000,
+   "unit": "AOI-month row bootstrap (not independent hotspots)"
+  }
+ },
+ "official": {
+  "n": 72,
+  "metrics": {
+   "mae": 2128.6756,
+   "wape": 0.089305,
+   "bias": -107.8949,
+   "n": 72
+  },
+  "hts_metrics": {
+   "mae": 2211.053,
+   "wape": 0.092762,
+   "bias": 106.9075,
+   "n": 72
+  },
+  "b2_metrics": {
+   "mae": 2386.9135,
+   "wape": 0.100139,
+   "bias": 89.9583,
+   "n": 72
+  },
+  "comparisons": {
+   "stan_vs_hts": {
+    "method_a": "stan",
+    "method_b": "hts_anchor",
+    "delta_mae": -82.3774,
+    "ci95": [
+     -261.4968,
+     86.4347
+    ],
+    "prob_a_better": 0.809,
+    "n": 72,
+    "n_boot": 2000,
+    "unit": "AOI-month row bootstrap (not independent hotspots)"
+   },
+   "stan_vs_b2": {
+    "method_a": "stan",
+    "method_b": "b2_seasonal_ratio",
+    "delta_mae": -258.2379,
+    "ci95": [
+     -534.8471,
+     -19.1375
+    ],
+    "prob_a_better": 0.983,
+    "n": 72,
+    "n_boot": 2000,
+    "unit": "AOI-month row bootstrap (not independent hotspots)"
+   }
+  },
+  "per_aoi": {
+   "vietnam": {
+    "stan": {
+     "mae": 645.9551,
+     "wape": 0.046987,
+     "bias": 63.4226,
+     "n": 24
+    },
+    "hts": {
+     "mae": 783.9017,
+     "wape": 0.057021,
+     "bias": 3.5425,
+     "n": 24
+    },
+    "b2": {
+     "mae": 844.1616,
+     "wape": 0.061404,
+     "bias": -132.3574,
+     "n": 24
+    }
+   },
+   "amazon": {
+    "stan": {
+     "mae": 4151.8677,
+     "wape": 0.095892,
+     "bias": -430.6616,
+     "n": 24
+    },
+    "hts": {
+     "mae": 4250.1056,
+     "wape": 0.098161,
+     "bias": 264.5697,
+     "n": 24
+    },
+    "b2": {
+     "mae": 4647.7437,
+     "wape": 0.107344,
+     "bias": -313.4031,
+     "n": 24
+    }
+   },
+   "australia": {
+    "stan": {
+     "mae": 1588.2039,
+     "wape": 0.109815,
+     "bias": 43.5542,
+     "n": 24
+    },
+    "hts": {
+     "mae": 1599.1516,
+     "wape": 0.110572,
+     "bias": 52.6104,
+     "n": 24
+    },
+    "b2": {
+     "mae": 1668.8351,
+     "wape": 0.11539,
+     "bias": 715.6354,
+     "n": 24
+    }
+   }
+  },
+  "headline": {
+   "mae": 2398.9114,
+   "wape": 0.084106,
+   "bias": -183.6195,
+   "n": 48
+  },
+  "hts_headline": {
+   "mae": 2517.0036,
+   "wape": 0.088246,
+   "bias": 134.0561,
+   "n": 48
+  },
+  "b2_headline": {
+   "mae": 2745.9527,
+   "wape": 0.096273,
+   "bias": -222.8802,
+   "n": 48
+  }
+ },
+ "dataset_sha256": "f2c6a7565ce696183b3215f5af7197f6c9d4821f35b767ffee66527cfa9c2180",
+ "created_at": "2026-11-12T03:19:34.093242+00:00",
+ "predictions": {
+  "amazon:2024-03": {
+   "stan": 11441.072,
+   "hts": 13290.679,
+   "viirs_ref": 16078.0
+  },
+  "amazon:2024-04": {
+   "stan": 2845.462,
+   "hts": 2887.102,
+   "viirs_ref": 2359.0
+  },
+  "amazon:2024-05": {
+   "stan": 4431.26,
+   "hts": 5160.521,
+   "viirs_ref": 4498.0
+  },
+  "amazon:2024-06": {
+   "stan": 10561.635,
+   "hts": 11574.761,
+   "viirs_ref": 11574.0
+  },
+  "amazon:2024-07": {
+   "stan": 33121.817,
+   "hts": 36885.346,
+   "viirs_ref": 25578.0
+  },
+  "amazon:2024-08": {
+   "stan": 160956.071,
+   "hts": 159892.99,
+   "viirs_ref": 170308.0
+  },
+  "amazon:2024-09": {
+   "stan": 196125.789,
+   "hts": 199225.892,
+   "viirs_ref": 206557.0
+  },
+  "amazon:2024-10": {
+   "stan": 53706.47,
+   "hts": 55885.086,
+   "viirs_ref": 52775.0
+  },
+  "amazon:2025-05": {
+   "stan": 1291.483,
+   "hts": 1455.735,
+   "viirs_ref": 1382.0
+  },
+  "amazon:2025-06": {
+   "stan": 4750.466,
+   "hts": 5058.576,
+   "viirs_ref": 4766.0
+  },
+  "amazon:2025-07": {
+   "stan": 2883.445,
+   "hts": 3125.139,
+   "viirs_ref": 2623.0
+  },
+  "amazon:2025-09": {
+   "stan": 14174.535,
+   "hts": 14830.619,
+   "viirs_ref": 14673.0
+  },
+  "amazon:2025-10": {
+   "stan": 11801.039,
+   "hts": 12467.545,
+   "viirs_ref": 11431.0
+  },
+  "amazon:2025-11": {
+   "stan": 7114.02,
+   "hts": 7155.766,
+   "viirs_ref": 4721.0
+  },
+  "amazon:2025-08": {
+   "stan": 13101.689,
+   "hts": 12872.439,
+   "viirs_ref": 13681.0
+  },
+  "amazon:2025-12": {
+   "stan": 3775.14,
+   "hts": 3848.527,
+   "viirs_ref": 2319.0
+  },
+  "amazon:2024-11": {
+   "stan": 31776.042,
+   "hts": 33181.391,
+   "viirs_ref": 25871.0
+  },
+  "amazon:2024-01": {
+   "stan": 3986.24,
+   "hts": 4097.868,
+   "viirs_ref": 4689.0
+  },
+  "amazon:2024-02": {
+   "stan": 10718.896,
+   "hts": 12038.655,
+   "viirs_ref": 15866.0
+  },
+  "amazon:2024-12": {
+   "stan": 10396.181,
+   "hts": 10640.794,
+   "viirs_ref": 8230.0
+  },
+  "amazon:2025-02": {
+   "stan": 70.849,
+   "hts": 84.104,
+   "viirs_ref": 85.0
+  },
+  "amazon:2025-03": {
+   "stan": 65.172,
+   "hts": 78.469,
+   "viirs_ref": 83.0
+  },
+  "amazon:2025-04": {
+   "stan": 156.035,
+   "hts": 198.337,
+   "viirs_ref": 287.0
+  },
+  "amazon:2025-01": {
+   "stan": 524.181,
+   "hts": 524.201,
+   "viirs_ref": 403.0
+  },
+  "australia:2025-10": {
+   "stan": 197.96,
+   "hts": 210.188,
+   "viirs_ref": 105.0
+  },
+  "australia:2024-03": {
+   "stan": 154.494,
+   "hts": 190.589,
+   "viirs_ref": 182.0
+  },
+  "australia:2024-11": {
+   "stan": 1004.683,
+   "hts": 1174.066,
+   "viirs_ref": 980.0
+  },
+  "australia:2024-12": {
+   "stan": 180.642,
+   "hts": 170.638,
+   "viirs_ref": 183.0
+  },
+  "australia:2025-01": {
+   "stan": 750.015,
+   "hts": 771.338,
+   "viirs_ref": 456.0
+  },
+  "australia:2025-03": {
+   "stan": 92.335,
+   "hts": 109.062,
+   "viirs_ref": 119.0
+  },
+  "australia:2025-08": {
+   "stan": 340.866,
+   "hts": 291.305,
+   "viirs_ref": 391.0
+  },
+  "australia:2025-09": {
+   "stan": 250.632,
+   "hts": 255.356,
+   "viirs_ref": 273.0
+  },
+  "australia:2024-01": {
+   "stan": 86.168,
+   "hts": 83.297,
+   "viirs_ref": 142.0
+  },
+  "australia:2024-09": {
+   "stan": 484.483,
+   "hts": 504.509,
+   "viirs_ref": 466.0
+  },
+  "australia:2024-05": {
+   "stan": 351.658,
+   "hts": 351.753,
+   "viirs_ref": 142.0
+  },
+  "australia:2025-12": {
+   "stan": 56.59,
+   "hts": 55.773,
+   "viirs_ref": 13.0
+  },
+  "vietnam:2024-01": {
+   "stan": 32833.877,
+   "hts": 31430.346,
+   "viirs_ref": 34401.0
+  },
+  "vietnam:2024-02": {
+   "stan": 30425.358,
+   "hts": 29601.465,
+   "viirs_ref": 30766.0
+  },
+  "vietnam:2024-03": {
+   "stan": 24522.774,
+   "hts": 24246.167,
+   "viirs_ref": 24819.0
+  },
+  "vietnam:2024-04": {
+   "stan": 18265.784,
+   "hts": 18582.481,
+   "viirs_ref": 18751.0
+  },
+  "vietnam:2024-05": {
+   "stan": 3155.582,
+   "hts": 3184.884,
+   "viirs_ref": 3374.0
+  },
+  "vietnam:2025-01": {
+   "stan": 13777.754,
+   "hts": 13345.533,
+   "viirs_ref": 12613.0
+  },
+  "vietnam:2025-02": {
+   "stan": 13141.923,
+   "hts": 12886.344,
+   "viirs_ref": 11907.0
+  },
+  "vietnam:2025-03": {
+   "stan": 14739.114,
+   "hts": 15125.811,
+   "viirs_ref": 13750.0
+  },
+  "vietnam:2024-06": {
+   "stan": 1077.863,
+   "hts": 1166.559,
+   "viirs_ref": 1083.0
+  },
+  "vietnam:2024-08": {
+   "stan": 1887.277,
+   "hts": 2200.189,
+   "viirs_ref": 1848.0
+  },
+  "vietnam:2024-12": {
+   "stan": 1806.289,
+   "hts": 1868.928,
+   "viirs_ref": 1950.0
+  },
+  "vietnam:2025-04": {
+   "stan": 8965.304,
+   "hts": 8874.096,
+   "viirs_ref": 6287.0
+  },
+  "vietnam:2025-07": {
+   "stan": 530.463,
+   "hts": 603.869,
+   "viirs_ref": 588.0
+  },
+  "vietnam:2025-08": {
+   "stan": 1223.184,
+   "hts": 1355.393,
+   "viirs_ref": 953.0
+  },
+  "vietnam:2024-07": {
+   "stan": 300.78,
+   "hts": 339.368,
+   "viirs_ref": 202.0
+  },
+  "vietnam:2024-10": {
+   "stan": 107.455,
+   "hts": 123.042,
+   "viirs_ref": 65.0
+  },
+  "vietnam:2025-05": {
+   "stan": 2022.84,
+   "hts": 2194.766,
+   "viirs_ref": 1468.0
+  },
+  "vietnam:2025-06": {
+   "stan": 652.979,
+   "hts": 715.013,
+   "viirs_ref": 647.0
+  },
+  "vietnam:2025-12": {
+   "stan": 940.115,
+   "hts": 970.172,
+   "viirs_ref": 1235.0
+  },
+  "vietnam:2024-11": {
+   "stan": 277.553,
+   "hts": 289.202,
+   "viirs_ref": 166.0
+  },
+  "vietnam:2024-09": {
+   "stan": 476.89,
+   "hts": 529.702,
+   "viirs_ref": 417.0
+  },
+  "vietnam:2025-09": {
+   "stan": 359.249,
+   "hts": 392.064,
+   "viirs_ref": 328.0
+  },
+  "vietnam:2025-11": {
+   "stan": 89.661,
+   "hts": 99.44,
+   "viirs_ref": 28.0
+  },
+  "vietnam:2025-10": {
+   "stan": 170.386,
+   "hts": 188.503,
+   "viirs_ref": 165.0
+  }
+ },
+ "loo_region": {
+  "vietnam": {
+   "n": 24,
+   "metrics": {
+    "mae": 948.4247,
+    "wape": 0.068988,
+    "bias": -496.5534,
+    "n": 24
+   },
+   "hts_metrics": {
+    "mae": 783.9017,
+    "wape": 0.057021,
+    "bias": 3.5425,
+    "n": 24
+   },
+   "b2_metrics": {
+    "mae": 844.1616,
+    "wape": 0.061404,
+    "bias": -132.3574,
+    "n": 24
+   },
+   "comparisons": {
+    "stan_vs_hts": {
+     "method_a": "stan",
+     "method_b": "hts_anchor",
+     "delta_mae": 164.5229,
+     "ci95": [
+      -122.2949,
+      456.7158
+     ],
+     "prob_a_better": 0.1345,
+     "n": 24,
+     "n_boot": 2000,
+     "unit": "AOI-month row bootstrap (not independent hotspots)"
+    },
+    "stan_vs_b2": {
+     "method_a": "stan",
+     "method_b": "b2_seasonal_ratio",
+     "delta_mae": 104.2631,
+     "ci95": [
+      -157.1005,
+      370.7568
+     ],
+     "prob_a_better": 0.219,
+     "n": 24,
+     "n_boot": 2000,
+     "unit": "AOI-month row bootstrap (not independent hotspots)"
+    }
+   },
+   "per_aoi": {
+    "vietnam": {
+     "stan": {
+      "mae": 948.4247,
+      "wape": 0.068988,
+      "bias": -496.5534,
+      "n": 24
+     },
+     "hts": {
+      "mae": 783.9017,
+      "wape": 0.057021,
+      "bias": 3.5425,
+      "n": 24
+     },
+     "b2": {
+      "mae": 844.1616,
+      "wape": 0.061404,
+      "bias": -132.3574,
+      "n": 24
+     }
+    }
+   },
+   "headline": {
+    "mae": 948.4247,
+    "wape": 0.068988,
+    "bias": -496.5534,
+    "n": 24
+   },
+   "hts_headline": {
+    "mae": 783.9017,
+    "wape": 0.057021,
+    "bias": 3.5425,
+    "n": 24
+   },
+   "b2_headline": {
+    "mae": 844.1616,
+    "wape": 0.061404,
+    "bias": -132.3574,
+    "n": 24
+   },
+   "level_scale_2023": 0.9338,
+   "n_train": 1537,
+   "n_test": 258
+  },
+  "amazon": {
+   "n": 24,
+   "metrics": {
+    "mae": 5292.8504,
+    "wape": 0.122244,
+    "bias": -1476.9581,
+    "n": 24
+   },
+   "hts_metrics": {
+    "mae": 4250.1056,
+    "wape": 0.098161,
+    "bias": 264.5697,
+    "n": 24
+   },
+   "b2_metrics": {
+    "mae": 4647.7437,
+    "wape": 0.107344,
+    "bias": -313.4031,
+    "n": 24
+   },
+   "comparisons": {
+    "stan_vs_hts": {
+     "method_a": "stan",
+     "method_b": "hts_anchor",
+     "delta_mae": 1042.7449,
+     "ci95": [
+      -316.856,
+      2875.5084
+     ],
+     "prob_a_better": 0.105,
+     "n": 24,
+     "n_boot": 2000,
+     "unit": "AOI-month row bootstrap (not independent hotspots)"
+    },
+    "stan_vs_b2": {
+     "method_a": "stan",
+     "method_b": "b2_seasonal_ratio",
+     "delta_mae": 645.1067,
+     "ci95": [
+      -597.228,
+      2138.9824
+     ],
+     "prob_a_better": 0.1965,
+     "n": 24,
+     "n_boot": 2000,
+     "unit": "AOI-month row bootstrap (not independent hotspots)"
+    }
+   },
+   "per_aoi": {
+    "amazon": {
+     "stan": {
+      "mae": 5292.8504,
+      "wape": 0.122244,
+      "bias": -1476.9581,
+      "n": 24
+     },
+     "hts": {
+      "mae": 4250.1056,
+      "wape": 0.098161,
+      "bias": 264.5697,
+      "n": 24
+     },
+     "b2": {
+      "mae": 4647.7437,
+      "wape": 0.107344,
+      "bias": -313.4031,
+      "n": 24
+     }
+    }
+   },
+   "headline": {
+    "mae": 5292.8504,
+    "wape": 0.122244,
+    "bias": -1476.9581,
+    "n": 24
+   },
+   "hts_headline": {
+    "mae": 4250.1056,
+    "wape": 0.098161,
+    "bias": 264.5697,
+    "n": 24
+   },
+   "b2_headline": {
+    "mae": 4647.7437,
+    "wape": 0.107344,
+    "bias": -313.4031,
+    "n": 24
+   },
+   "level_scale_2023": 0.9817,
+   "n_train": 1558,
+   "n_test": 694
+  },
+  "australia": {
+   "n": 24,
+   "metrics": {
+    "mae": 1594.7552,
+    "wape": 0.110268,
+    "bias": 50.0501,
+    "n": 24
+   },
+   "hts_metrics": {
+    "mae": 1599.1516,
+    "wape": 0.110572,
+    "bias": 52.6104,
+    "n": 24
+   },
+   "b2_metrics": {
+    "mae": 1668.8351,
+    "wape": 0.11539,
+    "bias": 715.6354,
+    "n": 24
+   },
+   "comparisons": {
+    "stan_vs_hts": {
+     "method_a": "stan",
+     "method_b": "hts_anchor",
+     "delta_mae": -4.3963,
+     "ci95": [
+      -9.2886,
+      -0.3998
+     ],
+     "prob_a_better": 0.9875,
+     "n": 24,
+     "n_boot": 2000,
+     "unit": "AOI-month row bootstrap (not independent hotspots)"
+    },
+    "stan_vs_b2": {
+     "method_a": "stan",
+     "method_b": "b2_seasonal_ratio",
+     "delta_mae": -74.0798,
+     "ci95": [
+      -466.5926,
+      307.674
+     ],
+     "prob_a_better": 0.632,
+     "n": 24,
+     "n_boot": 2000,
+     "unit": "AOI-month row bootstrap (not independent hotspots)"
+    }
+   },
+   "per_aoi": {
+    "australia": {
+     "stan": {
+      "mae": 1594.7552,
+      "wape": 0.110268,
+      "bias": 50.0501,
+      "n": 24
+     },
+     "hts": {
+      "mae": 1599.1516,
+      "wape": 0.110572,
+      "bias": 52.6104,
+      "n": 24
+     },
+     "b2": {
+      "mae": 1668.8351,
+      "wape": 0.11539,
+      "bias": 715.6354,
+      "n": 24
+     }
+    }
+   },
+   "headline": null,
+   "hts_headline": null,
+   "b2_headline": null,
+   "level_scale_2023": 0.9511,
+   "n_train": 2989,
+   "n_test": 17
+  }
+ },
+ "weights_sha256": "7397d1f3d5f84e5f3f423312e65641a4eddbdb9756d5b297fb6dcabe5324c8fa"
+}

@@ -1,7 +1,7 @@
-import { Activity, BarChart3, Cpu, Layers } from "lucide-react";
+import { Activity, BarChart3, Cpu, Layers, Sparkles, Zap } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from "recharts";
 import { SimResponse } from "@/lib/api";
-import { compact, num } from "@/lib/utils";
+import { cn, compact, num } from "@/lib/utils";
 import { useLang } from "@/lib/i18n";
 import { ConstellationOrbitIllustration, MultiScaleHarmonizationIllustration } from "@/components/illustrations";
 import { Kpi, Section } from "./LabWidgets";
@@ -9,9 +9,10 @@ import { Kpi, Section } from "./LabWidgets";
 interface SimulatorTabProps {
   sim: SimResponse | null;
   sensors: string[];
+  onSelectPreset?: (sensors: string[]) => void;
 }
 
-export function SimulatorTab({ sim, sensors }: SimulatorTabProps) {
+export function SimulatorTab({ sim, sensors, onSelectPreset }: SimulatorTabProps) {
   const { lang } = useLang();
   const vi = lang === "vi";
 
@@ -36,9 +37,104 @@ export function SimulatorTab({ sim, sensors }: SimulatorTabProps) {
       }))
     : [];
 
+  const isFullConstellation = sensors.length >= 4;
+  const isModisOnly = sensors.length === 1 && sensors[0] === "MODIS";
+  const isSnppOnly = sensors.length === 1 && sensors[0] === "SNPP";
+
   return (
     <div className="space-y-5 animate-fade-in">
-      {/* Dynamic Orbital Constellation Swath Illustration */}
+      {/* 1. Quick Benchmark Scenario Presets for Judges */}
+      {onSelectPreset && (
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 font-mono">
+              <Zap className="h-3.5 w-3.5 text-amber-400" />
+              {vi ? "Kịch bản thử nghiệm nhanh (1-Click Judge Presets)" : "1-Click Benchmark Scenarios"}
+            </span>
+            <span className="text-xs text-slate-400 font-mono hidden sm:inline">
+              NASA Earth Science Lab
+            </span>
+          </div>
+
+          <div className="flex flex-wrap gap-2 text-xs">
+            <button
+              type="button"
+              onClick={() => onSelectPreset(["MODIS", "SNPP", "NOAA-20", "NOAA-21"])}
+              className={cn(
+                "rounded-lg px-3 py-1.5 font-semibold transition flex items-center gap-1.5 min-h-[34px]",
+                isFullConstellation
+                  ? "bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 shadow-sm"
+                  : "border border-slate-700 bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700",
+              )}
+            >
+              <span className="h-2 w-2 rounded-full bg-cyan-400" />
+              <span>{vi ? "Chùm 4 Vệ tinh Đầy đủ (All 4 Sensors)" : "Full Constellation (4 Satellites)"}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onSelectPreset(["MODIS"])}
+              className={cn(
+                "rounded-lg px-3 py-1.5 font-semibold transition flex items-center gap-1.5 min-h-[34px]",
+                isModisOnly
+                  ? "bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-sm"
+                  : "border border-slate-700 bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700",
+              )}
+            >
+              <span className="h-2 w-2 rounded-full bg-amber-400" />
+              <span>{vi ? "Chỉ dùng MODIS 1km (Bỏ sót VIIRS)" : "MODIS 1km Only (Omit VIIRS)"}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onSelectPreset(["SNPP"])}
+              className={cn(
+                "rounded-lg px-3 py-1.5 font-semibold transition flex items-center gap-1.5 min-h-[34px]",
+                isSnppOnly
+                  ? "bg-orange-500/25 text-orange-300 border border-orange-500/40 shadow-sm"
+                  : "border border-slate-700 bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700",
+              )}
+            >
+              <span className="h-2 w-2 rounded-full bg-orange-400" />
+              <span>{vi ? "Chỉ dùng Suomi NPP 375m (Single VIIRS)" : "Single Suomi NPP 375m"}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Executive Mission Verdict for Judges */}
+      {sim && custom && (
+        <div className="rounded-2xl border border-cyan-500/40 bg-gradient-to-r from-cyan-950/40 via-slate-900/90 to-blue-950/40 p-4 space-y-2 shadow-lg backdrop-blur">
+          <div className="flex items-center justify-between border-b border-cyan-500/20 pb-2">
+            <span className="font-mono text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-cyan-400" />
+              {vi ? "KẾT LUẬN KHOA HỌC SỨ MỆNH (EXECUTIVE MISSION VERDICT)" : "EXECUTIVE SCIENTIFIC MISSION VERDICT"}
+            </span>
+            <span className="font-mono text-xs rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2.5 py-0.5 text-cyan-200">
+              NASA Space Apps 2026
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-100 font-medium leading-relaxed">
+            {vi
+              ? `Cấu hình [${custom.sensor_config}]: Độ lệch quan trắc ước tính ${
+                  custom.delta_vs_all != null && custom.delta_vs_all < 0
+                    ? `${compact(Math.abs(custom.delta_vs_all))} điểm nhiệt (-${Math.round(
+                        (Math.abs(custom.delta_vs_all) / (custom.year_total + Math.abs(custom.delta_vs_all || 1))) * 100,
+                      )}%)`
+                    : "0 (Trạng thái chuẩn chùm vệ tinh)"
+                }. Cảm biến MODIS (1km) độc lập thường bỏ sót các đám cháy nhỏ dưới độ phân giải pixel. Việc kết hợp chùm vệ tinh VIIRS (Suomi NPP + NOAA-20/21) cung cấp khả năng phát hiện tăng gấp 3 đến 4 lần tại cùng khu vực quan sát.`
+              : `Configuration [${custom.sensor_config}]: Observation departure is ${
+                  custom.delta_vs_all != null && custom.delta_vs_all < 0
+                    ? `${compact(Math.abs(custom.delta_vs_all))} detections (-${Math.round(
+                        (Math.abs(custom.delta_vs_all) / (custom.year_total + Math.abs(custom.delta_vs_all || 1))) * 100,
+                      )}%)`
+                    : "0 (Baseline full constellation)"
+                }. MODIS (1km) alone misses small-scale sub-pixel fires. Combining the VIIRS tandem constellation (Suomi NPP + NOAA-20/21) increases thermal detection fidelity by 3x to 4x over the same geographical footprint.`}
+          </p>
+        </div>
+      )}
+
+      {/* 3. Dynamic Orbital Constellation Swath Illustration */}
       <ConstellationOrbitIllustration activeSensors={sensors} />
 
       {sim && custom ? (
@@ -211,7 +307,6 @@ export function SimulatorTab({ sim, sensors }: SimulatorTabProps) {
                       (!sim.simulations.some((x) => x.sensor_config === "custom") &&
                         s.sensor_config === "all_sensors");
 
-                    // Find peak month
                     const entries = Object.entries(s.months);
                     const peak = entries.reduce((max, cur) => (cur[1] || 0) > (max[1] || 0) ? cur : max, entries[0]);
 

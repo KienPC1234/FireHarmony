@@ -1,24 +1,69 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { Suspense, useEffect, useState } from "react";
 import {
-  Activity,
-  ArrowUpRight,
   CalendarDays,
   Check,
   Copy,
   Database,
   FileCheck2,
-  Flame,
   FlaskConical,
   House,
   Menu,
   MessagesSquare,
   Satellite,
   X,
+  Compass,
+  Microscope,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLang, type Lang } from "@/lib/i18n";
+import { useResearchContext } from "@/lib/researchContext";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { Footer } from "@/components/Footer";
+
+function NasaInsignia() {
+  return (
+    <div className="flex items-center gap-1.5 shrink-0 select-none">
+      <svg
+        viewBox="0 0 120 100"
+        className="h-6 w-8 shrink-0 drop-shadow-sm"
+        aria-label="NASA Meatball Insignia"
+      >
+        <circle cx="60" cy="50" r="48" fill="#0B3D91" />
+        <ellipse
+          cx="60"
+          cy="50"
+          rx="52"
+          ry="18"
+          fill="none"
+          stroke="#FFFFFF"
+          strokeWidth="3.5"
+          transform="rotate(-25 60 50)"
+        />
+        <path
+          d="M20 70 L60 20 L75 55 L95 18"
+          fill="none"
+          stroke="#FC3D21"
+          strokeWidth="5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <text
+          x="60"
+          y="58"
+          textAnchor="middle"
+          fill="#FFFFFF"
+          fontSize="24"
+          fontWeight="900"
+          fontFamily="system-ui, sans-serif"
+          letterSpacing="2"
+        >
+          NASA
+        </text>
+      </svg>
+    </div>
+  );
+}
 
 function LangToggle() {
   const { lang, setLang } = useLang();
@@ -29,10 +74,10 @@ function LangToggle() {
       onClick={() => setLang(l)}
       aria-pressed={lang === l}
       className={cn(
-        "rounded-full px-3 py-1 text-xs font-semibold tracking-wide transition-all min-h-[32px] min-w-[36px]",
+        "rounded px-2 py-0.5 text-xs font-semibold transition-all min-h-[26px] min-w-[28px] flex items-center justify-center",
         lang === l
-          ? "bg-cyan-500/25 text-cyan-300 shadow-sm border border-cyan-500/40"
-          : "text-slate-400 hover:text-white hover:bg-white/5",
+          ? "bg-cyan-500/25 text-cyan-300 font-bold border border-cyan-500/40"
+          : "text-slate-400 hover:text-white",
       )}
     >
       {label}
@@ -40,7 +85,7 @@ function LangToggle() {
   );
   return (
     <div
-      className="flex items-center gap-0.5 rounded-full border border-slate-700 bg-slate-900/90 p-0.5 shrink-0"
+      className="flex items-center gap-0.5 rounded-lg border border-slate-800 bg-slate-900/90 p-0.5 shrink-0"
       role="group"
       aria-label="Language / Ngôn ngữ"
     >
@@ -50,71 +95,108 @@ function LangToggle() {
   );
 }
 
+function ModeToggle() {
+  const { mode, setMode } = useResearchContext();
+  const { t } = useLang();
+
+  return (
+    <div
+      className="hidden xl:flex items-center gap-0.5 rounded-lg border border-slate-800 bg-slate-900/90 p-0.5 shrink-0 text-xs"
+      role="group"
+      aria-label="Experience Mode / Chế độ trải nghiệm"
+    >
+      <button
+        type="button"
+        onClick={() => setMode("explore")}
+        aria-pressed={mode === "explore"}
+        className={cn(
+          "inline-flex items-center gap-1 rounded px-2 py-0.5 font-medium transition min-h-[26px]",
+          mode === "explore"
+            ? "bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30 shadow-sm"
+            : "text-slate-400 hover:text-white",
+        )}
+      >
+        <Compass className="h-3 w-3" />
+        <span>{t("nav.explore")}</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setMode("research")}
+        aria-pressed={mode === "research"}
+        className={cn(
+          "inline-flex items-center gap-1 rounded px-2 py-0.5 font-medium transition min-h-[26px]",
+          mode === "research"
+            ? "bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30 shadow-sm"
+            : "text-slate-400 hover:text-white",
+        )}
+      >
+        <Microscope className="h-3 w-3" />
+        <span>{t("nav.research")}</span>
+      </button>
+    </div>
+  );
+}
+
 export function Layout() {
-  const { t, lang } = useLang();
-  const vi = lang === "vi";
+  const { t } = useLang();
   const location = useLocation();
+  const { dataFeed } = useResearchContext();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Close mobile menu on navigation
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
-  const searchParams = new URLSearchParams(location.search);
-  const dataParam = searchParams.get("data");
+  const isRawMode = dataFeed === "raw";
 
-  // Sync context mode: if explicitly data=raw, it's raw.
-  const isRawMode = dataParam === "raw";
-
-  // Desktop primary navigation items
+  // Compact navigation items preventing collision
   const primaryNav = [
-    { to: "/calendar", label: "Fire Calendar", icon: CalendarDays },
-    { to: "/lab", label: "Sensor Lab", icon: Satellite },
-    { to: "/evidence", label: vi ? "Bằng chứng" : "Evidence", icon: FileCheck2 },
-    { to: "/investigator", label: "AI Investigator", icon: MessagesSquare },
-    { to: "/methods", label: vi ? "Phương pháp & Dữ liệu" : "Methods & Data", icon: FlaskConical },
+    { to: "/calendar", label: t("nav.calendar"), icon: CalendarDays },
+    { to: "/lab", label: t("nav.lab"), icon: Satellite },
+    { to: "/evidence", label: t("nav.evidence"), icon: FileCheck2 },
+    { to: "/investigator", label: t("nav.investigator"), icon: MessagesSquare },
+    { to: "/methods", label: t("nav.methods"), icon: FlaskConical },
   ];
 
-  // Mobile drawer full navigation items
   const mobileNav = [
     {
       to: "/",
-      label: vi ? "Tổng quan" : "Overview",
-      hint: vi ? "Định vị sản phẩm & vấn đề khác biệt cảm biến" : "Product positioning & sensor gap overview",
+      label: t("nav.overview"),
+      hint: t("nav.home_hint"),
       icon: House,
       end: true,
     },
     {
       to: "/calendar",
-      label: "Fire Calendar",
-      hint: vi ? "Lịch hoạt động cháy đa thập kỷ & bản đồ điểm nóng" : "Multi-decadal fire calendar & hotspot map",
+      label: t("nav.calendar"),
+      hint: t("nav.calendar_hint"),
       icon: CalendarDays,
     },
     {
       to: "/lab",
-      label: "Sensor Lab",
-      hint: vi ? "So sánh cảm biến, mô phỏng quan trắc & kiểm chứng" : "Sensor X-Ray, blind replay & mission simulator",
+      label: t("nav.lab"),
+      hint: t("nav.lab_hint"),
       icon: Satellite,
     },
     {
       to: "/evidence",
-      label: vi ? "Bằng chứng & Toàn vẹn" : "Evidence & Integrity",
-      hint: vi ? "Sổ đối chiếu dữ liệu quan trắc MODIS & VIIRS" : "Observation & ingestion integrity ledger",
+      label: t("nav.evidence"),
+      hint: t("nav.evidence_hint"),
       icon: FileCheck2,
     },
     {
       to: "/investigator",
-      label: "AI Investigator",
-      hint: vi ? "Phân tích khoa học có căn cứ, không ảo giác" : "Scientific evidence-grounded query assistant",
+      label: t("nav.investigator"),
+      hint: t("nav.investigator_hint"),
       icon: MessagesSquare,
     },
     {
       to: "/methods",
-      label: vi ? "Phương pháp & Dữ liệu" : "Methods & Data",
-      hint: vi ? "Quy trình hiệu chuẩn, mô hình & giới hạn khoa học" : "Pipeline, models, benchmarks & limitations",
+      label: t("nav.methods"),
+      hint: t("nav.methods_hint"),
       icon: FlaskConical,
     },
   ];
@@ -129,31 +211,27 @@ export function Layout() {
     }
   };
 
-  const isHome = location.pathname === "/";
-
   return (
-    <div className="min-h-screen bg-[#0B1220] text-slate-100 flex flex-col font-sans antialiased selection:bg-cyan-500/30">
-      {/* Sticky Primary Header (64px) */}
-      <header className="sticky top-0 z-40 border-b border-slate-800 bg-[#0B1220]/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 h-16">
-          {/* Brand Identity */}
-          <NavLink to="/" className="flex items-center gap-3 group shrink-0 focus-visible:outline-none">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-500/40 bg-[#111C2E] shadow-sm transition-transform group-hover:scale-105">
-              <Flame className="h-5 w-5 text-orange-400" />
-            </div>
-            <div className="flex flex-col">
-              <span className="font-bold text-base tracking-tight text-white group-hover:text-cyan-300 transition-colors">
-                FireHarmony
-              </span>
-              <span className="text-xs font-medium text-slate-400">
-                {vi ? "Bằng chứng hoạt động cháy vệ tinh" : "Satellite fire evidence"}
-              </span>
-            </div>
-          </NavLink>
+    <div className="h-screen w-screen bg-[#060B13] text-slate-100 flex flex-col font-sans antialiased selection:bg-cyan-500/30 overflow-hidden">
+      {/* Primary Header with Absolute Spacing Discipline */}
+      <header className="shrink-0 h-14 border-b border-slate-800 bg-[#0B1220]/95 backdrop-blur-md px-3 sm:px-4 flex items-center justify-between gap-3 z-40">
+        {/* Cụm 1 (Trái): Logo & Brand Identity */}
+        <NavLink to="/" className="flex items-center gap-2 group shrink-0 focus-visible:outline-none">
+          <NasaInsignia />
+          <div className="flex flex-col">
+            <span className="font-bold text-sm tracking-tight text-white group-hover:text-cyan-300 transition-colors">
+              FireHarmony
+            </span>
+            <span className="hidden xl:inline text-[10px] text-slate-400 font-mono leading-none">
+              {t("nav.brand_sub")}
+            </span>
+          </div>
+        </NavLink>
 
-          {/* Center Navigation Bar (Desktop) */}
+        {/* Cụm 2 (Giữa): Navigation Links (Responsive, centered, zero overlapping) */}
+        <div className="hidden md:flex flex-1 items-center justify-center min-w-0 px-2 overflow-x-auto">
           <nav
-            className="hidden lg:flex items-center gap-1.5 rounded-full border border-slate-800 bg-[#111C2E] p-1"
+            className="flex items-center gap-0.5 lg:gap-1 rounded-xl border border-slate-800 bg-slate-900/80 p-0.5 shrink-0"
             aria-label="Primary Navigation"
           >
             {primaryNav.map(({ to, label, icon: Icon }) => (
@@ -162,99 +240,92 @@ export function Layout() {
                 to={to}
                 className={({ isActive }) =>
                   cn(
-                    "flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all shrink-0 min-h-[36px]",
+                    "flex items-center gap-1.5 rounded-lg px-2 lg:px-2.5 py-1 text-xs font-semibold transition-all shrink-0 min-h-[28px]",
                     isActive
-                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold shadow-sm"
+                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm"
                       : "text-slate-300 hover:text-white hover:bg-white/5",
                   )
                 }
               >
-                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 <span>{label}</span>
               </NavLink>
             ))}
           </nav>
+        </div>
 
-          {/* Right Action & Context Area */}
-          <div className="flex items-center gap-2.5 shrink-0">
-            {/* Active Data Mode Badge */}
-            <div
-              className={cn(
-                "hidden sm:flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-mono border",
-                isRawMode
-                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                  : "border-amber-500/30 bg-amber-500/10 text-amber-300",
-              )}
-              title={
-                isRawMode
-                  ? (vi ? "Dữ liệu NASA FIRMS quan trắc thực tế" : "NASA FIRMS Observed Data Active")
-                  : (vi ? "Dữ liệu mẫu kiểm thử minh họa" : "Synthetic Demonstration Data Active")
-              }
-            >
-              <Database className="h-3.5 w-3.5" />
-              <span>{isRawMode ? (vi ? "NASA quan trắc" : "NASA Observed") : (vi ? "Dữ liệu mẫu" : "Synthetic Feed")}</span>
-            </div>
+        {/* Cụm 3 (Phải): Controls & Actions */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Mode Switch (Explore / Research) */}
+          <ModeToggle />
 
-            <LangToggle />
-
-            {/* Context-aware CTA */}
-            {isHome ? (
-              <NavLink
-                to="/calendar"
-                className="flex items-center gap-1.5 rounded-xl bg-orange-600 hover:bg-orange-500 px-4 py-2 text-xs font-bold text-white shadow-sm transition active:scale-95 min-h-[40px]"
-              >
-                <span>{vi ? "Khám phá" : "Explore"}</span>
-                <ArrowUpRight className="h-4 w-4" />
-              </NavLink>
-            ) : (
-              <button
-                type="button"
-                onClick={handleShare}
-                title={vi ? "Sao chép liên kết" : "Share URL"}
-                className="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-200 transition min-h-[40px]"
-              >
-                {copied ? (
-                  <>
-                    <Check className="h-3.5 w-3.5 text-emerald-400" />
-                    <span className="text-emerald-300">{vi ? "Đã chép" : "Copied"}</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-3.5 w-3.5 text-slate-300" />
-                    <span>{vi ? "Chia sẻ" : "Share"}</span>
-                  </>
-                )}
-              </button>
+          {/* Data Feed Status Badge */}
+          <div
+            className={cn(
+              "hidden 2xl:flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-mono border min-h-[26px]",
+              isRawMode
+                ? "border-emerald-500/40 bg-emerald-950/40 text-emerald-300"
+                : "border-sky-500/40 bg-sky-950/40 text-sky-300",
             )}
-
-            {/* Mobile Menu Toggle Button */}
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden flex items-center justify-center rounded-xl border border-slate-700 bg-slate-800 p-2 text-slate-300 hover:text-white min-h-[44px] min-w-[44px]"
-              aria-label="Toggle navigation menu"
-              aria-expanded={mobileMenuOpen}
-            >
-              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
+            title={
+              isRawMode
+                ? t("common.observed_desc")
+                : t("common.synthetic_desc")
+            }
+          >
+            <Database className="h-3 w-3 shrink-0" />
+            <span>
+              {isRawMode ? t("common.observed_feed") : t("common.synthetic_feed")}
+            </span>
           </div>
+
+          <LangToggle />
+
+          {/* Share / Copy URL Action */}
+          <button
+            type="button"
+            onClick={handleShare}
+            title={t("common.copy_link")}
+            className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900 hover:bg-slate-800 px-2 py-1 text-xs font-semibold text-slate-200 transition min-h-[26px]"
+          >
+            {copied ? (
+              <>
+                <Check className="h-3 w-3 text-emerald-400" />
+                <span className="hidden sm:inline text-emerald-300">{t("nav.copied")}</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-3 w-3 text-slate-300" />
+                <span className="hidden sm:inline">{t("nav.share")}</span>
+              </>
+            )}
+          </button>
+
+          {/* Mobile Menu Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden flex items-center justify-center rounded-lg border border-slate-800 bg-slate-900 p-1.5 text-slate-300 hover:text-white min-h-[32px] min-w-[32px]"
+            aria-label="Toggle navigation menu"
+            aria-expanded={mobileMenuOpen}
+          >
+            {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+          </button>
         </div>
       </header>
 
       {/* Mobile Drawer Navigation (Sheet) */}
       {mobileMenuOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
-          {/* Backdrop */}
+        <div className="md:hidden fixed inset-0 z-50 flex">
           <div
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm"
             onClick={() => setMobileMenuOpen(false)}
           />
 
-          {/* Drawer content */}
           <div className="relative ml-auto flex h-full w-full max-w-sm flex-col bg-[#0B1220] border-l border-slate-800 p-6 shadow-2xl overflow-y-auto">
-            <div className="flex items-center justify-between pb-6 border-b border-slate-800">
+            <div className="flex items-center justify-between pb-5 border-b border-slate-800">
               <div className="flex items-center gap-2">
-                <Flame className="h-5 w-5 text-orange-400" />
+                <NasaInsignia />
                 <span className="font-bold text-white text-base">FireHarmony</span>
               </div>
               <button
@@ -267,119 +338,97 @@ export function Layout() {
               </button>
             </div>
 
-            <div className="py-4">
-              <div className="mb-3 px-2 text-xs font-bold uppercase tracking-wider text-slate-400">
-                {vi ? "Điều hướng" : "Navigation"}
-              </div>
+            <div className="py-4 space-y-4">
               <div className="space-y-1.5">
-                {mobileNav.map(({ to, label, hint, icon: Icon, end }) => (
-                  <NavLink
-                    key={to}
-                    to={to}
-                    end={end}
-                    className={({ isActive }) =>
-                      cn(
-                        "flex items-start gap-3 rounded-xl p-3 text-sm transition-all min-h-[52px]",
-                        isActive
-                          ? "bg-cyan-500/15 text-cyan-300 border border-cyan-500/40 font-semibold"
-                          : "text-slate-300 hover:bg-slate-800/80 hover:text-white",
-                      )
-                    }
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  {t("nav.experience_mode")}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const params = new URLSearchParams(window.location.search);
+                      params.set("mode", "explore");
+                      window.history.replaceState(null, "", `?${params.toString()}`);
+                      setMobileMenuOpen(false);
+                    }}
+                    className="rounded-lg border border-cyan-500/40 bg-cyan-950/40 p-2 text-xs font-bold text-cyan-300 text-center min-h-[44px]"
                   >
-                    <Icon className="h-5 w-5 shrink-0 mt-0.5 text-cyan-400" />
-                    <div className="flex flex-col">
-                      <span className="font-medium text-white">{label}</span>
-                      <span className="text-xs text-slate-400">{hint}</span>
-                    </div>
-                  </NavLink>
-                ))}
+                    {t("nav.mode_explore")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const params = new URLSearchParams(window.location.search);
+                      params.set("mode", "research");
+                      window.history.replaceState(null, "", `?${params.toString()}`);
+                      setMobileMenuOpen(false);
+                    }}
+                    className="rounded-lg border border-purple-500/40 bg-purple-950/40 p-2 text-xs font-bold text-purple-300 text-center min-h-[44px]"
+                  >
+                    {t("nav.mode_research")}
+                  </button>
+                </div>
               </div>
-            </div>
 
-            {/* Mobile context summary */}
-            <div className="mt-auto pt-6 border-t border-slate-800 space-y-3">
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>{vi ? "Dữ liệu kích hoạt:" : "Active Data:"}</span>
-                <span
-                  className={cn(
-                    "font-mono px-2 py-0.5 rounded",
-                    isRawMode
-                      ? "bg-emerald-500/15 text-emerald-300"
-                      : "bg-amber-500/15 text-amber-300"
-                  )}
-                >
-                  {isRawMode ? "NASA Observed" : "Synthetic Feed"}
-                </span>
-              </div>
-              <div className="text-xs text-slate-500">
-                NASA Space Apps Challenge 2026 · Fire Intelligence Lab
+              <div className="pt-2">
+                <div className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
+                  {t("nav.navigation")}
+                </div>
+                <div className="space-y-2">
+                  {mobileNav.map(({ to, label, hint, icon: Icon, end }) => (
+                    <NavLink
+                      key={to}
+                      to={to}
+                      end={end}
+                      className={({ isActive }) =>
+                        cn(
+                          "flex items-start gap-3 rounded-xl p-3 transition text-sm min-h-[44px]",
+                          isActive
+                            ? "border border-cyan-500/40 bg-cyan-950/40 text-cyan-200 font-bold"
+                            : "border border-slate-800 bg-slate-900/40 text-slate-300 hover:border-slate-700",
+                        )
+                      }
+                    >
+                      <Icon className="h-5 w-5 mt-0.5 text-cyan-400 shrink-0" />
+                      <div>
+                        <div>{label}</div>
+                        <div className="text-xs text-slate-400 font-normal leading-relaxed">{hint}</div>
+                      </div>
+                    </NavLink>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Main Content Area */}
-      <main className="mx-auto max-w-7xl flex-1 w-full px-4 py-6">
+      {/* Main Viewport Content Area: Root-level natural scrollbar at screen edge for content pages, full-bleed overflow-hidden for Calendar GIS map */}
+      <main
+        className={cn(
+          "flex-1 min-h-0 flex flex-col",
+          location.pathname.startsWith("/calendar") ? "overflow-hidden" : "overflow-y-auto",
+        )}
+      >
         <ErrorBoundary>
           <Suspense
             fallback={
-              <div className="flex items-center justify-center py-24 text-slate-400 gap-3">
-                <Activity className="h-5 w-5 animate-spin text-cyan-400" />
-                <span className="text-sm font-mono tracking-wide">{t("common.loading")}</span>
+              <div className="flex-1 flex items-center justify-center p-12">
+                <div className="flex items-center gap-3 text-slate-400 text-sm font-mono">
+                  <div className="h-4 w-4 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
+                  <span>{t("common.loading")}</span>
+                </div>
               </div>
             }
           >
             <Outlet />
           </Suspense>
         </ErrorBoundary>
+
+        {/* Global Scientific Footer with Team AlphaCentauriAB */}
+        {!location.pathname.startsWith("/calendar") && <Footer />}
       </main>
-
-      {/* Scientific Footer */}
-      <footer className="border-t border-slate-800 bg-[#070D18] py-8 text-xs text-slate-400">
-        <div className="mx-auto max-w-7xl px-4 space-y-4">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2 text-slate-200 font-bold text-sm">
-                <span>FireHarmony</span>
-                <span className="text-slate-600 font-normal">|</span>
-                <span className="text-cyan-400 font-medium">NASA Space Apps Challenge 2026</span>
-              </div>
-              <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
-                {vi
-                  ? "Nghiên cứu Khoa học Trái Đất: Chuẩn hóa chuỗi dữ liệu điểm nóng hoạt động cháy đa thập kỷ cho MODIS C6.1 (1 km) và VIIRS (375 m). Phân tích phát hiện điểm nóng và chỉ số hoạt động đã điều chỉnh theo cảm biến; không đo trực tiếp số vụ cháy hoặc diện tích cháy thực tế."
-                  : "Earth Science Research: Multi-decadal active-fire hotspot harmonization for MODIS C6.1 (1 km) and VIIRS (375 m). Analyzes hotspot detections and sensor-adjusted activity indexes; does not measure real fire incidents or burned area."}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-4 text-xs font-mono shrink-0">
-              <NavLink to="/methods" className="text-slate-300 hover:text-cyan-300 underline underline-offset-4">
-                {vi ? "Phương pháp" : "Methods"}
-              </NavLink>
-              <NavLink to="/evidence" className="text-slate-300 hover:text-cyan-300 underline underline-offset-4">
-                {vi ? "Sổ bằng chứng" : "Evidence Ledger"}
-              </NavLink>
-              <a
-                href="https://earthdata.nasa.gov/data/tools/firms"
-                target="_blank"
-                rel="noreferrer"
-                className="text-slate-300 hover:text-cyan-300 underline underline-offset-4"
-              >
-                NASA FIRMS
-              </a>
-            </div>
-          </div>
-
-          <div className="pt-3 border-t border-slate-800/60 text-xs text-slate-500 flex flex-wrap justify-between items-center gap-2">
-            <span>
-              {vi
-                ? "Giới hạn: Sản phẩm nghiên cứu phục vụ đánh giá xu hướng lịch sử. Không phục vụ điều phối cứu hỏa hoặc an toàn khẩn cấp."
-                : "Disclaimer: Research prototype for historical trend evaluation. Not intended for operational wildfire response or safety dispatch."}
-            </span>
-            <span>Version: 2026.1 · Open Source</span>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

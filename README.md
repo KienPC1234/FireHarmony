@@ -27,7 +27,7 @@ confirmed fires. VIIRS is a sensor reference, not fire ground truth.
 ```bash
 make install
 make sample          # deterministic synthetic sample (offline demo)
-make test-backend    # 84 tests, no network needed
+make test-backend    # 90 tests, no network needed
 make dev             # API :8000 + Vite :5173
 make demo            # build frontend and serve API+SPA on :8000
 ```
@@ -82,6 +82,23 @@ CUDA does not beat that anchor, and scaling 22k → 258k parameters still loses.
 It is served as `method=hts` on raw data (candidate badge required, no sample
 fallback) and exposed at `/api/firms/hts-status`. Evidence and limits:
 `docs/TILE_HIERARCHY.md`.
+
+**STAN is the served main model for raw data.** A
+negative-binomial spatial-temporal network (seasonal FiLM + dilated TCN +
+target-month query + neighbour context) reaches MAE **2,128.7 vs B2 2,386.9**
+on the 72 holdout months (−10.8%, CI [−534.8, −19.1]; all three AOIs improve).
+It edges HTS on the point estimate but not conclusively. `method=stan` serves
+STAN for 2024+ with HTS fallback before 2024; the sample uses B2 (STAN needs
+1° tiles). LOO still fails for Vietnam/Amazon, so this is a product decision,
+not a claim that region transfer is solved. See `docs/TILE_HIERARCHY.md` §9 and
+`/api/firms/stan-status`.
+
+**Spatial context is the strongest lever (retrospective only).** A neighbour-tile
+HGB reaches MAE **1,312.8 vs B2 2,386.9** on the 72 holdout months (all three
+AOIs, CI excludes 0, and a 210-tile spatial holdout also wins). The catch: the
+gain needs same-month VIIRS in adjacent tiles; without it the model is worse
+than HTS (2,302.5). It is spatial reconstruction/gap-fill, not a forecast or a
+pure MODIS→VIIRS calibration. See `docs/TILE_HIERARCHY.md`.
 
 **No model wins every region.** The HGB gate abstains on the current data and
 serves the best baseline (B2/B1); B2 is the pooled point-estimate winner and

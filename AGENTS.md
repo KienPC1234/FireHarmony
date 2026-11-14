@@ -23,6 +23,9 @@ Roots: `backend/app/firms/` (schema/harmonize/calendar/dl),
    scorer; `GET /api/firms/dl-info` must report `has_torch` honestly.
 4. **No secrets.** `backend/.env` / `FIRMS_MAP_KEY` stay out of git.
 5. **No Docker.** PM2 + Makefile as before.
+6. **Strict i18n Dictionary standard.** Absolutely zero inline ternary localization (`vi ? ... : ...` or `lang === 'vi' ? ... : ...`). All user-facing strings must be defined as structured dictionary keys in `frontend/src/locales/vi.ts` and `frontend/src/locales/en.ts` and rendered exclusively via `t("namespace.key")`.
+6. **Strict i18n Dictionary standard.** Absolutely zero inline ternary localization (`vi ? ... : ...` or `lang === 'vi' ? ... : ...`). All user-facing strings must be defined as structured dictionary keys in `frontend/src/locales/vi.ts` and `frontend/src/locales/en.ts` and rendered exclusively via `t("namespace.key")`.
+7. **Project License is strictly MIT.** MIT License is enforced across root `LICENSE`, `package.json`, UI Footer, metadata, and documentation.
 
 ## Commands
 

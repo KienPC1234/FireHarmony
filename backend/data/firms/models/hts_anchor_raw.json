@@ -10,21 +10,48 @@
  "b2_mae": 2386.9135,
  "hts_mae": 2230.6889,
  "mean_gain_vs_b2": 0.0655,
+ "metrics": {
+  "mae": 2230.6889,
+  "wape": 0.093585,
+  "bias": 35.8725,
+  "n": 72
+ },
+ "b2_metrics": {
+  "mae": 2386.9135,
+  "wape": 0.100139,
+  "bias": 89.9583,
+  "n": 72
+ },
+ "headline": {
+  "mae": 2544.0027,
+  "wape": 0.089193,
+  "bias": 49.0357,
+  "n": 48
+ },
  "per_aoi": {
   "vietnam": {
+   "mae": 790.945,
+   "wape": 0.057533,
+   "bias": -37.2554,
+   "n": 24,
    "b2_mae": 844.16,
-   "hts_mae": 790.95,
-   "n": 24
+   "hts_mae": 790.95
   },
   "amazon": {
+   "mae": 4297.0603,
+   "wape": 0.099245,
+   "bias": 135.3269,
+   "n": 24,
    "b2_mae": 4647.74,
-   "hts_mae": 4297.06,
-   "n": 24
+   "hts_mae": 4297.06
   },
   "australia": {
+   "mae": 1604.0613,
+   "wape": 0.110911,
+   "bias": 9.5459,
+   "n": 24,
    "b2_mae": 1668.84,
-   "hts_mae": 1604.06,
-   "n": 24
+   "hts_mae": 1604.06
   }
  },
  "comparisons": {
@@ -61,7 +88,7 @@
  },
  "deployed": false,
  "status": "candidate: consistent point gain, CI includes 0",
- "dataset_sha256": "324e84959ae73fb833cad81003fcc9d9e4a0377eb028f3824ed87951220b833d",
+ "dataset_sha256": "f2c6a7565ce696183b3215f5af7197f6c9d4821f35b767ffee66527cfa9c2180",
  "predictions": {
   "amazon:2024-01": {
    "hts": 6571.0295,
