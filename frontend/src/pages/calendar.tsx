@@ -472,6 +472,51 @@ export function CalendarPage() {
   };
 
   if (error) return <ErrorState error={error} onRetry={() => setApplied({ ...applied })} />;
+  if (rawUnavailable && !data) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] p-6">
+        <div className="max-w-lg w-full rounded-2xl border border-amber-500/40 bg-amber-950/30 p-6 space-y-4 text-sm text-amber-100">
+          <div className="flex items-center gap-2 font-bold text-amber-300 text-base">
+            <Zap className="h-5 w-5 shrink-0" />
+            <span>{t("calendar.raw_unavailable_title")}</span>
+          </div>
+          <p className="text-xs text-amber-200/90 leading-relaxed">
+            {rawUnavailable.message || t("calendar.raw_unavailable_body")}
+          </p>
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setRawUnavailable(null);
+                setApplied({ ...applied });
+              }}
+              className="rounded-lg border border-cyan-500/40 bg-cyan-500/20 px-3.5 py-2 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/30 transition"
+            >
+              {t("states.retry")}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setRawUnavailable(null);
+                // Update feed and method in ONE URL transaction, otherwise a
+                // second setSearchParams call can restore the old raw feed.
+                setSearch((prev) => {
+                  const next = new URLSearchParams(prev);
+                  next.set("data", "sample");
+                  next.set("method", "k_ratio");
+                  return next;
+                }, { replace: true });
+                // The feed-change effect will synchronize applied filters.
+              }}
+              className="rounded-lg border border-slate-700 bg-slate-800/80 px-3.5 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition"
+            >
+              {t("common.synthetic_feed")}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (!data) {
     return applied.data === "raw"
       ? <SlowLoading

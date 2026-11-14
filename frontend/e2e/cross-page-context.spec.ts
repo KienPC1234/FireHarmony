@@ -147,3 +147,22 @@ test("Calendar month selector uses full matrix, not capped daily preview", async
   // Missing coverage is null, not zero; do not promote June to observed.
   await expect(selector.locator('option[value="2024-06"]')).toHaveCount(0);
 });
+
+test("Calendar switches to synthetic sample only after an explicit user action", async ({ page }) => {
+  test.setTimeout(50000);
+  await page.route("**/api/firms/calendar?*", (r) => {
+    const feed = new URL(r.request().url()).searchParams.get("data");
+    return feed === "raw"
+      ? r.fulfill({ status: 503, contentType: "application/json",
+          body: '{"message":"Observed source unavailable (UI-only failure fixture)"}' })
+      : r.fulfill({ status: 200, contentType: "application/json",
+          body: JSON.stringify(sampleCalendar) });
+  });
+  await page.goto("/calendar?aoi=vietnam&data=raw&mode=research&method=stan", { waitUntil: "domcontentloaded" });
+  await expect(page.getByText(/NASA raw|Observed source unavailable/i).first()).toBeVisible({ timeout: 25000 });
+  expect(new URL(page.url()).searchParams.get("data")).toBe("raw");
+  await page.getByRole("button", { name: /Dữ liệu mẫu|Synthetic Feed/i }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("data")).toBe("sample");
+  await expect.poll(() => new URL(page.url()).searchParams.get("method")).toBe("k_ratio");
+  await expect(page.locator("[data-fh-feed]")).toContainText(/Dữ liệu mẫu|Synthetic Feed/i);
+});
