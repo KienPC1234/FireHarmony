@@ -85,10 +85,11 @@ export function LabSidebar({
         {/* Temporal Filters: Year & Month */}
         <div className="grid grid-cols-2 gap-2 border-t border-slate-800 pt-3">
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-300">
+            <label htmlFor="lab-year-select" className="text-xs font-semibold text-slate-300">
               {vi ? "Năm phân tích" : "Year"}
             </label>
             <select
+              id="lab-year-select"
               value={year}
               onChange={(e) => setYear(Number(e.target.value))}
               className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-xs text-white focus:outline-none min-h-[40px]"
@@ -102,10 +103,11 @@ export function LabSidebar({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-300">
+            <label htmlFor="lab-month-select" className="text-xs font-semibold text-slate-300">
               {vi ? "Tháng" : "Month"}
             </label>
             <select
+              id="lab-month-select"
               value={month}
               onChange={(e) => setMonth(Number(e.target.value))}
               className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-xs text-white focus:outline-none min-h-[40px]"

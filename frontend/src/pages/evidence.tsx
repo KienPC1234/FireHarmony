@@ -261,8 +261,9 @@ export function EvidencePage() {
           {/* AOI Selector */}
           <div className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5">
             <Globe className="h-4 w-4 text-cyan-400" />
-            <span className="text-slate-400 font-semibold">{t("evidence.area")}</span>
+            <label htmlFor="evidence-area-select" className="text-slate-400 font-semibold">{t("evidence.area")}</label>
             <select
+              id="evidence-area-select"
               value={aoi}
               onChange={(e) => handleAoiChange(e.target.value)}
               className="bg-transparent font-bold text-white focus:outline-none"
@@ -278,8 +279,9 @@ export function EvidencePage() {
           {/* Target Month */}
           <div className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5">
             <CalendarDays className="h-4 w-4 text-orange-400" />
-            <span className="text-slate-400 font-semibold">{t("evidence.month")}</span>
+            <label htmlFor="evidence-month-input" className="text-slate-400 font-semibold">{t("evidence.month")}</label>
             <input
+              id="evidence-month-input"
               type="month"
               value={`${year}-${String(month).padStart(2, "0")}`}
               onChange={(e) => handleYmChange(e.target.value)}

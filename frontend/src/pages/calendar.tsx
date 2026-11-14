@@ -616,6 +616,8 @@ export function CalendarPage() {
           <button
             type="button"
             onClick={() => setActiveTab("map")}
+            aria-pressed={activeTab === "map"}
+            aria-label={t("calendar.view_map")}
             className={cn(
               "flex items-center gap-1 rounded px-2.5 py-1 font-semibold transition min-h-[30px]",
               activeTab === "map"
@@ -630,6 +632,8 @@ export function CalendarPage() {
           <button
             type="button"
             onClick={() => setActiveTab("matrix")}
+            aria-pressed={activeTab === "matrix"}
+            aria-label={t("calendar.view_matrix")}
             className={cn(
               "flex items-center gap-1 rounded px-2.5 py-1 font-semibold transition min-h-[30px]",
               activeTab === "matrix"
@@ -644,6 +648,8 @@ export function CalendarPage() {
           <button
             type="button"
             onClick={() => setActiveTab("scenarios")}
+            aria-pressed={activeTab === "scenarios"}
+            aria-label={t("calendar.view_scenarios")}
             className={cn(
               "flex items-center gap-1 rounded px-2.5 py-1 font-semibold transition min-h-[30px]",
               activeTab === "scenarios"

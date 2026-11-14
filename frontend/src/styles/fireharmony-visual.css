@@ -746,3 +746,13 @@
 [data-fh-main][data-fh-page="calendar"] > div > header span[class*="bg-sky-950"] {
   display: none;
 }
+
+/* CLAIM-012: the Overview primary action previously failed WCAG AA text
+   contrast against orange-600 (white text on a bright orange surface).
+   Keep its visual hierarchy while ensuring readable white CTA text. */
+[data-fh-main][data-fh-page="home"] a.bg-orange-600 {
+  background-color: #9a3412;
+}
+[data-fh-main][data-fh-page="home"] a.bg-orange-600:hover {
+  background-color: #c2410c;
+}

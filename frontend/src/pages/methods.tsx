@@ -418,7 +418,8 @@ export function MethodsPage() {
                     ? "SensorFormer không dự đoán trực tiếp số vụ cháy từ con số không nhằm triệt tiêu hiện tượng hallucination và tránh giá trị âm. Mạng chỉ dự báo phần dư độ lệch so với hệ số mùa chuẩn B2:"
                     : "SensorFormer avoids predicting raw fire counts from scratch to prevent hallucination and non-physical negative counts. It strictly predicts multiplicative log-ratio residuals against baseline B2:"}
                 </p>
-                <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-3 text-cyan-300 overflow-x-auto">
+                <div tabIndex={0}
+                  className="rounded-xl border border-slate-800 bg-slate-900/80 p-3 text-cyan-300 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">
                   <div className="text-[11px] space-y-2 font-mono">
                     <Latex math="\Delta \hat{r} = \log\left(\frac{y_{\text{viirs}}}{x_{\text{modis}}}\right) - \log\left(k_m^{\text{B2}}\right)" block />
                     <Latex math="\hat{y} = x_{\text{modis}} \cdot k_m^{\text{B2}} \cdot \exp(\Delta \hat{r} \cdot \text{Gate})" block />
@@ -464,7 +465,8 @@ export function MethodsPage() {
                     <span className="text-emerald-300 font-bold">[B, 3] (P10, P50, P90)</span>
                   </div>
                 </div>
-                <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-2.5 text-indigo-300 overflow-x-auto text-[11px]">
+                <div tabIndex={0}
+                  className="rounded-xl border border-slate-800 bg-slate-900/80 p-2.5 text-indigo-300 overflow-x-auto text-[11px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">
                   <Latex math="\mathcal{L} = \sum_{q} \max(q u, (q-1) u) + \lambda \sum \max(0, \Delta q_{\text{cross}})" block />
                 </div>
               </div>
@@ -524,7 +526,7 @@ export function MethodsPage() {
               </p>
             </div>
 
-            <div className="overflow-x-auto">
+            <div tabIndex={0} className="overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">
               <table className="w-full text-left font-mono text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400 uppercase text-xs">
@@ -588,7 +590,7 @@ export function MethodsPage() {
             )}
           </div>
 
-          <div className="overflow-x-auto">
+          <div tabIndex={0} className="overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">
             <table className="w-full text-left font-mono text-xs">
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400 uppercase text-xs">
@@ -824,7 +826,7 @@ export function MethodsPage() {
               <Terminal className="h-4 w-4 text-cyan-400" />
               <span>{vi ? "Tái lập môi trường qua Terminal" : "CLI Reproduction Commands"}</span>
             </div>
-            <pre className="p-3 rounded-lg bg-slate-950 text-slate-300 overflow-x-auto border border-slate-800">
+            <pre tabIndex={0} className="p-3 rounded-lg bg-slate-950 text-slate-300 overflow-x-auto border border-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">
 {`# 1. Clone repository và cài đặt môi trường
 git clone https://github.com/nasa-spaceapps/fireharmony.git
 cd fireharmony
