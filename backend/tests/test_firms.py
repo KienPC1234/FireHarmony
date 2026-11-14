@@ -1092,22 +1092,31 @@ def test_T35_srf_artifacts_were_removed():
 
 
 
-def test_T40_hierarchical_tile_anchor_beats_b2_on_official_holdout():
-    """Tile-month hierarchy is the strongest candidate: all 3 AOIs improve."""
+def test_T40_hts_artifact_reconciles_its_model_specific_holdout():
+    """A candidate's own MAE, B2 comparator, gain and CI must agree.
+
+    This model-specific cohort need not equal the served-series holdout.
+    A negative point gain is not a test failure; misreporting its sign is.
+    """
     import json
     meta = json.loads((BACKEND_DIR / "data/firms/models/hts_anchor_raw.json")
                       .read_text(encoding="utf-8"))
     assert meta["method_id"] == "hts_anchor_v1"
-    assert meta["n_test"] == 72
-    assert meta["hts_mae"] < meta["b2_mae"] * 0.97
-    for aoi, row in meta["per_aoi"].items():
-        assert row["hts_mae"] < row["b2_mae"], aoi
-    ci = meta["comparisons"]["hts_vs_b2"]["ci95"]
-    assert ci[0] < meta["comparisons"]["hts_vs_b2"]["delta_mae"] < ci[1]
-    # Point gain is real; statistical gate is not passed because the CI includes 0.
-    assert meta["gate"]["passed"] is False
-    assert meta["mean_gain_vs_b2"] > 0.02
-
+    n = int(meta["n_test"])
+    assert n > 0
+    assert n == int(meta["metrics"]["n"]) == int(meta["b2_metrics"]["n"])
+    assert n == sum(int(row["n"]) for row in meta["per_aoi"].values())
+    delta = float(meta["hts_mae"]) - float(meta["b2_mae"])
+    comparison = meta["comparisons"]["hts_vs_b2"]
+    assert abs(float(comparison["delta_mae"]) - delta) < 0.05
+    assert int(comparison["n"]) == n
+    ci = comparison["ci95"]
+    assert ci[0] <= float(comparison["delta_mae"]) <= ci[1]
+    gain = -delta / float(meta["b2_mae"])
+    assert abs(float(meta["mean_gain_vs_b2"]) - gain) < 0.0002
+    assert meta["gate"]["passed"] is (gain >= 0.02 and ci[1] < 0)
+    for row in meta["per_aoi"].values():
+        assert abs(float(row["mae"]) - float(row["hts_mae"])) < 0.02
 
 def test_T41_tileformer_artifacts_were_removed():
     """TileFormer training outputs were deleted; the tile dataset stays."""
@@ -1118,14 +1127,19 @@ def test_T41_tileformer_artifacts_were_removed():
     assert (base / "hts_anchor_raw.json").exists()
 
 
-def test_T44_hts_status_is_a_candidate_not_a_served_win():
+def test_T44_hts_status_labels_its_model_specific_result_truthfully():
     st = client.get("/api/firms/hts-status").json()
     assert st["trained"] is True
     assert st["candidate"] is True and st["served"] is False
-    assert st["n_test"] == 72
-    assert st["hts_mae"] < st["b2_mae"]
+    assert st["evaluation_protocol"] == "model_specific_candidate_holdout"
+    assert int(st["n_test"]) == int(st["metrics"]["n"]) > 0
     assert st["gate"]["passed"] is False
-
+    if float(st["hts_mae"]) > float(st["b2_mae"]):
+        assert "underperforms" in st["status"]
+    elif float(st["hts_mae"]) < float(st["b2_mae"]):
+        assert "improves" in st["status"]
+    else:
+        assert "equals" in st["status"]
 
 def test_T45_hts_requires_raw_and_corrects_only_estimated_cells():
     from app.firms import hts
@@ -1175,8 +1189,8 @@ def test_T47_hts_evidence_serves_a_candidate_month():
     assert st["served"] is False and st["candidate"] is True
 
 
-def test_T50_stan_safe_beats_b2_without_retrospective_leakage():
-    """Tuned STAN: FiLM + TCN + target query + NB, no same-month neighbour VIIRS."""
+def test_T50_stan_safe_model_holdout_reports_its_actual_comparison():
+    """Validate leakage flags and model-specific metrics without inventing a win."""
     import json
     meta = json.loads((BACKEND_DIR / "data/firms/models/stan_safe_raw.json")
                       .read_text(encoding="utf-8"))
@@ -1184,29 +1198,31 @@ def test_T50_stan_safe_beats_b2_without_retrospective_leakage():
     assert meta["retrospective"] is False
     assert meta["uses_neighbour_viirs_same_month"] is False
     off = meta["official"]
-    assert off["n"] == 72
-    # Point estimate must beat B2 and the HTS fallback on every AOI.
-    assert off["metrics"]["mae"] < 0.95 * off["b2_metrics"]["mae"]
-    assert off["metrics"]["mae"] < off["hts_metrics"]["mae"]
-    for aoi, row in off["per_aoi"].items():
-        assert row["stan"]["mae"] < row["hts"]["mae"], aoi
-        assert row["stan"]["mae"] < row["b2"]["mae"], aoi
-    ci = off["comparisons"]["stan_vs_b2"]["ci95"]
-    assert ci[0] < ci[1]
-    # A wide CI is reported, not hidden: with 72 months the gain may not be
-    # statistically established even when every AOI improves.
-    assert off["comparisons"]["stan_vs_b2"]["delta_mae"] < 0
-    # The retrospective twin is flagged; it is not the served claim. Do not
-    # assert it is better: in the deterministic run it is within seed noise.
+    n = int(off["n"])
+    assert n > 0
+    for method in ("metrics", "b2_metrics", "hts_metrics"):
+        assert int(off[method]["n"]) == n
+    for method in ("stan", "hts", "b2"):
+        assert sum(int(row[method]["n"]) for row in off["per_aoi"].values()) == n
+        metric = "metrics" if method == "stan" else f"{method}_metrics"
+        pooled = sum(float(row[method]["mae"]) * int(row[method]["n"])
+                     for row in off["per_aoi"].values()) / n
+        assert abs(pooled - float(off[metric]["mae"])) < 0.02
+    for compared, reference, key in (
+        ("metrics", "b2_metrics", "stan_vs_b2"),
+        ("metrics", "hts_metrics", "stan_vs_hts"),
+    ):
+        comp = off["comparisons"][key]
+        actual_delta = float(off[compared]["mae"]) - float(off[reference]["mae"])
+        assert abs(float(comp["delta_mae"]) - actual_delta) < 0.03
+        assert int(comp["n"]) == n
+        assert comp["ci95"][0] <= actual_delta <= comp["ci95"][1]
     retro = json.loads((BACKEND_DIR / "data/firms/models/stan_retro_raw.json")
                        .read_text(encoding="utf-8"))
     assert retro["retrospective"] is True
     assert retro["uses_neighbour_viirs_same_month"] is True
-    # Leave-one-region-out is stored and is not a hidden success.
     loo = meta["loo_region"]
     assert set(loo) == {"vietnam", "amazon", "australia"}
-    assert loo["amazon"]["metrics"]["mae"] > loo["amazon"]["hts_metrics"]["mae"]
-
 
 def test_T51_stan_status_exposes_both_variants():
     st = client.get("/api/firms/stan-status").json()
@@ -1216,32 +1232,34 @@ def test_T51_stan_status_exposes_both_variants():
     assert st["retrospective"]["retrospective"] is True
 
 
-def test_T52_stan_series_is_the_served_main_target():
+def test_T52_stan_served_series_reconciles_to_served_series_holdout():
+    """Recompute the served 72-row evaluation, not a different 60-row model run."""
+    import csv
     import json
     import numpy as np
     base = BACKEND_DIR / "data/firms/models"
     series = json.loads((base / "stan_series_raw.json").read_text(encoding="utf-8"))
-    meta = json.loads((base / "stan_safe_raw.json").read_text(encoding="utf-8"))
+    evaluation = json.loads((base / "evaluation_raw.json").read_text(encoding="utf-8"))
     assert series["role"] == "main"
     assert series["months"]["vietnam"] > 150
     assert series["series"]["vietnam"]["2025-01"]["source"] == "stan"
     assert series["series"]["vietnam"]["2023-01"]["source"] == "hts"
-    # The 2024-25 targets must reproduce the artifact's own published MAE.
-    import csv
     y, p = [], []
     with (BACKEND_DIR / "data/firms/benchmark/evaluation_samples_raw.csv").open(
-            encoding="utf-8") as fh:
+            encoding="utf-8", newline="") as fh:
         for r in csv.DictReader(fh):
             ym = f"{r['year']}-{int(r['month']):02d}"
             tgt = series["series"][r["aoi"]].get(ym, {}).get("target")
-            if tgt is not None:
-                y.append(float(r["viirs_ref"]))
-                p.append(float(tgt))
+            assert tgt is not None, (r["aoi"], ym)
+            y.append(float(r["viirs_ref"]))
+            p.append(float(tgt))
+    assert len(y) == int(evaluation["n_eval"])
+    served_metrics = evaluation["headline"]["metrics"]
+    assert int(served_metrics["stan_safe_v1"]["n"]) == len(y)
     mae = float(np.mean(np.abs(np.array(p) - np.array(y))))
-    want = meta["official"]["metrics"]["mae"]
-    assert abs(mae - want) < 5.0, (mae, want)
-    assert want < meta["official"]["b2_metrics"]["mae"]
-
+    assert abs(mae - float(served_metrics["stan_safe_v1"]["mae"])) < 0.02
+    # STAN's model-specific official holdout may have a different cohort.
+    # Its MAE must never be substituted for this served-series metric.
 
 def test_T53_stan_rejects_the_synthetic_sample():
     r = client.get("/api/firms/evidence",
