@@ -362,14 +362,14 @@ export function EvidencePage() {
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-800 bg-[#111C2E] p-3.5 text-xs">
         <div className="flex flex-wrap items-center gap-3">
           {/* AOI Selector */}
-          <div className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5">
-            <Globe className="h-4 w-4 text-cyan-400" />
-            <label htmlFor="evidence-area-select" className="text-slate-400 font-semibold">{t("evidence.area")}</label>
+          <div className="flex min-w-0 max-w-full items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5">
+            <Globe className="h-4 w-4 shrink-0 text-cyan-400" />
+            <label htmlFor="evidence-area-select" className="shrink-0 text-slate-400 font-semibold">{t("evidence.area")}</label>
             <select
               id="evidence-area-select"
               value={aoi}
               onChange={(e) => handleAoiChange(e.target.value)}
-              className="bg-transparent font-bold text-white focus:outline-none"
+              className="min-w-0 max-w-[56vw] truncate bg-transparent font-bold text-white focus:outline-none sm:max-w-[26rem]"
             >
               {aoiOptions.map((a) => (
                 <option key={a.id} value={a.id} className="bg-slate-900">

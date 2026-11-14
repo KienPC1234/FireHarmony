@@ -77,18 +77,18 @@ export function TourController() {
     <div
       role="dialog"
       aria-label={t("tour.prompt_title", { page: pageLabel })}
-      className="fixed bottom-4 right-4 z-[1500] w-[min(360px,calc(100vw-2rem))] rounded-2xl border border-cyan-500/40 bg-[#0B1220]/95 p-4 shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom-3 duration-200"
+      className="fixed bottom-2 left-2 right-2 z-[1500] rounded-2xl border border-cyan-500/40 bg-[#0B1220]/95 p-3 shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom-3 duration-200 sm:bottom-4 sm:left-auto sm:right-4 sm:w-[min(360px,calc(100vw-2rem))] sm:p-4"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2.5 min-w-0">
-          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-500/15 text-cyan-300">
+          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-500/15 text-cyan-300 sm:h-8 sm:w-8">
             <Compass className="h-4 w-4" aria-hidden="true" />
           </div>
           <div className="min-w-0 space-y-1">
-            <h3 className="text-sm font-bold text-white leading-snug">
+            <h3 className="text-[13px] font-bold text-white leading-snug sm:text-sm">
               {t("tour.prompt_title", { page: pageLabel })}
             </h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
+            <p className="sr-only text-slate-300 leading-relaxed sm:not-sr-only sm:text-xs">
               {t("tour.prompt_desc")}
             </p>
           </div>
@@ -103,7 +103,7 @@ export function TourController() {
         </button>
       </div>
 
-      <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-1.5 sm:mt-3.5 sm:gap-2">
         <button
           type="button"
           onClick={handleNeverAsk}
@@ -112,7 +112,7 @@ export function TourController() {
           {t("tour.btn_never")}
         </button>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button
             type="button"
             onClick={handleDismissPage}
