@@ -127,3 +127,41 @@ for (const view of views) {
     expect(status.every((x)=>x.scroll<=x.width+2),JSON.stringify(status)).toBe(true);
   });
 }
+
+/* CLAIM-011: Scientific provenance must remain explicitly readable even
+   when the mission header compresses on phones and mid-width tablets. */
+for (const view of [
+  { name: "compact-phone", width: 360, height: 760 },
+  { name: "phone", width: 390, height: 844 },
+  { name: "tablet", width: 768, height: 1024 },
+  { name: "laptop", width: 1024, height: 768 },
+  { name: "desktop", width: 1280, height: 800 },
+  { name: "large-desktop", width: 1440, height: 900 },
+]) {
+  test("Header provenance stays legible at " + view.name, async ({ page }) => {
+    test.setTimeout(45000);
+    await page.setViewportSize({ width: view.width, height: view.height });
+    await page.goto("/?aoi=vietnam&data=sample", { waitUntil: "domcontentloaded" });
+    const badge = page.locator("[data-fh-feed]");
+    await expect(badge).toBeVisible({ timeout: 15000 });
+    await expect(badge).toHaveText(/Dữ liệu mẫu|Synthetic Feed/);
+    const initial = await badge.evaluate((e) => {
+      const a = e.getBoundingClientRect();
+      const h = e.closest("header")!.getBoundingClientRect();
+      const controls = e.closest("header")!.lastElementChild!.getBoundingClientRect();
+      return {
+        within: a.left >= h.left - 1 && a.right <= h.right + 1 &&
+          a.top >= h.top - 1 && a.bottom <= h.bottom + 1,
+        overlapTopControls: a.top < controls.bottom - 1 && a.bottom > controls.top + 1 &&
+          a.left < controls.right - 1 && a.right > controls.left + 1,
+        bottomGap: Math.round(a.top - controls.bottom),
+      };
+    });
+    expect(initial.within,JSON.stringify(initial)).toBe(true);
+    if (view.width < 1280) expect(initial.bottomGap,JSON.stringify(initial)).toBeGreaterThanOrEqual(2);
+    await page.goto("/?aoi=vietnam&data=raw", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("[data-fh-feed]")).toBeVisible();
+    await expect(page.locator("[data-fh-feed]")).toHaveText(/NASA quan sát|NASA Observed/);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 2)).toBe(true);
+  });
+}

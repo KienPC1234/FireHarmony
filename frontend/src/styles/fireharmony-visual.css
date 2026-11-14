@@ -700,3 +700,49 @@
   line-height: 1.52;
 }
 
+
+/* CLAIM-011: Mobile / tablet provenance ribbon.
+   The desktop feed badge was hidden below xl, leaving small-screen visitors
+   unable to distinguish synthetic data from observed NASA FIRMS. Reuse the
+   localized full label in a short second header row, not an ambiguous dot. */
+@media (max-width: 1279px) {
+  [data-fh-header] {
+    position: relative;
+    height: 78px;
+    min-height: 78px;
+    align-items: flex-start;
+    padding-top: 10px;
+    padding-bottom: 24px;
+  }
+
+  [data-fh-header] [data-fh-feed] {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    left: 12px;
+    bottom: 4px;
+    min-height: 18px;
+    height: 18px;
+    padding: 1px 8px;
+    gap: 5px;
+    font-family: Inter, system-ui, "Segoe UI", sans-serif;
+    font-size: 10px;
+    line-height: 14px;
+    letter-spacing: 0;
+    white-space: nowrap;
+    z-index: 2;
+  }
+
+  [data-fh-header] [data-fh-feed] svg {
+    width: 11px;
+    height: 11px;
+  }
+}
+
+/* Calendar has another long SYNTHETIC DEMO stamp in its toolbar. Once the
+   global localized feed label is shown at every viewport, the duplicate
+   may be hidden without concealing dataset provenance. USER UPLOAD
+   (UNVERIFIED) remains visible because it carries different semantics. */
+[data-fh-main][data-fh-page="calendar"] > div > header span[class*="bg-sky-950"] {
+  display: none;
+}

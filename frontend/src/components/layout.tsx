@@ -283,6 +283,9 @@ export function Layout() {
 
           {/* Data Feed Status Badge */}
           <div
+            data-fh-feed
+            role="status"
+            aria-label={isRawMode ? t("common.observed_feed") : t("common.synthetic_feed")}
             className={cn(
               "hidden xl:flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-mono border min-h-[32px]",
               isRawMode
