@@ -375,7 +375,7 @@ export function LabPage() {
 
         {/* 2. Three Structured Mission Task Groups */}
         <div data-tour="lab-groups" aria-label={t("lab.task_groups_label")}
-          className="flex snap-x gap-2 overflow-x-auto border-t border-slate-800 pt-3 sm:grid sm:grid-cols-3">
+          className="grid min-w-0 grid-cols-1 gap-2 border-t border-slate-800 pt-3 sm:grid-cols-3">
           {TASK_GROUPS.map((g) => {
             const isGroupActive = activeGroup === g.id;
             return (
@@ -385,7 +385,7 @@ export function LabPage() {
                 onClick={() => handleGroupChange(g.id)}
                 aria-pressed={isGroupActive}
                 className={cn(
-                  "flex min-w-[220px] snap-start flex-col items-start rounded-xl border p-3 text-left transition min-h-[64px] sm:min-w-0",
+                  "flex min-w-0 w-full flex-col items-start rounded-xl border p-3 text-left transition min-h-[64px]",
                   isGroupActive
                     ? "border-cyan-500/50 bg-cyan-950/30 shadow-sm"
                     : "border-slate-800 bg-slate-900/60 hover:bg-slate-800 hover:text-white",
