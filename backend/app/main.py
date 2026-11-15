@@ -294,27 +294,28 @@ def _backtest_from_manifest(manifest: dict, aoi: str, data: str,
 
 def _analysis_for_evidence(aoi: str, data: str, method: str, bbox, qa_min: str,
                            platform_set: str, focus_ym: str | None = None,
-                           dataset: str | None = None) -> dict:
+                           dataset: str | None = None,
+                           daily_cap: int = 2000000) -> dict:
     if dataset:
-        records = [r for r in _resolve_records(aoi, data, 2000000, dataset)
+        records = [r for r in _resolve_records(aoi, data, daily_cap, dataset)
                    if _in_bbox(r, _parse_bbox(bbox))]
         if not records:
             raise HTTPException(404, f"No {data} data in this AOI")
-        return _harmonize_from_records(records, daily_cap=2000000, data=data, aoi=aoi,
+        return _harmonize_from_records(records, daily_cap=daily_cap, data=data, aoi=aoi,
                                        method=method, dataset=dataset, qa_min=qa_min,
                                        platform_set=platform_set)
     if data == "raw":
         if not store.raw_ready(aoi):
             raise HTTPException(404, detail={"error_code": "no_raw_data",
                                              "message": f"No raw data for {aoi}"})
-        return _harmonize_stream(aoi, data, bbox, method, daily_cap=2000000,
+        return _harmonize_stream(aoi, data, bbox, method, daily_cap=daily_cap,
                                  qa_min=qa_min, platform_set=platform_set,
                                  focus_ym=focus_ym)
-    records = [r for r in _resolve_records(aoi, data, 2000000)
+    records = [r for r in _resolve_records(aoi, data, daily_cap)
                if _in_bbox(r, _parse_bbox(bbox))]
     if not records:
         raise HTTPException(404, f"No {data} data in this AOI")
-    return _harmonize_from_records(records, daily_cap=2000000, data=data, aoi=aoi,
+    return _harmonize_from_records(records, daily_cap=daily_cap, data=data, aoi=aoi,
                                    method=method, qa_min=qa_min,
                                    platform_set=platform_set)
 

@@ -1168,9 +1168,9 @@ export const vi = {
     step5_desc: "AI giải thích có dẫn chứng trực tiếp từ dữ liệu đo đạc",
   },
   aoi: {
-    vietnam: "Vùng mẫu Trung/Nam Việt Nam (104-109E, 10-16N)",
-    amazon: "Vùng mẫu Nam Amazon (70-50W, 12S-3N)",
-    australia: "Vùng mẫu Đông Nam Úc (113-153E, 39-12S)",
+    vietnam: "Vùng nghiên cứu Trung/Nam Việt Nam (104-109E, 10-16N)",
+    amazon: "Vùng nghiên cứu Nam Amazon (70-50W, 12S-3N)",
+    australia: "Vùng nghiên cứu Đông Nam Úc (113-153E, 39-12S)",
     vietnam_short: "Việt Nam",
     amazon_short: "Amazon",
     australia_short: "Australia",

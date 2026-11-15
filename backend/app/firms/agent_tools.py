@@ -218,18 +218,35 @@ class AgentContext:
         self._facts: dict | None = None
         self._evidence: dict | None = None
 
-    def ensure_analysis(self) -> tuple[dict, dict]:
+    def ensure_analysis(self, *, need_daily: bool = False) -> tuple[dict, dict]:
         if self._out is None:
-            self._out = self._analysis_fn(
-                self.aoi,
-                self.data,
-                self.analysis_method,
-                self.bbox,
-                self.qa_min,
-                self.platform_set,
-                focus_ym=self.focus_ym,
-                dataset=self.dataset_str,
-            )
+            kwargs: dict[str, Any] = {
+                "focus_ym": self.focus_ym,
+                "dataset": self.dataset_str,
+            }
+            if not need_daily:
+                kwargs["daily_cap"] = 5000
+            try:
+                self._out = self._analysis_fn(
+                    self.aoi,
+                    self.data,
+                    self.analysis_method,
+                    self.bbox,
+                    self.qa_min,
+                    self.platform_set,
+                    **kwargs,
+                )
+            except TypeError:
+                kwargs.pop("daily_cap", None)
+                self._out = self._analysis_fn(
+                    self.aoi,
+                    self.data,
+                    self.analysis_method,
+                    self.bbox,
+                    self.qa_min,
+                    self.platform_set,
+                    **kwargs,
+                )
             self._facts = ex.gather_facts(
                 self._out["calendar"],
                 self._out["daily_cells"],
@@ -253,7 +270,7 @@ class AgentContext:
             title = res.get("title") or f"Help ({topic})"
             return res, title
 
-        out, facts = self.ensure_analysis()
+        out, facts = self.ensure_analysis(need_daily=(name == "get_month_evidence"))
         if name == "get_region_summary":
             res = {
                 "aoi": self.aoi,
@@ -357,7 +374,7 @@ def _ollama_chat(messages: list[dict[str, Any]], use_tools: bool = True) -> dict
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=45) as r:
+    with urllib.request.urlopen(req, timeout=25) as r:
         return json.loads(r.read().decode())
 
 

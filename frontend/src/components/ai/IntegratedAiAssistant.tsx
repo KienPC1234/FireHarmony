@@ -113,6 +113,7 @@ export function IntegratedAiAssistant({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [statusDetail, setStatusDetail] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const turnstileRef = useRef<TurnstileGateHandle>(null);
 
@@ -179,6 +180,9 @@ export function IntegratedAiAssistant({
           turnstile_token: turnstileToken || undefined,
         },
         {
+          onStatus: (status) => {
+            if (status?.detail) setStatusDetail(status.detail);
+          },
           onTool: (tool) => {
             setMessages((prev) =>
               prev.map((msg) =>
@@ -271,6 +275,7 @@ export function IntegratedAiAssistant({
       );
     } finally {
       setBusy(false);
+      setStatusDetail(null);
     }
   };
 
@@ -378,7 +383,7 @@ export function IntegratedAiAssistant({
         {busy && (
           <div className="flex items-center gap-2 text-xs text-cyan-300">
             <Loader2 className="h-4 w-4 animate-spin" />
-            {t("ai.retrieving_figures")}
+            {statusDetail || t("ai.retrieving_figures")}
           </div>
         )}
       </div>

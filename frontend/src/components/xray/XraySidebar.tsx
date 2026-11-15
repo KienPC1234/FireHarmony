@@ -2,6 +2,7 @@ import { ArrowRight, Cpu, Database, Globe, Layers, ScanEye } from "lucide-react"
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/lib/i18n";
+import { useRegistryAois } from "@/hooks/useRegistryAois";
 
 interface XraySidebarProps {
   aoi: string;
@@ -53,6 +54,18 @@ export function XraySidebar({
 }: XraySidebarProps) {
   const { lang, t } = useLang();
   const vi = lang === "vi";
+  const { aois: registryAois } = useRegistryAois();
+  const presetMeta = new Map(AOIS.map((a) => [a.id, a]));
+  const aoiCards = registryAois.map((r) => {
+    const meta = presetMeta.get(r.id);
+    if (meta) return meta;
+    return {
+      id: r.id,
+      name: { vi: r.label, en: r.label },
+      desc: { vi: "Vùng nghiên cứu từ aois.json", en: "Registry AOI from aois.json" },
+      coords: r.bbox ?? "—",
+    };
+  });
 
   return (
     <aside className="space-y-4">
@@ -69,7 +82,7 @@ export function XraySidebar({
             </div>
 
             <div className="space-y-1.5">
-              {AOIS.map((item) => {
+              {aoiCards.map((item) => {
                 const active = aoi === item.id;
                 return (
                   <button

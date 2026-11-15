@@ -1170,9 +1170,9 @@ export const en = {
     step5_desc: "AI audit backed by multi-sensor telemetry evidence",
   },
   aoi: {
-    vietnam: "Central/Southern Vietnam sample region (104-109E, 10-16N)",
-    amazon: "Southern Amazon sample region (70-50W, 12S-3N)",
-    australia: "Southeast Australia sample region (113-153E, 39-12S)",
+    vietnam: "Central/Southern Vietnam study region (104-109E, 10-16N)",
+    amazon: "Southern Amazon study region (70-50W, 12S-3N)",
+    australia: "Southeast Australia study region (113-153E, 39-12S)",
     vietnam_short: "Vietnam",
     amazon_short: "Amazon",
     australia_short: "Australia",

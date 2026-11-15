@@ -197,20 +197,45 @@ export function GlobalContextBar({
 
         {/* Interactive Data Feed Switcher */}
         <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setDataFeed(isRaw ? "sample" : "raw")}
-            title={t("common.toggle_data_feed")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-mono font-semibold transition min-h-[28px]",
-              isRaw
-                ? "border-emerald-500/40 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/50 shadow-sm"
-                : "border-sky-500/40 bg-sky-950/40 text-sky-300 hover:bg-sky-900/50 shadow-sm"
-            )}
-          >
-            <Database className="h-3.5 w-3.5 shrink-0" />
-            <span>{isRaw ? t("common.observed_feed") : t("common.synthetic_feed")}</span>
-          </button>
+          {(() => {
+            const sampleLocked = isRaw && (
+              !PRESET_AOI_IDS.has(currentAoi ?? aoi)
+              || Boolean(
+                searchParams.get("dataset")
+                || searchParams.get("bbox")
+                || searchParams.get("geometry")
+                || searchParams.get("from_date")
+                || searchParams.get("to_date")
+                || searchParams.get("from")
+                || searchParams.get("to"),
+              )
+            );
+            return (
+              <button
+                type="button"
+                disabled={sampleLocked}
+                onClick={() => {
+                  if (sampleLocked) return;
+                  setDataFeed(isRaw ? "sample" : "raw");
+                }}
+                title={
+                  sampleLocked
+                    ? "Sample only covers preset Vietnam / Amazon / Australia without custom region or date filters."
+                    : t("common.toggle_data_feed")
+                }
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-mono font-semibold transition min-h-[28px]",
+                  sampleLocked && "opacity-50 cursor-not-allowed",
+                  isRaw
+                    ? "border-emerald-500/40 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/50 shadow-sm"
+                    : "border-sky-500/40 bg-sky-950/40 text-sky-300 hover:bg-sky-900/50 shadow-sm"
+                )}
+              >
+                <Database className="h-3.5 w-3.5 shrink-0" />
+                <span>{isRaw ? t("common.observed_feed") : t("common.synthetic_feed")}</span>
+              </button>
+            );
+          })()}
         </div>
 
         <span className="text-slate-700 hidden lg:inline">|</span>

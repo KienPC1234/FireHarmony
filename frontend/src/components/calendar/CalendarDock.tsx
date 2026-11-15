@@ -1,7 +1,7 @@
 import { Link, useSearchParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Database, Globe, Info, Sparkles, Table as TableIcon } from "lucide-react";
 import { useLang } from "@/lib/i18n";
-import { AOI_BBOX } from "@/hooks/useCalendarData";
+import { useRegistryAois, formatAoiShortLabel } from "@/hooks/useRegistryAois";
 import { backendMethod, useResearchContext, type CalibMethod } from "@/lib/researchContext";
 import { cn, compact } from "@/lib/utils";
 import { anomalyLabel } from "./anomaly";
@@ -71,12 +71,6 @@ interface CalendarDockProps {
   bbox?: string | null;
 }
 
-const AOI_OPTIONS = [
-  { id: "vietnam", key: "aoi.vietnam_short" },
-  { id: "amazon", key: "aoi.amazon_short" },
-  { id: "australia", key: "aoi.australia_short" },
-];
-
 export function CalendarDock({
   open,
   onToggle,
@@ -117,10 +111,11 @@ export function CalendarDock({
   const { t } = useLang();
   const [searchParams] = useSearchParams();
   const { mode, setMode } = useResearchContext();
+  const { aois: registryAois, aoiBboxMap } = useRegistryAois();
   const isResearch = mode === "research";
   const isSynthetic = data !== "raw";
   const isCustomBbox = Boolean(
-    (bbox && bbox !== (AOI_BBOX[aoi] ?? ""))
+    (bbox && bbox !== (aoiBboxMap[aoi] ?? ""))
     || searchParams.get("bbox"),
   );
   const hasSubFilters = Boolean(
@@ -137,6 +132,17 @@ export function CalendarDock({
     || minFrp > 0
   );
   const mlUnsupported = aoi === "custom" || Boolean(dataset) || hasSubFilters;
+  const sampleUnsupported =
+    !new Set(["vietnam", "amazon", "australia"]).has(aoi)
+    || Boolean(dataset)
+    || isCustomBbox
+    || Boolean(
+      searchParams.get("geometry")
+      || searchParams.get("from_date")
+      || searchParams.get("to_date")
+      || searchParams.get("from")
+      || searchParams.get("to"),
+    );
   const ym = activeMonth ? `${activeMonth.year}-${String(activeMonth.month).padStart(2, "0")}` : null;
 
   const tabs: Array<{ id: DockTab; label: string }> = [
@@ -209,18 +215,18 @@ export function CalendarDock({
             <h2 className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
               {t("calendar.dock_aoi_title")}
             </h2>
-            <div className="grid grid-cols-3 gap-1 rounded-lg bg-slate-900/80 p-1">
-              {AOI_OPTIONS.map((o) => (
+            <div className="flex flex-wrap gap-1 rounded-lg bg-slate-900/80 p-1">
+              {registryAois.map((o) => (
                 <button
                   key={o.id}
                   type="button"
                   onClick={() => onSelectAoi(o.id)}
                   className={cn(
-                    "rounded-md py-1.5 text-xs font-medium transition",
+                    "flex-1 min-w-[76px] rounded-md px-2 py-1.5 text-xs font-medium transition text-center",
                     aoi === o.id ? "bg-cyan-500/20 text-cyan-200" : "text-slate-400 hover:text-white",
                   )}
                 >
-                  {t(o.key)}
+                  {formatAoiShortLabel(o, t)}
                 </button>
               ))}
             </div>
@@ -317,10 +323,20 @@ export function CalendarDock({
               </button>
               <button
                 type="button"
-                onClick={() => onSelectDataFeed?.("sample")}
+                disabled={sampleUnsupported}
+                onClick={() => {
+                  if (sampleUnsupported) return;
+                  onSelectDataFeed?.("sample");
+                }}
+                title={
+                  sampleUnsupported
+                    ? "Sample only covers preset Vietnam / Amazon / Australia without custom bbox, polygon, or date filters."
+                    : t("calendar.feed_sample")
+                }
                 className={cn(
                   "rounded-md py-1.5 px-2 text-xs font-semibold transition flex items-center justify-center gap-1.5",
-                  isSynthetic
+                  sampleUnsupported && "opacity-40 cursor-not-allowed",
+                  isSynthetic && !sampleUnsupported
                     ? "bg-sky-500/25 text-sky-300 border border-sky-500/40 shadow-sm"
                     : "text-slate-400 hover:text-white hover:bg-slate-800/60",
                 )}
@@ -328,6 +344,11 @@ export function CalendarDock({
                 <span>{t("calendar.feed_sample")}</span>
               </button>
             </div>
+            {sampleUnsupported && (
+              <p className="text-[10px] leading-snug text-slate-400">
+                Sample only available for preset Vietnam / Amazon / Australia without custom region or date filters.
+              </p>
+            )}
           </section>
 
           {isResearch && (

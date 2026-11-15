@@ -30,6 +30,7 @@ import {
   type AppliedFilters,
 } from "@/hooks/useCalendarData";
 import { useMapPeriod } from "@/hooks/useMapPeriod";
+import { useRegistryAois, formatAoiShortLabel } from "@/hooks/useRegistryAois";
 import { useCalendarExport } from "@/hooks/useCalendarExport";
 import { BackendProgressCard, ErrorState } from "@/components/states";
 import { AoiMap } from "@/components/AoiMap";
@@ -72,6 +73,8 @@ function shiftMonth(ym: string, delta: number): string {
 export function CalendarPage() {
   const { t } = useLang();
   const { aoi, dataFeed, mode, setAoi, setDataFeed, method, setMethod } = useResearchContext();
+  const { aois: registryAois, aoiBboxMap } = useRegistryAois();
+  const registryAoiIds = useMemo(() => new Set(registryAois.map((a) => a.id)), [registryAois]);
   const [search, setSearch] = useSearchParams();
 
   // Tab: map (default), matrix, scenarios
@@ -438,8 +441,8 @@ function shiftIsoDate(iso: string, deltaDays: number): string {
     return () => window.removeEventListener("keydown", onKey);
   }, [activeMonth]);
 
-  const openFullArchiveAoi = (targetAoi: AoiId) => {
-    const defBbox = AOI_BBOX[targetAoi] ?? "";
+  const openFullArchiveAoi = (targetAoi: string) => {
+    const defBbox = aoiBboxMap[targetAoi] ?? AOI_BBOX[targetAoi] ?? "";
     const nextMethod = method === "hts_anchor" || method === "stan" ? method : "stan";
     const defaultYm: Record<string, string> = {
       vietnam: "2026-03",
@@ -481,8 +484,8 @@ function shiftIsoDate(iso: string, deltaDays: number): string {
   };
 
   const handleSelectAoi = async (newAoi: string) => {
-    if (PRESET_AOI_IDS.has(newAoi)) {
-      openFullArchiveAoi(newAoi as AoiId);
+    if (PRESET_AOI_IDS.has(newAoi) || registryAoiIds.has(newAoi)) {
+      openFullArchiveAoi(newAoi);
       return;
     }
     const inSampleCatalog = applied.data !== "raw" && PRESET_AOI_IDS.has(newAoi);
@@ -1241,20 +1244,14 @@ function shiftIsoDate(iso: string, deltaDays: number): string {
             </div>
             <div data-tour="calendar-world-presets" className="flex flex-wrap items-center gap-1.5">
               <span className="text-slate-400 font-medium mr-1">{t("calendar.guide_presets_label")}</span>
-              {(
-                [
-                  { id: "vietnam", label: "Vietnam (STAN · 2012-2026)" },
-                  { id: "amazon", label: "Amazon (STAN · 2012-2026)" },
-                  { id: "australia", label: "Australia (STAN · 2012-2026)" },
-                ] as const
-              ).map((preset) => (
+              {registryAois.map((preset) => (
                 <button
                   key={preset.id}
                   type="button"
                   onClick={() => openFullArchiveAoi(preset.id)}
                   className="rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs font-semibold text-slate-200 hover:border-cyan-500/50 hover:text-cyan-200 transition"
                 >
-                  {preset.label}
+                  {formatAoiShortLabel(preset, t)} (STAN)
                 </button>
               ))}
               <span className="text-slate-500 mx-1">|</span>

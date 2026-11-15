@@ -482,6 +482,25 @@ def _compact_evaluation_for_llm(ev: dict | None) -> dict | None:
     return out
 
 
+def _normalize_preset_bbox(aoi: str, bbox: object) -> str | None:
+    """Treat a bbox equal to the AOI's own preset bbox as None (full preset AOI)."""
+    if not bbox:
+        return None
+    raw_bbox = str(bbox).strip()
+    if not raw_bbox:
+        return None
+    preset_bbox = (store.PRESET_AOIS.get(aoi) or {}).get("bbox")
+    if preset_bbox:
+        try:
+            a = [float(x.strip()) for x in raw_bbox.split(",")]
+            b = [float(x.strip()) for x in str(preset_bbox).split(",")]
+            if len(a) == 4 and len(b) == 4 and all(abs(x - y) < 1e-6 for x, y in zip(a, b)):
+                return None
+        except ValueError:
+            pass
+    return raw_bbox
+
+
 @router.post("/api/firms/investigate-stream")
 def firms_investigate_stream(request: Request, payload: dict):
     from app.main import _SENSOR_KW, _analysis_for_evidence, _sensor_context_facts
@@ -507,9 +526,11 @@ def firms_investigate_stream(request: Request, payload: dict):
     is_custom_dataset = bool(
         dataset_str and (dataset_str.startswith("live:") or dataset_str.startswith("upload:"))
     )
+    req_bbox = _normalize_preset_bbox(aoi, payload.get("bbox"))
+    has_bbox = bool(req_bbox)
     analysis_method = (
         "stat"
-        if method in ("hts", "stan") and (data == "raw" or is_custom_dataset)
+        if method in ("hts", "stan") and (is_custom_dataset or has_bbox)
         else method
     )
 
@@ -520,7 +541,7 @@ def firms_investigate_stream(request: Request, payload: dict):
             data=data,
             analysis_method=analysis_method,
             requested_method=method,
-            bbox=payload.get("bbox"),
+            bbox=req_bbox,
             qa_min=str(payload.get("qa_min", "all")),
             platform_set=str(payload.get("platform_set", "all")),
             focus_ym=focus,
