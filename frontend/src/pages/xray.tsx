@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { applyCustomRegionParams } from "@/lib/researchContext";
+import { applyCustomRegionParams, clearCustomRegionParams } from "@/lib/researchContext";
 import { ScanEye, SlidersHorizontal } from "lucide-react";
 import { api, describeError } from "@/lib/api";
 import { notifyToast } from "@/lib/notify";
@@ -68,7 +68,7 @@ export function XrayPage() {
         setLoading(false);
       });
 
-    if (!dataset) {
+    if (!dataset && aoi !== "custom") {
       api.backtest(aoi, data)
         .then((backtestData) => {
           if (active && backtestData) setBt(backtestData);
@@ -88,6 +88,13 @@ export function XrayPage() {
       const next = new URLSearchParams(prev);
       next.set("aoi", newAoi);
       next.set("data", data);
+      if (newAoi !== "custom") {
+        next.delete("dataset");
+        next.delete("bbox");
+        next.delete("geometry");
+        next.delete("from_date");
+        next.delete("to_date");
+      }
       return next;
     });
   };
@@ -178,6 +185,7 @@ export function XrayPage() {
           fromDateProp={sp.get("from_date")}
           toDateProp={sp.get("to_date")}
           onLoaded={(payload) => setSp((prev) => applyCustomRegionParams(prev, payload), { replace: true })}
+          onClear={() => setSp((prev) => clearCustomRegionParams(prev), { replace: true })}
         />
       )}
 

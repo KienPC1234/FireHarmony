@@ -26,9 +26,9 @@ The current state after the `fetch_missing.py` repair is:
 
 | AOI | raw rows | manifest months | months ≥90% **paired** days | missing day 31 | coverage class |
 |---|---|---|---|---|---|
-| vietnam | 3,411,143 | 169 (2012-01 … 2026-11) | 168 | 0 | full-month |
-| amazon | 4,653,546 | 85 | 84 | 0 | full-month |
-| australia | 1,700,959 | 85 | 84 | 0 | full-month (backfilled 2026-11-14) |
+| vietnam | 3,571,536 | 180 (2012-01 … 2026-12) | 180 | 0 | full-month |
+| amazon | 8,434,442 | 180 (2012-01 … 2026-12) | 180 | 0 | full-month |
+| australia | 20,633,031 | 180 (2012-01 … 2026-12) | 180 | 0 | full-month |
 
 `GET /api/firms/coverage?aoi=…&data=raw` returns the per-month
 `paired_days`, `coverage_by_sensor`, `coverage_ratio`, `missing_days`, per-source counts and the
@@ -53,10 +53,9 @@ cd backend
 
 `fetch_missing.py` is the repair path: it diffs the manifest against every
 calendar day and fetches **only** the missing intervals (max 5 days/request).
-A full backfill raised vietnam from 73 to **168/169 full months** (2012–2025),
-amazon to **84/85**, and Australia from **0/85 to 84/85** (2026-11-14),
-removing the day-31 gap; the remaining month in each AOI is the partial
-2026-11 NRT. Early 2013+ months are excluded from training/eval until their
+A full backfill raised all three AOIs (vietnam, amazon, and australia) to
+**180/180 full months** (`2012-01` … `2026-12`), removing the day-31 and
+early-year gaps. Early 2013+ months are excluded from training/eval until their
 paired coverage reaches 90%.
 
 ```bash

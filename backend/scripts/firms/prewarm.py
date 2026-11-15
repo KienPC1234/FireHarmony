@@ -36,7 +36,7 @@ def main() -> int:
     ap.add_argument("--aoi", action="append", default=None,
                     help="repeatable; defaults to every AOI with dataset_ready")
     ap.add_argument("--data", default="raw", choices=["raw", "sample"])
-    ap.add_argument("--methods", default="stan,stat")
+    ap.add_argument("--methods", default="stan,hts,stat")
     ap.add_argument("--timeout", type=float, default=900)
     ap.add_argument("--report", default="")
     args = ap.parse_args()

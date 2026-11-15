@@ -14,9 +14,9 @@ export class ApiError extends Error {
 }
 
 /**
- * Sentinel message for "the request hit the Anubis bot-guard challenge page
- * instead of the API" (HTTP 200 + HTML, so `res.ok` is true). Callers map it
- * to a localized "reload and re-solve" hint; it is never shown raw.
+ * Sentinel message for "a proxy answered with a challenge page instead of the
+ * API" (HTTP 200 + HTML, so `res.ok` is true). Callers map it to a localized
+ * "reload and re-solve" hint; it is never shown raw.
  */
 export const BOT_GUARD_CHALLENGE = "BOT_GUARD_CHALLENGE";
 
@@ -545,9 +545,13 @@ export const api = {
     post<{ clean: number; rejected: number; qa_counts: Record<string, number> }>(
       "/api/firms/validate", { records },
     ),
-  ask: (question: string, opts?: { aoi?: string; data?: string; bbox?: string; method?: string; qa_min?: string; platform_set?: string }) =>
+  /** Whether this viewer must solve Cloudflare Turnstile, and the public site
+   * key to render it with. Local/direct callers get `enabled: false`. */
+  captchaConfig: () =>
+    cachedGet<{ enabled: boolean; site_key: string }>("/api/firms/captcha-config"),
+  ask: (question: string, opts?: { aoi?: string; data?: string; bbox?: string; method?: string; qa_min?: string; platform_set?: string; turnstile_token?: string }) =>
     post<AskResponse>("/api/firms/ask", { question, ...opts }, dataTimeout(opts?.data)),
-  askLlm: (question: string, opts?: { aoi?: string; data?: string; bbox?: string; method?: string; qa_min?: string; platform_set?: string }) =>
+  askLlm: (question: string, opts?: { aoi?: string; data?: string; bbox?: string; method?: string; qa_min?: string; platform_set?: string; turnstile_token?: string }) =>
     post<AskResponse & { llm_used: boolean; model?: string; provider?: string; reason?: string }>(
       "/api/firms/ask-llm", { question, ...opts }, dataTimeout(opts?.data)),
   /**
@@ -572,11 +576,11 @@ export const api = {
   blindSpots: (aoi: string, data: string, year: number, month: number, qa_min = "all", platform_set = "all", dataset?: string) =>
     cachedGet<BlindSpotResponse>(
       `/api/firms/blind-spots?aoi=${aoi}&data=${data}&year=${year}&month=${month}&qa_min=${qa_min}&platform_set=${platform_set}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}`, dataTimeout(data)),
-  investigate: (body: { question: string; aoi: string; data: string; method?: string; year?: number; month?: number; use_llm?: boolean; bbox?: string; dataset?: string }) =>
+  investigate: (body: { question: string; aoi: string; data: string; method?: string; year?: number; month?: number; use_llm?: boolean; bbox?: string; dataset?: string; turnstile_token?: string }) =>
     post<{ answer: string; llm_used: boolean; tools_used: string[]; evidence: Record<string, unknown> | null; limitations: string[]; suggestions: string[]; citations: string[] }>(
       "/api/firms/investigate", body, dataTimeout(body.data)),
   investigateStream: async (
-    body: { question: string; aoi: string; data: string; method?: string; year?: number; month?: number; use_llm?: boolean; qa_min?: string; platform_set?: string; bbox?: string; dataset?: string; mode?: string; lang?: string },
+    body: { question: string; aoi: string; data: string; method?: string; year?: number; month?: number; use_llm?: boolean; qa_min?: string; platform_set?: string; bbox?: string; dataset?: string; mode?: string; lang?: string; turnstile_token?: string },
     callbacks: {
       onStatus?: (status: { stage: string; detail: string }) => void;
       onTool?: (tool: { name: string; args?: Record<string, unknown>; summary?: string }) => void;
@@ -604,21 +608,23 @@ export const api = {
       });
       if (!res.ok) {
         let msg = `${res.status} ${res.statusText}`;
+        let detail: unknown;
         try {
           const errJson = await res.json();
           const d = errJson?.detail;
+          detail = d ?? errJson;
           if (typeof d === "string") msg = d;
           else if (d && typeof d.message === "string") msg = d.message;
         } catch {
           // keep status text
         }
-        throw new ApiError(res.status, msg);
+        throw new ApiError(res.status, msg, detail);
       }
       if (!res.body) throw new Error("No readable stream response");
 
-      // Anubis answers cookie-less browsers with HTTP 200 + the HTML
-      // challenge page (not SSE). Without this check the parser below
-      // silently swallows it and the chat ends with an empty answer.
+      // A challenge/proxy page can answer HTTP 200 with HTML instead of SSE.
+      // Without this check the parser below silently swallows it and the chat
+      // ends with an empty answer.
       const streamType = res.headers.get("content-type") ?? "";
       if (!streamType.includes("text/event-stream")) {
         throw new ApiError(419, BOT_GUARD_CHALLENGE);
@@ -720,12 +726,16 @@ export const api = {
     method = "stat", dataset?: string, qa_min = "all", platform_set = "all",
     geometry?: string, from_date?: string, to_date?: string, source_type = "all",
   ) => `${BASE}/api/firms/export?limit=${limit}&aoi=${aoi}&data=${data}&method=${method}&qa_min=${qa_min}&platform_set=${platform_set}&source_type=${source_type}${bbox ? `&bbox=${encodeURIComponent(bbox)}` : ""}${dataset ? `&dataset=${encodeURIComponent(dataset)}` : ""}${geometry ? `&geometry=${encodeURIComponent(geometry)}` : ""}${from_date ? `&from_date=${from_date}` : ""}${to_date ? `&to_date=${to_date}` : ""}`,
-  uploadDataset: async (file: File): Promise<UploadDatasetResponse> => {
+  uploadDataset: async (file: File, turnstileToken?: string): Promise<UploadDatasetResponse> => {
     const form = new FormData();
     form.append("file", file);
     let res: Response;
     try {
-      res = await fetch(`${BASE}/api/firms/upload-dataset`, { method: "POST", body: form });
+      res = await fetch(`${BASE}/api/firms/upload-dataset`, {
+        method: "POST",
+        body: form,
+        headers: turnstileToken ? { "X-Turnstile-Token": turnstileToken } : undefined,
+      });
     } catch (e) {
       throw new ApiError(0, "Cannot reach the API. Is the backend running on :8000?", e);
     }
@@ -737,7 +747,7 @@ export const api = {
   /** P2-15: admin ingest of a real FIRMS CSV (`POST /api/firms/ingest`).
    * New raw files change every cached card, so the shared GET cache is
    * cleared on success — a stale calendar after ingest is a truth bug. */
-  ingest: async (file: File, aoi = "vietnam", source = "upload"): Promise<{
+  ingest: async (file: File, aoi = "vietnam", source = "upload", turnstileToken?: string): Promise<{
     file: string; bytes: number; sha256: string; aoi: string; source: string;
     rows: number; clean: number; rejected: number;
     errors: Array<Record<string, unknown>>;
@@ -746,7 +756,11 @@ export const api = {
     form.append("file", file);
     let res: Response;
     try {
-      res = await fetch(`${BASE}/api/firms/ingest?aoi=${encodeURIComponent(aoi)}&source=${encodeURIComponent(source)}`, { method: "POST", body: form });
+      res = await fetch(`${BASE}/api/firms/ingest?aoi=${encodeURIComponent(aoi)}&source=${encodeURIComponent(source)}`, {
+        method: "POST",
+        body: form,
+        headers: turnstileToken ? { "X-Turnstile-Token": turnstileToken } : undefined,
+      });
     } catch (e) {
       throw new ApiError(0, "Cannot reach the API. Is the backend running on :8000?", e);
     }

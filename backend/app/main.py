@@ -14,7 +14,9 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 
 from app.firms import calendar as cal
 from app.firms import (coverage as cov, dl, evaluation, evidence as evd,
@@ -96,7 +98,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "X-Admin-Token"],
+    allow_headers=["Content-Type", "X-Admin-Token", "X-Turnstile-Token"],
     expose_headers=[
         "X-Elapsed-Ms",
         "X-Request-Id",
@@ -120,6 +122,29 @@ async def _elapsed_header(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Elapsed-Ms"] = str(int((time.perf_counter() - t0) * 1000))
     return response
+
+
+# Upload paths where Starlette parses the multipart body *before* the route
+# handler runs (50 MB cap) — check the captcha header first so unverified
+# bots never get to spool a file to disk. `turnstile.enforce` memoizes the
+# result on `request.state`, so the handler's second call does not re-verify a
+# single-use token.
+_TURNSTILE_EARLY_PATHS = frozenset({
+    "/api/firms/upload-dataset",
+    "/api/firms/ingest",
+})
+
+
+@app.middleware("http")
+async def _turnstile_before_upload(request: Request, call_next):
+    if request.method == "POST" and request.url.path.rstrip("/") in _TURNSTILE_EARLY_PATHS:
+        from app.firms import turnstile
+
+        try:
+            await run_in_threadpool(turnstile.enforce, request)
+        except HTTPException as exc:
+            return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+    return await call_next(request)
 
 
 _STARTED = time.time()

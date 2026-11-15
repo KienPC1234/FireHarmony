@@ -3,8 +3,8 @@
   "vietnam": {
    "fixture": "real_mini_vietnam.csv",
    "fixture_rows": 1500,
-   "full_rows": 3411143,
-   "fixture_sha256": "badcf462abc62c590ea11404e213aecbdad2f8faaad3efad99c0e6bfe0d0031f",
+   "full_rows": 3571536,
+   "fixture_sha256": "f85c018c19ffc4da7856ca3efd7385b1e084610b136205ed9adbbd8ec63eff03",
    "date_range": [
     "2012-01-01",
     "2026-11-09"
@@ -13,8 +13,8 @@
   "amazon": {
    "fixture": "real_mini_amazon.csv",
    "fixture_rows": 1500,
-   "full_rows": 8380205,
-   "fixture_sha256": "849cf01ecc3a308a48697f2996a5f64c10b547186ab2630d0f9389ba33324211",
+   "full_rows": 8434442,
+   "fixture_sha256": "60a981f7ea28515fa1659a8749465e54708bc4d475a844293500e315a947b3b0",
    "date_range": [
     "2012-01-01",
     "2026-11-09"
@@ -23,10 +23,10 @@
   "australia": {
    "fixture": "real_mini_australia.csv",
    "fixture_rows": 1500,
-   "full_rows": 9615760,
-   "fixture_sha256": "d43e7c430fb7b16185de4ecf4f508dd33b3e3ae0320331fb80273d02f37ffa29",
+   "full_rows": 20633031,
+   "fixture_sha256": "cce65399058912865843f228c03dfa15d6e505967d9a084c3f282ed65e8b879f",
    "date_range": [
-    "2019-01-01",
+    "2012-01-01",
     "2026-11-09"
    ]
   }
@@ -41,14 +41,14 @@
  ],
  "expected_pairs": {
   "file": "expected_pairs.csv",
-  "rows": 423,
-  "sha256": "ea98f7fa216c4a990909b2c786ae31075518f5e437e3a81cca1a57e70432fd86"
+  "rows": 528,
+  "sha256": "8438b6c6aa337fe1bed0317427fadc092271f02e410d02e233aff2c2809e2b57"
  },
  "training_pairs": {
   "raw": {
    "file": "training_pairs_raw.csv",
-   "rows": 420,
-   "sha256": "401f7f8aff10ece5e9cf4b176de51b050f4e5b29206564ff31f7412991effeb8"
+   "rows": 528,
+   "sha256": "211e9aafe8c95ad62e5cc64f2332acb8df25999e060ab6d23129177c5235e2cb"
   },
   "sample": {
    "file": "training_pairs_sample.csv",
@@ -60,13 +60,13 @@
   "raw": {
    "file": "evaluation_samples_raw.csv",
    "rows": 72,
-   "sha256": "74930446c2fab2d3fe57703d18cb2dfee3f6d10988624711c818feb652b038c4",
+   "sha256": "0acbd754779f893b8bccd767a016cccc185389a26f4d2ab64c948e3f9508ed93",
    "evaluation_version": "eval-v4",
    "test_years": [
     2024,
     2025
    ],
-   "dataset_sha256": "726b1040be18da40",
+   "dataset_sha256": "d9a77097efc1c3c7",
    "pooled": {
     "b0_raw_modis": {
      "mae": 38119.8472,
@@ -75,27 +75,27 @@
      "n": 72
     },
     "b1_global_ratio": {
-     "mae": 5853.5609,
-     "wape": 0.118927,
-     "bias": 306.8567,
+     "mae": 5555.1706,
+     "wape": 0.112865,
+     "bias": -532.2802,
      "n": 72
     },
     "b2_seasonal_ratio": {
-     "mae": 4462.6015,
-     "wape": 0.090667,
-     "bias": 1442.3907,
+     "mae": 4581.1355,
+     "wape": 0.093075,
+     "bias": 791.1416,
      "n": 72
     },
     "stan_safe_v1": {
-     "mae": 3899.4999,
-     "wape": 0.079227,
-     "bias": 1084.3161,
+     "mae": 4154.6969,
+     "wape": 0.084411,
+     "bias": 369.4931,
      "n": 72
     },
     "hts_anchor_v1": {
-     "mae": 4172.6756,
-     "wape": 0.084777,
-     "bias": 570.3345,
+     "mae": 4524.7826,
+     "wape": 0.09193,
+     "bias": -119.0528,
      "n": 72
     }
    },
@@ -120,9 +120,9 @@
       "n": 24
      },
      "stan_safe_v1": {
-      "mae": 726.7216,
-      "wape": 0.052862,
-      "bias": 290.9236,
+      "mae": 660.1905,
+      "wape": 0.048022,
+      "bias": 355.6818,
       "n": 24
      },
      "hts_anchor_v1": {
@@ -152,9 +152,9 @@
       "n": 24
      },
      "stan_safe_v1": {
-      "mae": 3704.9297,
-      "wape": 0.085569,
-      "bias": 639.1785,
+      "mae": 3667.5524,
+      "wape": 0.084706,
+      "bias": 470.4569,
       "n": 24
      },
      "hts_anchor_v1": {
@@ -172,27 +172,27 @@
       "n": 24
      },
      "b1_global_ratio": {
-      "mae": 8570.5267,
-      "wape": 0.094583,
-      "bias": 5389.1645,
+      "mae": 7675.356,
+      "wape": 0.084704,
+      "bias": 2871.7538,
       "n": 24
      },
      "b2_seasonal_ratio": {
-      "mae": 7743.6121,
-      "wape": 0.085457,
-      "bias": 4289.524,
+      "mae": 8099.2141,
+      "wape": 0.089382,
+      "bias": 2335.7767,
       "n": 24
      },
      "stan_safe_v1": {
-      "mae": 7266.8485,
-      "wape": 0.080196,
-      "bias": 2322.846,
+      "mae": 8136.3478,
+      "wape": 0.089792,
+      "bias": 282.3405,
       "n": 24
      },
      "hts_anchor_v1": {
-      "mae": 7429.2523,
-      "wape": 0.081988,
-      "bias": 1670.1155,
+      "mae": 8485.5734,
+      "wape": 0.093646,
+      "bias": -398.0465,
       "n": 24
      }
     }

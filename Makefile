@@ -3,7 +3,7 @@ PY      := .venv/bin/python
 BACKEND := backend
 PORT    ?= 8000
 
-.PHONY: help install install-dev venv sample fetch fetch-missing ingest test-backend test-clean test-full test agent-check check-fast check-release e2e dev demo build pm2-start pm2-anubis-start pm2-anubis-stop clean demo-pack demo-verify demo-install rebuild-subset prewarm
+.PHONY: help install install-dev venv sample fetch fetch-missing ingest test-backend test-clean test-full test agent-check check-fast check-release e2e dev demo build pm2-start clean demo-pack demo-verify demo-install rebuild-subset prewarm
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -92,12 +92,6 @@ build:  ## build the dashboard into frontend/dist
 
 pm2-start: build  ## start the API under PM2
 	pm2 start ecosystem.config.cjs
-
-pm2-anubis-start:  ## start the opt-in Anubis bot-guard in front of :8000 (see docs/ANUBIS.md)
-	pm2 start anubis.ecosystem.config.cjs
-
-pm2-anubis-stop:  ## stop the Anubis bot-guard (traffic goes direct again)
-	pm2 stop anubis || true
 
 clean:  ## drop build output and caches
 	rm -rf frontend/dist .pytest_cache

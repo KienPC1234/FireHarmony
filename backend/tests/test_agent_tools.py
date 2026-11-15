@@ -107,7 +107,23 @@ def test_run_tool_agent_mocked_multi_turn(monkeypatch):
 
 def test_investigate_stream_raw_stan_no_409():
     client = TestClient(app)
-    resp = client.post(
+    resp_sample = client.post(
+        "/api/firms/investigate-stream",
+        json={
+            "question": "Tóm tắt số liệu vùng đang xem?",
+            "aoi": "vietnam",
+            "data": "sample",
+            "method": "stat",
+            "mode": "explore",
+            "use_llm": False,
+        },
+    )
+    assert resp_sample.status_code == 200
+    assert "event: error" not in resp_sample.text
+    assert "event: tool" in resp_sample.text
+    assert "event: done" in resp_sample.text
+
+    resp_raw = client.post(
         "/api/firms/investigate-stream",
         json={
             "question": "Tóm tắt số liệu vùng đang xem?",
@@ -118,21 +134,21 @@ def test_investigate_stream_raw_stan_no_409():
             "use_llm": False,
         },
     )
-    assert resp.status_code == 200
+    assert resp_raw.status_code == 200
     # A clean GitHub Actions checkout contains no NASA RAW archive. In that
     # environment the correct honest behavior is an explicit SSE 404, *not*
     # fabricated sample data. A 409 method conflict would still be a bug.
     error_lines = [
         line.removeprefix("data: ")
-        for line in resp.text.splitlines()
+        for line in resp_raw.text.splitlines()
         if line.startswith("data: ") and '"status"' in line
     ]
-    if "event: error" in resp.text:
-        assert len(error_lines) == 1, resp.text
+    if "event: error" in resp_raw.text:
+        assert len(error_lines) == 1, resp_raw.text
         error = json.loads(error_lines[0])
         assert error.get("status") == 404, error
         assert "No raw data for vietnam" in str(error.get("message")), error
-        assert "event: done" not in resp.text  # no successful AI answer
+        assert "event: done" not in resp_raw.text  # no successful AI answer
     else:
-        assert "event: tool" in resp.text
-        assert "event: done" in resp.text
+        assert "event: tool" in resp_raw.text
+        assert "event: done" in resp_raw.text

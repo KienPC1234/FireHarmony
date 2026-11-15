@@ -16,13 +16,14 @@ import {
   Sparkles,
   Wrench,
 } from "lucide-react";
-import { api, describeError, ApiError, BOT_GUARD_CHALLENGE } from "@/lib/api";
+import { api, describeError, readErrorCode, ApiError, BOT_GUARD_CHALLENGE } from "@/lib/api";
 import { applyCustomRegionParams, backendMethod, useResearchContext, type CalibMethod } from "@/lib/researchContext";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/lib/i18n";
 import { GlobalContextBar } from "@/components/GlobalContextBar";
 import { CustomLiveRegionPanel } from "@/components/CustomLiveRegionPanel";
 import { SectionQuickNav } from "@/components/common/SectionQuickNav";
+import { TurnstileGate, type TurnstileGateHandle } from "@/components/common/TurnstileGate";
 import { ReasoningPipelineIllustration } from "@/components/illustrations";
 import { MarkdownView } from "@/components/markdown";
 
@@ -184,6 +185,20 @@ export function InvestigatorPage() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const streamCtl = useRef<AbortController | null>(null);
+  const turnstileRef = useRef<TurnstileGateHandle>(null);
+
+  /** Human-check failures read as "finish the checkbox", not a raw 403. */
+  const chatErrorText = (err: unknown, fallback: (detail: string) => string) => {
+    const code = readErrorCode(err);
+    if (code === "turnstile_unavailable") return t("turnstile.unavailable");
+    if (typeof code === "string" && code.startsWith("turnstile_")) {
+      return t("turnstile.retry");
+    }
+    if (err instanceof ApiError && err.message === BOT_GUARD_CHALLENGE) {
+      return t("ai.botguard_expired");
+    }
+    return fallback(describeError(err));
+  };
 
   // Abort an in-flight stream when leaving the page.
   useEffect(() => () => {
@@ -223,6 +238,18 @@ export function InvestigatorPage() {
     const effectiveMethod =
       isLiveOrRaw && (method === "hts" || method === "stan") ? "stat" : method;
     try {
+      const turnstileToken = (await turnstileRef.current?.solve()) ?? "";
+      if (turnstileRef.current?.enabled && !turnstileToken) {
+        // Do not burn a request the backend must reject with 403.
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === botMsgId
+              ? { ...msg, rawText: t("turnstile.retry"), isStreaming: false }
+              : msg,
+          ),
+        );
+        return;
+      }
       await api.investigateStream(
         {
           question: q,
@@ -238,6 +265,7 @@ export function InvestigatorPage() {
           dataset,
           mode,
           lang,
+          turnstile_token: turnstileToken || undefined,
         },
         {
           onStatus: (st) => {
@@ -310,16 +338,12 @@ export function InvestigatorPage() {
           },
           onError: (err) => {
             if ((err as { name?: string })?.name === "AbortError") return;
-            const expired =
-              err instanceof ApiError && err.message === BOT_GUARD_CHALLENGE;
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === botMsgId
                   ? {
                       ...msg,
-                      rawText: expired
-                        ? t("ai.botguard_expired")
-                        : t("ai.conn_error", { err: describeError(err) }),
+                      rawText: chatErrorText(err, (detail) => t("ai.conn_error", { err: detail })),
                       isStreaming: false,
                     }
                   : msg,
@@ -337,16 +361,12 @@ export function InvestigatorPage() {
           ),
         );
       } else {
-        const expired =
-          err instanceof ApiError && err.message === BOT_GUARD_CHALLENGE;
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === botMsgId
               ? {
                   ...msg,
-                  rawText: expired
-                    ? t("ai.botguard_expired")
-                    : t("ai.engine_note", { err: describeError(err) }),
+                  rawText: chatErrorText(err, (detail) => t("ai.engine_note", { err: detail })),
                   isStreaming: false,
                 }
               : msg,
@@ -598,7 +618,8 @@ export function InvestigatorPage() {
             })}
           </div>
 
-          {/* Input Bar */}
+          {/* Input Bar — Turnstile only renders on public/tunnelled traffic */}
+          <TurnstileGate ref={turnstileRef} className="flex justify-center px-1 pb-1" />
           <form
             data-tour="ai-input-form"
             onSubmit={(e) => {

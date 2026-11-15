@@ -18,6 +18,7 @@ from app.firms import (
     llm,
     registry,
     store,
+    turnstile,
 )
 from app.firms.spatial import _in_bbox, _parse_bbox
 from app.firms.schema import FirmsRecord
@@ -234,12 +235,22 @@ def firms_dl_info():
     return dl.describe()
 
 
+@router.get("/api/firms/captcha-config")
+def firms_captcha_config(request: Request):
+    """Tell the SPA whether this viewer must solve Turnstile, and with which
+    public site key. Local/direct callers get `enabled: false` so dev, e2e and
+    prewarm scripts keep working without a browser."""
+    enabled = turnstile.required(request)
+    return {"enabled": enabled, "site_key": turnstile.site_key() if enabled else ""}
+
+
 @router.post("/api/firms/ingest")
 async def firms_ingest(request: Request,
                        aoi: str = Query("vietnam"), source: str = Query("upload"),
                        file: UploadFile = File(...)):
     from app.main import _require_admin
     """Upload a real FIRMS CSV: validated in chunks, stored, QA report back."""
+    turnstile.enforce(request)
     _require_admin(request)
     max_bytes = 50 * 1024 * 1024
     chunks: list[bytes] = []
@@ -266,6 +277,7 @@ async def firms_upload_dataset(request: Request, file: UploadFile = File(...)):
     from app.main import _require_admin
     """Session upload (P1-18): streamed with a 50 MB cap, validated, returns
     dataset_id for /calendar?dataset=upload:<id>. Gated when ADMIN_TOKEN set."""
+    turnstile.enforce(request)
     _require_admin(request)
     import hashlib as _hl
     import time as _t
@@ -360,7 +372,7 @@ def firms_dedup_sensitivity(aoi: str = Query("vietnam"),
 
 
 @router.post("/api/firms/investigate")
-def firms_investigate(payload: dict):
+def firms_investigate(request: Request, payload: dict):
     from app.main import _SENSOR_KW, _analysis_for_evidence, _sensor_context_facts
     """AI Scientific Investigator: deterministic tools first, LLM explains.
 
@@ -368,6 +380,7 @@ def firms_investigate(payload: dict):
     LLM never computes MAE/coverage; it receives the tool outputs and the
     evidence card, and the grounding guard rejects invented large numbers.
     """
+    turnstile.enforce(request, payload)
     q = str(payload.get("question", "")).strip()
     if not q or len(q) > 1000:
         raise HTTPException(400, "Provide question (1-1000 chars)")
@@ -470,9 +483,10 @@ def _compact_evaluation_for_llm(ev: dict | None) -> dict | None:
 
 
 @router.post("/api/firms/investigate-stream")
-def firms_investigate_stream(payload: dict):
+def firms_investigate_stream(request: Request, payload: dict):
     from app.main import _SENSOR_KW, _analysis_for_evidence, _sensor_context_facts
     """Streaming endpoint for AI Scientific Investigator."""
+    turnstile.enforce(request, payload)
     q = str(payload.get("question", "")).strip()
     if not q or len(q) > 1000:
         raise HTTPException(400, "Provide question (1-1000 chars)")
@@ -554,8 +568,9 @@ def firms_llm_status():
 
 
 @router.post("/api/firms/ask-llm")
-def firms_ask_llm(payload: dict):
+def firms_ask_llm(request: Request, payload: dict):
     """LLM explainer grounded on verified facts (falls back honestly offline)."""
+    turnstile.enforce(request, payload)
     q = str(payload.get("question", "")).strip()
     if not q or len(q) > 1000:
         raise HTTPException(400, "Provide question (1-1000 chars)")
@@ -616,8 +631,9 @@ def firms_ask_llm(payload: dict):
 
 
 @router.post("/api/firms/ask")
-def firms_ask(payload: dict):
+def firms_ask(request: Request, payload: dict):
     """Offline assistant: explains algorithm/data/accuracy from live numbers."""
+    turnstile.enforce(request, payload)
     q = str(payload.get("question", "")).strip()
     if not q or len(q) > 1000:
         raise HTTPException(400, "Provide question (1-1000 chars)")

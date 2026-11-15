@@ -1,6 +1,7 @@
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Database, Globe, Info, Sparkles, Table as TableIcon } from "lucide-react";
 import { useLang } from "@/lib/i18n";
+import { AOI_BBOX } from "@/hooks/useCalendarData";
 import { backendMethod, useResearchContext, type CalibMethod } from "@/lib/researchContext";
 import { cn, compact } from "@/lib/utils";
 import { anomalyLabel } from "./anomaly";
@@ -114,9 +115,28 @@ export function CalendarDock({
   bbox = null,
 }: CalendarDockProps) {
   const { t } = useLang();
+  const [searchParams] = useSearchParams();
   const { mode, setMode } = useResearchContext();
   const isResearch = mode === "research";
   const isSynthetic = data !== "raw";
+  const isCustomBbox = Boolean(
+    (bbox && bbox !== (AOI_BBOX[aoi] ?? ""))
+    || searchParams.get("bbox"),
+  );
+  const hasSubFilters = Boolean(
+    isCustomBbox
+    || searchParams.get("geometry")
+    || searchParams.get("from_date")
+    || searchParams.get("to_date")
+    || searchParams.get("from")
+    || searchParams.get("to")
+    || qaMin !== "all"
+    || platformSet !== "all"
+    || sourceType !== "all"
+    || daynight !== "all"
+    || minFrp > 0
+  );
+  const mlUnsupported = aoi === "custom" || Boolean(dataset) || hasSubFilters;
   const ym = activeMonth ? `${activeMonth.year}-${String(activeMonth.month).padStart(2, "0")}` : null;
 
   const tabs: Array<{ id: DockTab; label: string }> = [
@@ -323,13 +343,17 @@ export function CalendarDock({
             <div className="grid grid-cols-3 gap-1 rounded-lg bg-slate-900/80 p-1">
               <button
                 type="button"
+                disabled={mlUnsupported}
+                title={mlUnsupported ? t("custom_panel.ml_disabled_reason") : t("calendar.stan_tooltip")}
                 onClick={() => {
+                  if (mlUnsupported) return;
                   if (isSynthetic) onSelectDataFeed?.("raw");
                   onSelectMethod?.("stan");
                 }}
                 className={cn(
                   "rounded-md py-1.5 px-2 text-xs font-semibold transition",
-                  method === "stan"
+                  mlUnsupported && "opacity-40 cursor-not-allowed",
+                  method === "stan" && !mlUnsupported
                     ? "bg-emerald-500/20 text-emerald-200 border border-emerald-500/40"
                     : "text-slate-400 hover:text-white",
                 )}
@@ -338,13 +362,17 @@ export function CalendarDock({
               </button>
               <button
                 type="button"
+                disabled={mlUnsupported}
+                title={mlUnsupported ? t("custom_panel.ml_disabled_reason") : t("calendar.hts_tooltip")}
                 onClick={() => {
+                  if (mlUnsupported) return;
                   if (isSynthetic) onSelectDataFeed?.("raw");
                   onSelectMethod?.("hts_anchor");
                 }}
                 className={cn(
                   "rounded-md py-1.5 px-2 text-xs font-semibold transition",
-                  method === "hts_anchor"
+                  mlUnsupported && "opacity-40 cursor-not-allowed",
+                  method === "hts_anchor" && !mlUnsupported
                     ? "bg-amber-500/20 text-amber-200 border border-amber-500/40"
                     : "text-slate-400 hover:text-white",
                 )}
@@ -354,9 +382,10 @@ export function CalendarDock({
               <button
                 type="button"
                 onClick={() => onSelectMethod?.("k_ratio")}
+                title={t("calendar.b2_tooltip")}
                 className={cn(
                   "rounded-md py-1.5 px-2 text-xs font-semibold transition",
-                  method === "k_ratio"
+                  (method === "k_ratio" || mlUnsupported)
                     ? "bg-cyan-500/20 text-cyan-200 border border-cyan-500/40"
                     : "text-slate-400 hover:text-white",
                 )}
@@ -364,6 +393,11 @@ export function CalendarDock({
                 B2
               </button>
             </div>
+            {mlUnsupported && (
+              <p className="rounded-lg border border-orange-500/30 bg-orange-950/25 px-2.5 py-1.5 text-[11px] leading-snug text-orange-200/90">
+                {t("custom_panel.ml_disabled_reason")}
+              </p>
+            )}
             <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 px-2.5 py-1.5 text-[11px] leading-snug text-slate-300 space-y-1">
               <p>
                 {method === "stan"

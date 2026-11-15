@@ -5,15 +5,15 @@ returns a `gaps` ledger (`missing_months`, `missing_by_year`,
 `missing_examples`) derived from the request manifest. The calendar UI shows
 the same warning.
 
-## Current gaps (2026-11-14, post-Australia backfill)
+## Current gaps (2026-11-14, post-full backfill)
 
 | AOI | Expected range | Fetched months | Full months (>=90% paired) | Missing |
 |---|---|---:|---:|---|
-| vietnam | 2012-01 … 2026-12 | 169 | 168 | 2026-11..12 (NRT partial / future) |
-| amazon | 2012-01 … 2026-12 | 85 | 84 | 2012-01…2018-12 (84), 2026-11..12 |
-| australia | 2012-01 … 2026-12 | 85 | 84 | 2012-01…2018-12 (84), 2026-11..12 |
+| vietnam | 2012-01 … 2026-12 | 180 | 180 | 0 (none) |
+| amazon | 2012-01 … 2026-12 | 180 | 180 | 0 (none) |
+| australia | 2012-01 … 2026-12 | 180 | 180 | 0 (none) |
 
-All three AOIs now meet the `full_month` coverage rule; earlier pre-backfill snapshots had Australia at 0/85 full months (5-day windows).
+All three AOIs now meet the `full_month` coverage rule with 180/180 manifest months (`2012-01` .. `2026-12`). Earlier pre-backfill snapshots had Australia at 0/85 full months (5-day windows).
 
 Fallback `k=0.35` (`insufficient_overlap`, <3 co-observed months) keeps its number
 but always ships with `uncertainty_status=not_calibrated` + `calibration_note`

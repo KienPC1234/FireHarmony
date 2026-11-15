@@ -63,28 +63,30 @@ export function LabSidebar({
   return (
     <aside className="space-y-4">
       <div className="rounded-2xl border border-slate-800 bg-[#111C2E] p-4 sm:p-5 shadow-sm space-y-4">
-        {/* Target AOI Selector (Select 0) */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-            <Globe className="h-3.5 w-3.5 text-cyan-400" />
-            <span>{t("lab.side_aoi")}</span>
-          </label>
-          <select
-            value={aoi}
-            onChange={(e) => setAoi(e.target.value)}
-            aria-label="Target AOI"
-            className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-xs text-white focus:outline-none min-h-[40px]"
-          >
-            {aoiOptions.map((p) => (
-              <option key={p.id} value={p.id}>
-                {vi ? p.name.vi : p.name.en} ({vi ? p.region.vi : p.region.en})
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Target AOI Selector (Select 0): hidden in Custom live-region mode */}
+        {aoi !== "custom" && (
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <Globe className="h-3.5 w-3.5 text-cyan-400" />
+              <span>{t("lab.side_aoi")}</span>
+            </label>
+            <select
+              value={aoi}
+              onChange={(e) => setAoi(e.target.value)}
+              aria-label="Target AOI"
+              className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-xs text-white focus:outline-none min-h-[40px]"
+            >
+              {aoiOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {vi ? p.name.vi : p.name.en} ({vi ? p.region.vi : p.region.en})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Data Stream Selector (Select 1: required for smoke test) */}
-        <div className="space-y-1.5 border-t border-slate-800 pt-3">
+        <div className={cn("space-y-1.5", aoi !== "custom" && "border-t border-slate-800 pt-3")}>
           <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
             <Database className="h-3.5 w-3.5 text-cyan-400" />
             <span>{t("lab.side_feed")}</span>

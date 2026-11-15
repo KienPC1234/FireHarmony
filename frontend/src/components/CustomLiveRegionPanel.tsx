@@ -39,6 +39,7 @@ export interface CustomLiveRegionPanelProps {
     rows: number;
     cached?: boolean;
   }) => void;
+  onClear?: () => void;
 }
 
 export function CustomLiveRegionPanel({
@@ -48,6 +49,7 @@ export function CustomLiveRegionPanel({
   fromDateProp,
   toDateProp,
   onLoaded,
+  onClear,
 }: CustomLiveRegionPanelProps) {
   const { t } = useLang();
   const [selectedBbox, setSelectedBbox] = useState<string>(bbox || "");
@@ -65,8 +67,8 @@ export function CustomLiveRegionPanel({
   } | null>(null);
 
   useEffect(() => {
-    if (bbox && bbox !== selectedBbox) setSelectedBbox(bbox);
-  }, [bbox, selectedBbox]);
+    setSelectedBbox(bbox || "");
+  }, [bbox]);
 
   useEffect(() => {
     if (geometry !== undefined) setSelectedGeometry(geometry ?? null);
@@ -226,6 +228,9 @@ export function CustomLiveRegionPanel({
           <p className="text-xs text-slate-400">
             {t("custom_panel.subtitle", { maxDays: MAX_LIVE_DAYS, maxDeg: MAX_BBOX_DEG })}
           </p>
+          <p className="text-[11px] text-orange-200/80 leading-relaxed">
+            {t("custom_panel.stat_custom_explain")}
+          </p>
         </div>
 
         <div className="flex flex-wrap items-end gap-2">
@@ -298,6 +303,8 @@ export function CustomLiveRegionPanel({
             setSelectedBbox("");
             setSelectedGeometry(null);
             setCells([]);
+            setLastFetch(null);
+            onClear?.();
           }}
         />
         {fetching && (

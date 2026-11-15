@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { applyCustomRegionParams } from "@/lib/researchContext";
+import { applyCustomRegionParams, clearCustomRegionParams } from "@/lib/researchContext";
 import {
   ChevronDown,
   HelpCircle,
@@ -100,6 +100,13 @@ export function LabPage() {
       next.set("tab", newTab);
       next.set("aoi", newAoi);
       next.set("data", newData);
+      if (newAoi !== "custom") {
+        next.delete("dataset");
+        next.delete("bbox");
+        next.delete("geometry");
+        next.delete("from_date");
+        next.delete("to_date");
+      }
       return next;
     });
   };
@@ -164,7 +171,7 @@ export function LabPage() {
       .finally(() => {
         if (active) setBusy(false);
       });
-    if (!dataset) {
+    if (!dataset && aoi !== "custom") {
       api.backtest(aoi, dsrc)
         .then((bt) => {
           if (active) setBacktestData(bt);
@@ -268,9 +275,10 @@ export function LabPage() {
         const res = await api.crossValidate({ aoi, data: dsrc, series });
         if (reqSeq.current === seq) setCrossRes(res);
       } else if (tab === "xray" || tab === "replay") {
+        if (aoi === "custom" && !dataset) return;
         const [xr, bt] = await Promise.all([
           api.xray(aoi, dsrc, dataset),
-          api.backtest(aoi, dsrc),
+          !dataset && aoi !== "custom" ? api.backtest(aoi, dsrc) : Promise.resolve(null),
         ]);
         if (reqSeq.current === seq) {
           setXrayData(xr);
@@ -442,6 +450,7 @@ export function LabPage() {
           fromDateProp={sp.get("from_date")}
           toDateProp={sp.get("to_date")}
           onLoaded={(payload) => setSp((prev) => applyCustomRegionParams(prev, payload), { replace: true })}
+          onClear={() => setSp((prev) => clearCustomRegionParams(prev), { replace: true })}
         />
       )}
 

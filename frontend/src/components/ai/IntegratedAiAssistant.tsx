@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, Loader2, Send, Wrench } from "lucide-react";
-import { api, describeError, ApiError, BOT_GUARD_CHALLENGE } from "@/lib/api";
+import { api, describeError, readErrorCode, ApiError, BOT_GUARD_CHALLENGE } from "@/lib/api";
+import { TurnstileGate, type TurnstileGateHandle } from "@/components/common/TurnstileGate";
 import { useLang } from "@/lib/i18n";
 import { useResearchContext } from "@/lib/researchContext";
 import { cn } from "@/lib/utils";
@@ -113,6 +114,20 @@ export function IntegratedAiAssistant({
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const turnstileRef = useRef<TurnstileGateHandle>(null);
+
+  /** Human-check failures read as "finish the checkbox", not a raw 403. */
+  const chatErrorText = (err: unknown, fallback: (detail: string) => string) => {
+    const code = readErrorCode(err);
+    if (code === "turnstile_unavailable") return t("turnstile.unavailable");
+    if (typeof code === "string" && code.startsWith("turnstile_")) {
+      return t("turnstile.retry");
+    }
+    if (err instanceof ApiError && err.message === BOT_GUARD_CHALLENGE) {
+      return t("ai.botguard_expired");
+    }
+    return fallback(describeError(err));
+  };
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -136,6 +151,18 @@ export function IntegratedAiAssistant({
     setInput("");
     setBusy(true);
     try {
+      const turnstileToken = (await turnstileRef.current?.solve()) ?? "";
+      if (turnstileRef.current?.enabled && !turnstileToken) {
+        // Do not burn a request the backend must reject with 403.
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === botId
+              ? { ...msg, text: t("turnstile.retry"), isStreaming: false }
+              : msg,
+          ),
+        );
+        return;
+      }
       await api.investigateStream(
         {
           question,
@@ -149,6 +176,7 @@ export function IntegratedAiAssistant({
           mode,
           lang,
           use_llm: true,
+          turnstile_token: turnstileToken || undefined,
         },
         {
           onTool: (tool) => {
@@ -215,16 +243,12 @@ export function IntegratedAiAssistant({
             );
           },
           onError: (err) => {
-            const expired =
-              err instanceof ApiError && err.message === BOT_GUARD_CHALLENGE;
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === botId
                   ? {
                       ...msg,
-                      text: expired
-                        ? t("ai.botguard_expired")
-                        : t("ai.error_analysis", { error: describeError(err) }),
+                      text: chatErrorText(err, (detail) => t("ai.error_analysis", { error: detail })),
                       isStreaming: false,
                     }
                   : msg,
@@ -234,16 +258,12 @@ export function IntegratedAiAssistant({
         },
       );
     } catch (err) {
-      const expired =
-        err instanceof ApiError && err.message === BOT_GUARD_CHALLENGE;
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === botId
             ? {
                 ...msg,
-                text: expired
-                  ? t("ai.botguard_expired")
-                  : t("ai.error_could_not_get", { error: describeError(err) }),
+                text: chatErrorText(err, (detail) => t("ai.error_could_not_get", { error: detail })),
                 isStreaming: false,
               }
             : msg,
@@ -363,6 +383,7 @@ export function IntegratedAiAssistant({
         )}
       </div>
 
+      <TurnstileGate ref={turnstileRef} className="flex shrink-0 justify-center px-3 pb-1" />
       <form
         onSubmit={(e) => {
           e.preventDefault();

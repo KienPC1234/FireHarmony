@@ -438,7 +438,53 @@ function shiftIsoDate(iso: string, deltaDays: number): string {
     return () => window.removeEventListener("keydown", onKey);
   }, [activeMonth]);
 
+  const openFullArchiveAoi = (targetAoi: AoiId) => {
+    const defBbox = AOI_BBOX[targetAoi] ?? "";
+    const nextMethod = method === "hts_anchor" || method === "stan" ? method : "stan";
+    const defaultYm: Record<string, string> = {
+      vietnam: "2026-03",
+      amazon: "2025-09",
+      australia: "2025-11",
+    };
+    const initialYm = defaultYm[targetAoi] ?? "all";
+    setHasExplicitRegion(true);
+    setBbox(defBbox);
+    setRangePreset("all");
+    setMapPeriod(initialYm);
+    setFromDate("");
+    setToDate("");
+    setActiveZone(null);
+    setEmptyFilter(null);
+    setApplied((prev) => ({
+      ...prev,
+      aoi: targetAoi,
+      bbox: defBbox,
+      data: "raw",
+      method: backendMethod(nextMethod),
+      geometry: null,
+      from_date: null,
+      to_date: null,
+      dataset: undefined,
+    }));
+    const next = new URLSearchParams(search);
+    next.set("aoi", targetAoi);
+    next.set("data", "raw");
+    next.set("method", nextMethod);
+    next.delete("bbox");
+    next.delete("geometry");
+    next.delete("from");
+    next.delete("to");
+    next.delete("dataset");
+    if (initialYm !== "all") next.set("ym", initialYm);
+    else next.delete("ym");
+    setSearch(next, { replace: true });
+  };
+
   const handleSelectAoi = async (newAoi: string) => {
+    if (PRESET_AOI_IDS.has(newAoi)) {
+      openFullArchiveAoi(newAoi as AoiId);
+      return;
+    }
     const inSampleCatalog = applied.data !== "raw" && PRESET_AOI_IDS.has(newAoi);
     const b = (inSampleCatalog
       ? AOI_BBOX[newAoi]
@@ -1197,15 +1243,15 @@ function shiftIsoDate(iso: string, deltaDays: number): string {
               <span className="text-slate-400 font-medium mr-1">{t("calendar.guide_presets_label")}</span>
               {(
                 [
-                  { id: "vietnam", label: "Vietnam (Central Highlands)", bbox: LIVE_FOCUS_BBOX.vietnam },
-                  { id: "amazon", label: "Amazon (Mato Grosso)", bbox: LIVE_FOCUS_BBOX.amazon },
-                  { id: "australia", label: "Australia (SE Forests)", bbox: LIVE_FOCUS_BBOX.australia },
+                  { id: "vietnam", label: "Vietnam (STAN · 2012-2026)" },
+                  { id: "amazon", label: "Amazon (STAN · 2012-2026)" },
+                  { id: "australia", label: "Australia (STAN · 2012-2026)" },
                 ] as const
               ).map((preset) => (
                 <button
                   key={preset.id}
                   type="button"
-                  onClick={() => selectWorldBbox(preset.bbox)}
+                  onClick={() => openFullArchiveAoi(preset.id)}
                   className="rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs font-semibold text-slate-200 hover:border-cyan-500/50 hover:text-cyan-200 transition"
                 >
                   {preset.label}

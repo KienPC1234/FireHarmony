@@ -7,82 +7,82 @@
  "params": 171362,
  "torch_version": "2.14.1+cu130",
  "device": "cuda",
- "n_train": 7341,
- "n_test": 2062,
+ "n_train": 11548,
+ "n_test": 2535,
  "epochs_by_seed": {
-  "7": 32,
-  "17": 56,
-  "27": 9,
-  "37": 30,
-  "47": 57
+  "7": 33,
+  "17": 36,
+  "27": 38,
+  "37": 40,
+  "47": 21
  },
  "seed_mae": [
-  1561.95,
-  1522.07,
-  1725.36,
-  1722.05,
-  1849.57
+  1614.32,
+  1816.27,
+  1598.17,
+  1730.87,
+  1657.61
  ],
  "seed_mae_range": [
-  1522.07,
-  1849.57
+  1598.17,
+  1816.27
  ],
- "level_scale_2023": 1.0205,
- "band_log_halfwidth": 0.1267,
+ "level_scale_2023": 1.0089,
+ "band_log_halfwidth": 0.1163,
  "band_validation_coverage80": 0.8056,
  "metrics": {
-  "mae": 1662.031,
-  "wape": 0.089071,
-  "bias": 932.858,
-  "n": 72
+  "mae": 1637.4046,
+  "wape": 0.105628,
+  "bias": 953.1953,
+  "n": 96
  },
  "hts_metrics": {
-  "mae": 1662.8473,
-  "wape": 0.089114,
-  "bias": 419.7507,
-  "n": 72
+  "mae": 1763.054,
+  "wape": 0.113734,
+  "bias": 552.6799,
+  "n": 96
  },
  "per_aoi": {
   "vietnam": {
    "stan": {
-    "mae": 498.4863,
-    "wape": 0.071293,
-    "bias": 391.3156,
-    "n": 24
+    "mae": 636.1594,
+    "wape": 0.085942,
+    "bias": 535.4008,
+    "n": 32
    },
    "hts": {
-    "mae": 555.227,
-    "wape": 0.079407,
-    "bias": 104.2639,
-    "n": 24
+    "mae": 709.2712,
+    "wape": 0.095819,
+    "bias": 228.9242,
+    "n": 32
    }
   },
   "amazon": {
    "stan": {
-    "mae": 1755.8576,
-    "wape": 0.070136,
-    "bias": 886.1244,
-    "n": 24
+    "mae": 1943.9711,
+    "wape": 0.101394,
+    "bias": 1207.7794,
+    "n": 32
    },
    "hts": {
-    "mae": 2349.8279,
-    "wape": 0.093862,
-    "bias": 285.4481,
-    "n": 24
+    "mae": 2430.6501,
+    "wape": 0.126778,
+    "bias": 878.5336,
+    "n": 32
    }
   },
   "australia": {
    "stan": {
-    "mae": 2731.7493,
-    "wape": 0.114051,
-    "bias": 1521.1339,
-    "n": 24
+    "mae": 2332.0832,
+    "wape": 0.117014,
+    "bias": 1116.4058,
+    "n": 32
    },
    "hts": {
-    "mae": 2083.4869,
-    "wape": 0.086986,
-    "bias": 869.5401,
-    "n": 24
+    "mae": 2149.2407,
+    "wape": 0.107839,
+    "bias": 550.5819,
+    "n": 32
    }
   }
  },
@@ -90,13 +90,13 @@
   "stan_vs_hts": {
    "method_a": "stan",
    "method_b": "hts_anchor",
-   "delta_mae": -0.8163,
+   "delta_mae": -125.6494,
    "ci95": [
-    -368.8169,
-    286.5566
+    -373.8195,
+    74.2302
    ],
-   "prob_a_better": 0.4675,
-   "n": 72,
+   "prob_a_better": 0.863,
+   "n": 96,
    "n_boot": 2000,
    "unit": "AOI-month row bootstrap (not independent hotspots)"
   }
@@ -104,33 +104,33 @@
  "official": {
   "n": 72,
   "metrics": {
-   "mae": 3899.7166,
-   "wape": 0.079231,
-   "bias": 1083.4418,
+   "mae": 4154.6347,
+   "wape": 0.08441,
+   "bias": 369.642,
    "n": 72
   },
   "hts_metrics": {
-   "mae": 4172.6757,
-   "wape": 0.084777,
-   "bias": 570.3345,
+   "mae": 4524.7827,
+   "wape": 0.09193,
+   "bias": -119.0528,
    "n": 72
   },
   "b2_metrics": {
-   "mae": 4462.6015,
-   "wape": 0.090667,
-   "bias": 1442.3907,
+   "mae": 4581.1355,
+   "wape": 0.093075,
+   "bias": 791.1416,
    "n": 72
   },
   "comparisons": {
    "stan_vs_hts": {
     "method_a": "stan",
     "method_b": "hts_anchor",
-    "delta_mae": -272.9591,
+    "delta_mae": -370.1479,
     "ci95": [
-     -627.915,
-     14.9163
+     -719.3487,
+     -88.6689
     ],
-    "prob_a_better": 0.967,
+    "prob_a_better": 0.999,
     "n": 72,
     "n_boot": 2000,
     "unit": "AOI-month row bootstrap (not independent hotspots)"
@@ -138,12 +138,12 @@
    "stan_vs_b2": {
     "method_a": "stan",
     "method_b": "b2_seasonal_ratio",
-    "delta_mae": -562.8849,
+    "delta_mae": -426.5007,
     "ci95": [
-     -1184.0675,
-     50.8499
+     -1060.5151,
+     216.2211
     ],
-    "prob_a_better": 0.9645,
+    "prob_a_better": 0.9185,
     "n": 72,
     "n_boot": 2000,
     "unit": "AOI-month row bootstrap (not independent hotspots)"
@@ -152,9 +152,9 @@
   "per_aoi": {
    "vietnam": {
     "stan": {
-     "mae": 726.6884,
-     "wape": 0.052859,
-     "bias": 290.5942,
+     "mae": 660.1969,
+     "wape": 0.048023,
+     "bias": 355.739,
      "n": 24
     },
     "hts": {
@@ -172,9 +172,9 @@
    },
    "amazon": {
     "stan": {
-     "mae": 3705.4403,
-     "wape": 0.085581,
-     "bias": 638.0218,
+     "mae": 3667.4642,
+     "wape": 0.084704,
+     "bias": 470.6546,
      "n": 24
     },
     "hts": {
@@ -192,29 +192,29 @@
    },
    "australia": {
     "stan": {
-     "mae": 7267.0211,
-     "wape": 0.080198,
-     "bias": 2321.7094,
+     "mae": 8136.2431,
+     "wape": 0.08979,
+     "bias": 282.5324,
      "n": 24
     },
     "hts": {
-     "mae": 7429.2524,
-     "wape": 0.081988,
-     "bias": 1670.1156,
+     "mae": 8485.5734,
+     "wape": 0.093646,
+     "bias": -398.0464,
      "n": 24
     },
     "b2": {
-     "mae": 7743.6121,
-     "wape": 0.085457,
-     "bias": 4289.524,
+     "mae": 8099.2141,
+     "wape": 0.089382,
+     "bias": 2335.7767,
      "n": 24
     }
    }
   },
   "headline": {
-   "mae": 2216.0643,
-   "wape": 0.077695,
-   "bias": 464.308,
+   "mae": 2163.8306,
+   "wape": 0.075864,
+   "bias": 413.1968,
    "n": 48
   },
   "hts_headline": {
@@ -230,366 +230,486 @@
    "n": 48
   }
  },
- "dataset_sha256": "531de890a70be30c76fce680ac13aa4055a7c660e5ff9e6f4b0a3aeaee44a019",
- "created_at": "2026-11-14T05:06:26.585850+00:00",
+ "dataset_sha256": "f7e49ecfe81bb757afe8062caad293d06d229af05d4b31d57de5ae733313bf34",
+ "created_at": "2026-11-14T18:09:58.635537+00:00",
  "predictions": {
   "amazon:2024-03": {
-   "stan": 14176.363,
+   "stan": 13694.077,
    "hts": 14696.32,
    "viirs_ref": 16078.0
   },
   "amazon:2024-04": {
-   "stan": 3244.901,
+   "stan": 3102.316,
    "hts": 3237.716,
    "viirs_ref": 2359.0
   },
   "amazon:2024-05": {
-   "stan": 4698.599,
+   "stan": 4492.836,
    "hts": 4810.762,
    "viirs_ref": 4498.0
   },
   "amazon:2024-06": {
-   "stan": 11795.465,
+   "stan": 11677.163,
    "hts": 12044.205,
    "viirs_ref": 11574.0
   },
   "amazon:2024-07": {
-   "stan": 36782.78,
+   "stan": 37241.401,
    "hts": 37347.21,
    "viirs_ref": 25578.0
   },
   "amazon:2024-08": {
-   "stan": 166230.535,
+   "stan": 166122.073,
    "hts": 158553.647,
    "viirs_ref": 170308.0
   },
   "amazon:2024-09": {
-   "stan": 205047.439,
+   "stan": 204105.416,
    "hts": 198258.06,
    "viirs_ref": 206557.0
   },
   "amazon:2024-10": {
-   "stan": 55443.519,
+   "stan": 54907.946,
    "hts": 55822.883,
    "viirs_ref": 52775.0
   },
   "amazon:2025-05": {
-   "stan": 1262.747,
+   "stan": 1224.404,
    "hts": 1300.103,
    "viirs_ref": 1382.0
   },
   "amazon:2025-06": {
-   "stan": 5160.309,
+   "stan": 5210.374,
    "hts": 5265.956,
    "viirs_ref": 4766.0
   },
   "amazon:2025-07": {
-   "stan": 3182.944,
+   "stan": 3167.307,
    "hts": 3247.115,
    "viirs_ref": 2623.0
   },
   "amazon:2025-09": {
-   "stan": 15081.696,
+   "stan": 14839.479,
    "hts": 14919.848,
    "viirs_ref": 14673.0
   },
   "amazon:2025-10": {
-   "stan": 12329.192,
+   "stan": 12241.011,
    "hts": 12498.192,
    "viirs_ref": 11431.0
   },
   "amazon:2025-11": {
-   "stan": 7104.551,
+   "stan": 6885.479,
    "hts": 6929.252,
    "viirs_ref": 4721.0
   },
+  "amazon:2026-05": {
+   "stan": 1668.324,
+   "hts": 1715.695,
+   "viirs_ref": 1777.0
+  },
+  "amazon:2026-06": {
+   "stan": 3577.513,
+   "hts": 3727.281,
+   "viirs_ref": 3618.0
+  },
+  "amazon:2026-07": {
+   "stan": 2903.089,
+   "hts": 3019.487,
+   "viirs_ref": 2461.0
+  },
+  "amazon:2026-08": {
+   "stan": 20161.247,
+   "hts": 19429.222,
+   "viirs_ref": 0.0
+  },
   "amazon:2025-08": {
-   "stan": 12984.073,
+   "stan": 13069.06,
    "hts": 12665.141,
    "viirs_ref": 13681.0
   },
   "amazon:2025-12": {
-   "stan": 3676.367,
+   "stan": 3558.021,
    "hts": 3689.626,
    "viirs_ref": 2319.0
   },
   "amazon:2024-11": {
-   "stan": 33754.535,
+   "stan": 32249.071,
    "hts": 32448.885,
    "viirs_ref": 25871.0
   },
   "amazon:2024-01": {
-   "stan": 4359.526,
+   "stan": 4383.729,
    "hts": 4357.866,
    "viirs_ref": 4689.0
   },
   "amazon:2024-02": {
-   "stan": 14232.964,
+   "stan": 14518.349,
    "hts": 14102.99,
    "viirs_ref": 15866.0
   },
   "amazon:2024-12": {
-   "stan": 10733.912,
+   "stan": 10588.439,
    "hts": 10644.392,
    "viirs_ref": 8230.0
   },
   "amazon:2025-02": {
-   "stan": 90.7,
+   "stan": 92.021,
    "hts": 96.763,
    "viirs_ref": 85.0
   },
   "amazon:2025-03": {
-   "stan": 59.39,
+   "stan": 58.803,
    "hts": 66.376,
    "viirs_ref": 83.0
   },
   "amazon:2025-04": {
-   "stan": 141.165,
+   "stan": 130.35,
    "hts": 157.94,
    "viirs_ref": 287.0
   },
+  "amazon:2026-01": {
+   "stan": 1681.398,
+   "hts": 1727.511,
+   "viirs_ref": 1367.0
+  },
+  "amazon:2026-03": {
+   "stan": 2194.592,
+   "hts": 2399.973,
+   "viirs_ref": 1981.0
+  },
   "amazon:2025-01": {
-   "stan": 530.313,
+   "stan": 528.047,
    "hts": 526.504,
    "viirs_ref": 403.0
   },
+  "amazon:2026-02": {
+   "stan": 1343.513,
+   "hts": 1341.061,
+   "viirs_ref": 1209.0
+  },
+  "amazon:2026-04": {
+   "stan": 552.095,
+   "hts": 585.092,
+   "viirs_ref": 270.0
+  },
   "australia:2024-04": {
-   "stan": 28672.284,
-   "hts": 26835.242,
+   "stan": 24188.662,
+   "hts": 24581.301,
    "viirs_ref": 22529.0
   },
   "australia:2024-05": {
-   "stan": 15694.945,
-   "hts": 15798.882,
+   "stan": 14876.7,
+   "hts": 14825.179,
    "viirs_ref": 15886.0
   },
   "australia:2024-06": {
-   "stan": 6612.675,
-   "hts": 6806.383,
+   "stan": 6509.267,
+   "hts": 6516.617,
    "viirs_ref": 6784.0
   },
   "australia:2024-07": {
-   "stan": 5088.978,
-   "hts": 5189.579,
+   "stan": 5362.35,
+   "hts": 5347.213,
    "viirs_ref": 3955.0
   },
   "australia:2024-08": {
-   "stan": 28028.607,
-   "hts": 27196.03,
+   "stan": 27681.779,
+   "hts": 26224.347,
    "viirs_ref": 24698.0
   },
   "australia:2024-09": {
-   "stan": 35122.005,
-   "hts": 33977.475,
+   "stan": 35252.339,
+   "hts": 34243.571,
    "viirs_ref": 32639.0
   },
   "australia:2024-10": {
-   "stan": 47993.492,
-   "hts": 47017.449,
+   "stan": 47386.592,
+   "hts": 46109.106,
    "viirs_ref": 42896.0
   },
   "australia:2024-11": {
-   "stan": 31311.763,
-   "hts": 30364.208,
+   "stan": 32172.28,
+   "hts": 30888.077,
    "viirs_ref": 20588.0
   },
   "australia:2025-04": {
-   "stan": 27661.435,
-   "hts": 25386.406,
+   "stan": 23544.205,
+   "hts": 23620.672,
    "viirs_ref": 24457.0
   },
   "australia:2025-05": {
-   "stan": 49540.092,
-   "hts": 48525.257,
+   "stan": 46762.052,
+   "hts": 46264.425,
    "viirs_ref": 52500.0
   },
   "australia:2025-06": {
-   "stan": 20530.613,
-   "hts": 20928.538,
+   "stan": 20799.144,
+   "hts": 20669.088,
    "viirs_ref": 24752.0
   },
   "australia:2025-07": {
-   "stan": 13021.286,
-   "hts": 13228.217,
+   "stan": 13343.869,
+   "hts": 13188.454,
    "viirs_ref": 12574.0
   },
   "australia:2025-08": {
-   "stan": 43006.729,
-   "hts": 41583.483,
+   "stan": 42983.767,
+   "hts": 40431.458,
    "viirs_ref": 41411.0
   },
   "australia:2025-09": {
-   "stan": 48574.153,
-   "hts": 46838.778,
+   "stan": 46844.655,
+   "hts": 45548.048,
    "viirs_ref": 43603.0
   },
   "australia:2025-10": {
-   "stan": 71005.24,
-   "hts": 67807.024,
+   "stan": 69539.15,
+   "hts": 67093.675,
    "viirs_ref": 67893.0
   },
   "australia:2025-11": {
-   "stan": 37757.939,
-   "hts": 36787.322,
+   "stan": 39446.817,
+   "hts": 37904.431,
    "viirs_ref": 32882.0
   },
   "australia:2025-02": {
-   "stan": 7465.141,
-   "hts": 7968.873,
+   "stan": 8117.195,
+   "hts": 8245.79,
    "viirs_ref": 10185.0
   },
   "australia:2025-03": {
-   "stan": 12661.431,
-   "hts": 13014.81,
+   "stan": 11768.828,
+   "hts": 11913.057,
    "viirs_ref": 11897.0
   },
   "australia:2025-12": {
-   "stan": 28698.202,
-   "hts": 26941.49,
+   "stan": 28764.257,
+   "hts": 26968.151,
    "viirs_ref": 26376.0
   },
   "australia:2024-03": {
-   "stan": 8915.577,
-   "hts": 9560.373,
+   "stan": 9150.906,
+   "hts": 9266.476,
    "viirs_ref": 8553.0
   },
   "australia:2024-01": {
-   "stan": 9386.478,
-   "hts": 9293.27,
+   "stan": 8805.949,
+   "hts": 8596.843,
    "viirs_ref": 8920.0
   },
+  "australia:2026-07": {
+   "stan": 9814.855,
+   "hts": 10051.793,
+   "viirs_ref": 9904.0
+  },
+  "australia:2026-04": {
+   "stan": 20128.074,
+   "hts": 20361.407,
+   "viirs_ref": 19169.0
+  },
+  "australia:2026-05": {
+   "stan": 7426.204,
+   "hts": 7544.391,
+   "viirs_ref": 9581.0
+  },
+  "australia:2026-06": {
+   "stan": 3522.513,
+   "hts": 3739.716,
+   "viirs_ref": 3482.0
+  },
+  "australia:2026-08": {
+   "stan": 10987.0,
+   "hts": 10777.02,
+   "viirs_ref": 0.0
+  },
   "australia:2024-12": {
-   "stan": 17571.233,
-   "hts": 17270.834,
+   "stan": 18252.487,
+   "hts": 17368.055,
    "viirs_ref": 18260.0
   },
   "australia:2025-01": {
-   "stan": 13330.385,
-   "hts": 13510.232,
+   "stan": 14328.144,
+   "hts": 13724.747,
    "viirs_ref": 16901.0
   },
+  "australia:2026-01": {
+   "stan": 13855.197,
+   "hts": 11325.865,
+   "viirs_ref": 14099.0
+  },
   "australia:2024-02": {
-   "stan": 3706.533,
-   "hts": 3888.809,
+   "stan": 3525.935,
+   "hts": 3534.655,
    "viirs_ref": 3711.0
   },
+  "australia:2026-03": {
+   "stan": 4726.287,
+   "hts": 4902.803,
+   "viirs_ref": 4084.0
+  },
+  "australia:2026-02": {
+   "stan": 3617.528,
+   "hts": 3602.19,
+   "viirs_ref": 2591.0
+  },
   "vietnam:2024-01": {
-   "stan": 33806.276,
+   "stan": 35194.966,
    "hts": 31430.346,
    "viirs_ref": 34401.0
   },
   "vietnam:2024-02": {
-   "stan": 31153.496,
+   "stan": 31344.151,
    "hts": 29601.465,
    "viirs_ref": 30766.0
   },
   "vietnam:2024-03": {
-   "stan": 24644.134,
+   "stan": 24964.401,
    "hts": 24246.167,
    "viirs_ref": 24819.0
   },
   "vietnam:2024-04": {
-   "stan": 19577.874,
+   "stan": 19383.579,
    "hts": 18582.481,
    "viirs_ref": 18751.0
   },
   "vietnam:2024-05": {
-   "stan": 3277.93,
+   "stan": 3189.117,
    "hts": 3184.884,
    "viirs_ref": 3374.0
   },
   "vietnam:2025-01": {
-   "stan": 14352.753,
+   "stan": 14853.381,
    "hts": 13345.533,
    "viirs_ref": 12613.0
   },
   "vietnam:2025-02": {
-   "stan": 13344.997,
+   "stan": 13370.123,
    "hts": 12886.344,
    "viirs_ref": 11907.0
   },
   "vietnam:2025-03": {
-   "stan": 15097.321,
+   "stan": 15172.337,
    "hts": 15125.811,
    "viirs_ref": 13750.0
   },
+  "vietnam:2026-02": {
+   "stan": 21326.508,
+   "hts": 20238.37,
+   "viirs_ref": 19552.0
+  },
+  "vietnam:2026-03": {
+   "stan": 13904.433,
+   "hts": 13813.793,
+   "viirs_ref": 12685.0
+  },
+  "vietnam:2026-04": {
+   "stan": 19536.97,
+   "hts": 20250.706,
+   "viirs_ref": 16720.0
+  },
   "vietnam:2024-06": {
-   "stan": 1116.226,
+   "stan": 1051.789,
    "hts": 1166.559,
    "viirs_ref": 1083.0
   },
   "vietnam:2024-08": {
-   "stan": 1984.878,
+   "stan": 2006.641,
    "hts": 2200.189,
    "viirs_ref": 1848.0
   },
   "vietnam:2024-12": {
-   "stan": 1857.416,
+   "stan": 1861.107,
    "hts": 1868.928,
    "viirs_ref": 1950.0
   },
   "vietnam:2025-04": {
-   "stan": 9546.736,
+   "stan": 9081.318,
    "hts": 8874.096,
    "viirs_ref": 6287.0
   },
   "vietnam:2025-07": {
-   "stan": 542.682,
+   "stan": 527.483,
    "hts": 603.869,
    "viirs_ref": 588.0
   },
   "vietnam:2025-08": {
-   "stan": 1255.286,
+   "stan": 1254.364,
    "hts": 1355.393,
    "viirs_ref": 953.0
   },
+  "vietnam:2026-01": {
+   "stan": 14516.084,
+   "hts": 13195.005,
+   "viirs_ref": 15469.0
+  },
+  "vietnam:2026-08": {
+   "stan": 881.233,
+   "hts": 956.512,
+   "viirs_ref": 0.0
+  },
   "vietnam:2024-07": {
-   "stan": 309.292,
+   "stan": 309.845,
    "hts": 339.368,
    "viirs_ref": 202.0
   },
   "vietnam:2024-10": {
-   "stan": 119.885,
+   "stan": 117.548,
    "hts": 123.042,
    "viirs_ref": 65.0
   },
   "vietnam:2025-05": {
-   "stan": 2149.313,
+   "stan": 2067.874,
    "hts": 2194.766,
    "viirs_ref": 1468.0
   },
+  "vietnam:2026-05": {
+   "stan": 2639.782,
+   "hts": 2743.409,
+   "viirs_ref": 2489.0
+  },
+  "vietnam:2026-06": {
+   "stan": 1375.789,
+   "hts": 1508.617,
+   "viirs_ref": 1154.0
+  },
   "vietnam:2025-06": {
-   "stan": 668.618,
+   "stan": 622.492,
    "hts": 715.013,
    "viirs_ref": 647.0
   },
+  "vietnam:2026-07": {
+   "stan": 1055.976,
+   "hts": 1175.827,
+   "viirs_ref": 990.0
+  },
   "vietnam:2025-12": {
-   "stan": 952.514,
+   "stan": 965.79,
    "hts": 970.172,
    "viirs_ref": 1235.0
   },
   "vietnam:2024-11": {
-   "stan": 271.597,
+   "stan": 279.483,
    "hts": 289.202,
    "viirs_ref": 166.0
   },
   "vietnam:2024-09": {
-   "stan": 508.54,
+   "stan": 490.957,
    "hts": 529.702,
    "viirs_ref": 417.0
   },
   "vietnam:2025-09": {
-   "stan": 382.249,
+   "stan": 377.949,
    "hts": 392.064,
    "viirs_ref": 328.0
   },
   "vietnam:2025-11": {
-   "stan": 91.714,
+   "stan": 92.259,
    "hts": 99.44,
    "viirs_ref": 28.0
   },
   "vietnam:2025-10": {
-   "stan": 190.847,
+   "stan": 187.095,
    "hts": 188.503,
    "viirs_ref": 165.0
   }
@@ -598,9 +718,9 @@
   "vietnam": {
    "n": 24,
    "metrics": {
-    "mae": 773.8879,
-    "wape": 0.056292,
-    "bias": 35.6595,
+    "mae": 674.098,
+    "wape": 0.049034,
+    "bias": 47.0049,
     "n": 24
    },
    "hts_metrics": {
@@ -619,12 +739,12 @@
     "stan_vs_hts": {
      "method_a": "stan",
      "method_b": "hts_anchor",
-     "delta_mae": -10.0138,
+     "delta_mae": -109.8037,
      "ci95": [
-      -33.133,
-      10.1944
+      -309.5816,
+      55.2576
      ],
-     "prob_a_better": 0.8105,
+     "prob_a_better": 0.899,
      "n": 24,
      "n_boot": 2000,
      "unit": "AOI-month row bootstrap (not independent hotspots)"
@@ -632,12 +752,12 @@
     "stan_vs_b2": {
      "method_a": "stan",
      "method_b": "b2_seasonal_ratio",
-     "delta_mae": -70.2737,
+     "delta_mae": -170.0636,
      "ci95": [
-      -179.2123,
-      40.5542
+      -389.4528,
+      46.8977
      ],
-     "prob_a_better": 0.891,
+     "prob_a_better": 0.939,
      "n": 24,
      "n_boot": 2000,
      "unit": "AOI-month row bootstrap (not independent hotspots)"
@@ -646,9 +766,9 @@
    "per_aoi": {
     "vietnam": {
      "stan": {
-      "mae": 773.8879,
-      "wape": 0.056292,
-      "bias": 35.6595,
+      "mae": 674.098,
+      "wape": 0.049034,
+      "bias": 47.0049,
       "n": 24
      },
      "hts": {
@@ -666,9 +786,9 @@
     }
    },
    "headline": {
-    "mae": 773.8879,
-    "wape": 0.056292,
-    "bias": 35.6595,
+    "mae": 674.098,
+    "wape": 0.049034,
+    "bias": 47.0049,
     "n": 24
    },
    "hts_headline": {
@@ -683,16 +803,16 @@
     "bias": -132.3574,
     "n": 24
    },
-   "level_scale_2023": 1.0002,
-   "n_train": 5836,
-   "n_test": 258
+   "level_scale_2023": 1.0109,
+   "n_train": 10043,
+   "n_test": 365
   },
   "amazon": {
    "n": 24,
    "metrics": {
-    "mae": 4545.1989,
-    "wape": 0.104976,
-    "bias": -189.8915,
+    "mae": 4542.8785,
+    "wape": 0.104922,
+    "bias": -266.1982,
     "n": 24
    },
    "hts_metrics": {
@@ -711,12 +831,12 @@
     "stan_vs_hts": {
      "method_a": "stan",
      "method_b": "hts_anchor",
-     "delta_mae": 240.3261,
+     "delta_mae": 238.0056,
      "ci95": [
-      -141.617,
-      759.1912
+      0.3741,
+      610.6426
      ],
-     "prob_a_better": 0.144,
+     "prob_a_better": 0.025,
      "n": 24,
      "n_boot": 2000,
      "unit": "AOI-month row bootstrap (not independent hotspots)"
@@ -724,12 +844,12 @@
     "stan_vs_b2": {
      "method_a": "stan",
      "method_b": "b2_seasonal_ratio",
-     "delta_mae": -254.8318,
+     "delta_mae": -257.1522,
      "ci95": [
-      -1020.1349,
-      377.4553
+      -889.9444,
+      266.0235
      ],
-     "prob_a_better": 0.7755,
+     "prob_a_better": 0.8185,
      "n": 24,
      "n_boot": 2000,
      "unit": "AOI-month row bootstrap (not independent hotspots)"
@@ -738,9 +858,9 @@
    "per_aoi": {
     "amazon": {
      "stan": {
-      "mae": 4545.1989,
-      "wape": 0.104976,
-      "bias": -189.8915,
+      "mae": 4542.8785,
+      "wape": 0.104922,
+      "bias": -266.1982,
       "n": 24
      },
      "hts": {
@@ -758,9 +878,9 @@
     }
    },
    "headline": {
-    "mae": 4545.1989,
-    "wape": 0.104976,
-    "bias": -189.8915,
+    "mae": 4542.8785,
+    "wape": 0.104922,
+    "bias": -266.1982,
     "n": 24
    },
    "hts_headline": {
@@ -775,40 +895,40 @@
     "bias": 170.0054,
     "n": 24
    },
-   "level_scale_2023": 1.0143,
-   "n_train": 3447,
-   "n_test": 694
+   "level_scale_2023": 1.0005,
+   "n_train": 7654,
+   "n_test": 795
   },
   "australia": {
    "n": 24,
    "metrics": {
-    "mae": 7427.3526,
-    "wape": 0.081967,
-    "bias": 1568.5372,
+    "mae": 8549.2859,
+    "wape": 0.094349,
+    "bias": -495.5775,
     "n": 24
    },
    "hts_metrics": {
-    "mae": 7429.2524,
-    "wape": 0.081988,
-    "bias": 1670.1156,
+    "mae": 8485.5734,
+    "wape": 0.093646,
+    "bias": -398.0464,
     "n": 24
    },
    "b2_metrics": {
-    "mae": 7743.6121,
-    "wape": 0.085457,
-    "bias": 4289.524,
+    "mae": 8099.2141,
+    "wape": 0.089382,
+    "bias": 2335.7767,
     "n": 24
    },
    "comparisons": {
     "stan_vs_hts": {
      "method_a": "stan",
      "method_b": "hts_anchor",
-     "delta_mae": -1.8998,
+     "delta_mae": 63.7125,
      "ci95": [
-      -177.4082,
-      155.1531
+      -97.5159,
+      203.4676
      ],
-     "prob_a_better": 0.512,
+     "prob_a_better": 0.207,
      "n": 24,
      "n_boot": 2000,
      "unit": "AOI-month row bootstrap (not independent hotspots)"
@@ -816,12 +936,12 @@
     "stan_vs_b2": {
      "method_a": "stan",
      "method_b": "b2_seasonal_ratio",
-     "delta_mae": -316.2594,
+     "delta_mae": 450.0718,
      "ci95": [
-      -1891.5368,
-      1212.6374
+      -1035.7298,
+      2137.4389
      ],
-     "prob_a_better": 0.655,
+     "prob_a_better": 0.2955,
      "n": 24,
      "n_boot": 2000,
      "unit": "AOI-month row bootstrap (not independent hotspots)"
@@ -830,21 +950,21 @@
    "per_aoi": {
     "australia": {
      "stan": {
-      "mae": 7427.3526,
-      "wape": 0.081967,
-      "bias": 1568.5372,
+      "mae": 8549.2859,
+      "wape": 0.094349,
+      "bias": -495.5775,
       "n": 24
      },
      "hts": {
-      "mae": 7429.2524,
-      "wape": 0.081988,
-      "bias": 1670.1156,
+      "mae": 8485.5734,
+      "wape": 0.093646,
+      "bias": -398.0464,
       "n": 24
      },
      "b2": {
-      "mae": 7743.6121,
-      "wape": 0.085457,
-      "bias": 4289.524,
+      "mae": 8099.2141,
+      "wape": 0.089382,
+      "bias": 2335.7767,
       "n": 24
      }
     }
@@ -854,8 +974,8 @@
    "b2_headline": null,
    "level_scale_2023": 1.0022,
    "n_train": 5399,
-   "n_test": 1110
+   "n_test": 1375
   }
  },
- "weights_sha256": "8cc181b916b571f1101158ec06be6ddcdafc92a5ebef3155acc5bcd5ec1cf69c"
+ "weights_sha256": "9399285be165cf71e7ce7e81c18be89416e1145040b11ddbb11a76085105c58c"
 }

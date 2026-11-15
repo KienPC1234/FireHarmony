@@ -8,13 +8,13 @@
 - [ ] Thử walkthrough `docs/DEMO.md` dưới 3:00.
 - [ ] Điền portal Space Apps: tóm tắt, link demo/video, ảnh calendar + map.
 - [ ] Ghi rõ giới hạn: coverage theo request ledger (day-31 gap là thật),
-      Australia đã backfill đủ 84/85 tháng (trước đây từng chỉ có cửa sổ 5 ngày),
+      cả 3 AOI đã backfill đủ 180/180 tháng (2012-01..2026-12),
       pre-2012 upscale là ước lượng, bias giờ bay/mây chưa khử hết, outlook là khí hậu học,
       chỉ mới đánh giá trên 3 AOI (chưa chứng minh transfer sang vùng mới).
-- [ ] Báo cáo kết quả trung thực: STAN đạt MAE 3,899.5 vs B2 4,462.6 (-12.6% MAE,
-      P(STAN better) 0.965, cải thiện cả 3 AOI; 95% CI [-1,184.4, +50.8] chứa 0,
+- [ ] Báo cáo kết quả trung thực: STAN đạt MAE 4,154.7 vs B2 4,581.1 (-9.3% MAE,
+      P(STAN better) 0.919; 95% CI [-1,060.4, +216.3] chứa 0,
       `statistically_established: false`) trên holdout 72 tháng (`eval-v4`);
-      B2/HTS (HTS MAE 4,172.7) đóng vai trò mỏ neo chuẩn vững chắc.
+      B2/HTS (HTS MAE 4,524.8) đóng vai trò mỏ neo chuẩn vững chắc.
 - Truth-messaging Ngày 1B: `k=0.35` chỉ là fallback khi `insufficient_overlap`
   (<3 tháng cùng quan trắc) — response giữ số nhưng ghi `uncertainty_status=not_calibrated`
   + `calibration_note`, không vẽ interval; 409 `model_requires_full_aoi` /

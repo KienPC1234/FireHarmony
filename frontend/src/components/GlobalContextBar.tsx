@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Check, Copy, Database, Filter, Layers, MapPin } from "lucide-react";
+import { Check, Copy, Database, Filter, Info, Layers, MapPin } from "lucide-react";
 import { useLang } from "@/lib/i18n";
 import { api, type Aoi } from "@/lib/api";
 import { useResearchContext, type AoiId } from "@/lib/researchContext";
@@ -57,6 +57,19 @@ export function GlobalContextBar({
   const currentAoi = hasUrlRegion ? ((searchParams.get("aoi") as AoiId) || aoi || "vietnam") : null;
   const currentData = searchParams.get("data") || dataFeed || "raw";
   const isRaw = currentData === "raw";
+  const isCustomOrFiltered = currentAoi === "custom"
+    || Boolean(
+      searchParams.get("dataset")
+      || searchParams.get("bbox")
+      || searchParams.get("geometry")
+      || searchParams.get("from_date")
+      || searchParams.get("to_date")
+      || searchParams.get("from")
+      || searchParams.get("to")
+      || (searchParams.get("qa_min") && searchParams.get("qa_min") !== "all")
+      || (searchParams.get("platform_set") && searchParams.get("platform_set") !== "all")
+      || (searchParams.get("source_type") && searchParams.get("source_type") !== "all")
+    );
 
   const handleShare = async () => {
     try {
@@ -69,7 +82,8 @@ export function GlobalContextBar({
   };
 
   return (
-    <div data-tour="global-context-bar" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-[#0B1220] px-4 py-2.5 text-xs shadow-sm">
+    <div data-tour="global-context-bar" className="rounded-2xl border border-slate-800 bg-[#0B1220] px-4 py-2.5 text-xs shadow-sm space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
       {/* 1. Interactive Context Segments */}
       <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-slate-300">
         {/* Interactive AOI Switcher */}
@@ -220,11 +234,13 @@ export function GlobalContextBar({
             </button>
             <button
               type="button"
+              disabled={isCustomOrFiltered}
               onClick={() => updateParams({ data: "raw", method: "stan" })}
-              title={t("calendar.stan_tooltip")}
+              title={isCustomOrFiltered ? t("custom_panel.ml_disabled_reason") : t("calendar.stan_tooltip")}
               className={cn(
                 "px-2 py-0.5 rounded text-[11px] font-semibold transition min-h-[26px]",
-                method === "stan"
+                isCustomOrFiltered && "opacity-40 cursor-not-allowed",
+                method === "stan" && !isCustomOrFiltered
                   ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 font-bold"
                   : "text-slate-400 hover:text-white"
               )}
@@ -233,11 +249,13 @@ export function GlobalContextBar({
             </button>
             <button
               type="button"
+              disabled={isCustomOrFiltered}
               onClick={() => updateParams({ data: "raw", method: "hts_anchor" })}
-              title={t("calendar.hts_tooltip")}
+              title={isCustomOrFiltered ? t("custom_panel.ml_disabled_reason") : t("calendar.hts_tooltip")}
               className={cn(
                 "px-2 py-0.5 rounded text-[11px] font-semibold transition min-h-[26px]",
-                method === "hts_anchor"
+                isCustomOrFiltered && "opacity-40 cursor-not-allowed",
+                method === "hts_anchor" && !isCustomOrFiltered
                   ? "bg-amber-500/25 text-amber-300 border border-amber-500/40 font-bold"
                   : "text-slate-400 hover:text-white"
               )}
@@ -296,6 +314,16 @@ export function GlobalContextBar({
           )}
         </button>
       </div>
+      </div>
+
+      {(isCustomOrFiltered || method === "k_ratio") && (
+        <div className="flex items-start gap-2 rounded-xl border border-slate-800/90 bg-slate-900/60 px-3 py-2 text-[11px] leading-relaxed text-slate-300">
+          <Info className={cn("h-3.5 w-3.5 shrink-0 mt-0.5", isCustomOrFiltered ? "text-orange-400" : "text-cyan-400")} />
+          <span>
+            {isCustomOrFiltered ? t("custom_panel.stat_custom_explain") : t("custom_panel.stat_preset_explain")}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

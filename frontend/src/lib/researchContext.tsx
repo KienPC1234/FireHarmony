@@ -32,6 +32,18 @@ export function applyCustomRegionParams(
   return next;
 }
 
+export function clearCustomRegionParams(prev: URLSearchParams): URLSearchParams {
+  const next = new URLSearchParams(prev);
+  next.delete("dataset");
+  next.delete("bbox");
+  next.delete("geometry");
+  next.delete("from_date");
+  next.delete("to_date");
+  next.delete("from");
+  next.delete("to");
+  return next;
+}
+
 export interface ResearchContextValue {
   aoi: AoiId;
   dataFeed: DataFeedKind;
@@ -47,13 +59,33 @@ export interface ResearchContextValue {
 }
 
 const ResearchContext = createContext<ResearchContextValue | null>(null);
+const MODE_STORAGE_KEY = "fireharmony.experience_mode";
+
+function readStoredMode(): ExperienceMode {
+  try {
+    const v = window.localStorage.getItem(MODE_STORAGE_KEY);
+    return v === "research" ? "research" : "explore";
+  } catch {
+    return "explore";
+  }
+}
+
+function writeStoredMode(mode: ExperienceMode): void {
+  try {
+    window.localStorage.setItem(MODE_STORAGE_KEY, mode);
+  } catch {
+    // Ignore storage errors in restricted browsing contexts.
+  }
+}
 
 export function ResearchContextProvider({ children }: { children: React.ReactNode }) {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const aoi = (searchParams.get("aoi") as AoiId) || "vietnam";
   const dataFeed = (searchParams.get("data") as DataFeedKind) || "raw";
-  const mode = (searchParams.get("mode") as ExperienceMode) || "explore";
+  const urlMode = searchParams.get("mode");
+  const mode: ExperienceMode =
+    urlMode === "research" || urlMode === "explore" ? urlMode : readStoredMode();
   const yearMonth = searchParams.get("ym");
   // A shared URL is an explicit source-of-truth selection. If method is
   // omitted, choose a method supported by that feed, rather than silently
@@ -69,6 +101,12 @@ export function ResearchContextProvider({ children }: { children: React.ReactNod
 
   // Keep the browser URL in sync with the effective method. Preserve AOI,
   // month and research mode, and avoid redirecting an intentional raw feed.
+  React.useEffect(() => {
+    if (urlMode === "research" || urlMode === "explore") {
+      writeStoredMode(urlMode);
+    }
+  }, [urlMode]);
+
   React.useEffect(() => {
     if (!unsupportedSampleMethod) return;
     setSearchParams((prev) => {
@@ -115,6 +153,8 @@ export function ResearchContextProvider({ children }: { children: React.ReactNod
               geometry: null,
               from_date: null,
               to_date: null,
+              from: null,
+              to: null,
             },
       ),
     // One URL transition for feed+method: the sample feed has no STAN/HTS
@@ -122,7 +162,10 @@ export function ResearchContextProvider({ children }: { children: React.ReactNod
     setDataFeed: (nextFeed) => updateParams({
       data: nextFeed, method: nextFeed === "sample" ? "k_ratio" : "stan",
     }),
-    setMode: (nextMode) => updateParams({ mode: nextMode }),
+    setMode: (nextMode) => {
+      writeStoredMode(nextMode);
+      updateParams({ mode: nextMode });
+    },
     setYearMonth: (nextYm) => updateParams({ ym: nextYm }),
     setMethod: (nextMethod) => updateParams({ method: nextMethod }),
     updateParams,

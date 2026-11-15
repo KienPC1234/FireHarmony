@@ -80,9 +80,16 @@ def evaluate(data: str = "raw", aois: tuple[str, ...] = store.AOIS,
     if not pairs_by_aoi:
         return {"trained": False, "reason": "no_pairs"}
 
+    complete_year_sets = [
+        {y for y in {int(p["year"]) for p in ps}
+         if len({int(p["month"]) for p in ps if int(p["year"]) == y}) == 12}
+        for ps in pairs_by_aoi.values()
+    ]
+    complete_common = set.intersection(*complete_year_sets) if complete_year_sets else set()
     year_sets = [set(int(p["year"]) for p in ps) for ps in pairs_by_aoi.values()]
     common_years = set.intersection(*year_sets) if year_sets else set()
-    global_test = set(sorted(common_years)[-test_years:]) if common_years else set()
+    pool = complete_common if len(complete_common) >= test_years else common_years
+    global_test = set(sorted(pool)[-test_years:]) if pool else set()
 
     per_aoi: dict[str, dict] = {}
     predicted: dict[str, dict[str, float]] = {}
