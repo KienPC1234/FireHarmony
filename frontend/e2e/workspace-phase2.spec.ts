@@ -24,6 +24,7 @@ test("Evidence mobile quick navigation reaches the observation matrix and preser
   await page.goto("/evidence?aoi=vietnam&data=sample&ym=2025-03&mode=research");
   const nav = page.getByRole("navigation", { name: /Đi đến|On this page/ });
   await expect(nav).toBeVisible({ timeout: 20000 });
+  await nav.getByTestId("section-quicknav-mobile").locator("summary").click();
   await nav.getByRole("link", { name: /Ma trận quan trắc|Observation matrix/ }).click();
   await expect(page.locator("#evidence-matrix")).toBeInViewport({ ratio: 0.01 });
   await expect(page.locator("#evidence-limits")).toHaveCount(1);
@@ -40,20 +41,25 @@ test("AI Investigator has chat, questions and telemetry navigation on mobile", a
   const nav = page.getByRole("navigation", { name: /AI Scientific Investigator/i });
   await expect(nav).toBeVisible();
   await expect(page.locator("#ai-questions")).toHaveCount(1);
+  await nav.getByTestId("section-quicknav-mobile").locator("summary").click();
   await nav.getByRole("link", { name: /Telemetry|Dữ liệu kiểm chứng/i }).last().click();
   await expect(page.locator("#ai-telemetry")).toBeInViewport({ ratio: 0.01 });
   await expect(page.locator("#ai-conversation")).toHaveAttribute("role", "log");
   await expect(page.locator("form input[aria-label]")).toBeVisible();
 });
 
-test("Methods shows compact horizontal research sections and tab switch is functional", async ({ page }) => {
+test("Methods shows compact expandable mobile sections and tab switch is functional", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/methods?data=sample&aoi=vietnam");
   const nav = page.getByRole("navigation", { name: /Mục lục phương pháp|Methods sections/ });
   await expect(nav).toBeVisible();
-  expect(await nav.getByRole("button").count()).toBe(5);
-  await nav.getByRole("button").nth(3).click();
-  await expect(nav.getByRole("button").nth(3)).toHaveAttribute("aria-pressed", "true");
+  const mobile = nav.getByTestId("methods-mobile-section-nav");
+  await mobile.locator("summary").click();
+  await expect(mobile.getByRole("button")).toHaveCount(5);
+  await mobile.getByRole("button").nth(3).click();
+  await expect(mobile).not.toHaveAttribute("open", "");
+  await mobile.locator("summary").click();
+  await expect(mobile.getByRole("button").nth(3)).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 });
 

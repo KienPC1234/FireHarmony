@@ -462,10 +462,10 @@ export function InvestigatorPage() {
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 {t("ai.context_inquiries")}
               </span>
-              <span className="text-xs font-mono text-cyan-400">3 Presets</span>
+              <span className="text-xs font-mono text-cyan-400">{promptChips.length} Presets</span>
             </div>
 
-            <div className="flex snap-x gap-2.5 overflow-x-auto sm:grid sm:grid-cols-3">
+            <div data-testid="investigator-preset-grid" className="grid min-w-0 grid-cols-1 gap-2.5 sm:grid-cols-3">
               {promptChips.map((p) => (
                 <button
                   key={p.id}
