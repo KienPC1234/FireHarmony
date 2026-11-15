@@ -446,9 +446,9 @@ export function MethodsPage() {
           </div>
 
           {/* Deep-Dive Architectural & Mathematical Formulation Cards */}
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-3">
             {/* Card 1: Objective & Formulation */}
-            <div className="rounded-2xl border border-slate-800 bg-[#0B1220] p-5 shadow-sm space-y-3.5 flex flex-col justify-between">
+            <div className="min-w-0 rounded-2xl border border-slate-800 bg-[#0B1220] p-5 shadow-sm space-y-3.5 flex flex-col justify-between">
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-cyan-400 font-bold text-xs uppercase tracking-wider">
                   <BrainCircuit className="h-4 w-4" />
@@ -474,7 +474,7 @@ export function MethodsPage() {
             </div>
 
             {/* Card 2: Tensor Shape Pipeline & Dilated TCN + FiLM */}
-            <div className="rounded-2xl border border-slate-800 bg-[#0B1220] p-5 shadow-sm space-y-3.5 flex flex-col justify-between">
+            <div className="min-w-0 rounded-2xl border border-slate-800 bg-[#0B1220] p-5 shadow-sm space-y-3.5 flex flex-col justify-between">
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs uppercase tracking-wider">
                   <Layers className="h-4 w-4" />
@@ -512,7 +512,7 @@ export function MethodsPage() {
             </div>
 
             {/* Card 3: Circuit Breaker Statistical Gate */}
-            <div className="rounded-2xl border border-slate-800 bg-[#0B1220] p-5 shadow-sm space-y-3.5 flex flex-col justify-between">
+            <div className="min-w-0 rounded-2xl border border-slate-800 bg-[#0B1220] p-5 shadow-sm space-y-3.5 flex flex-col justify-between">
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider">
                   <ShieldCheck className="h-4 w-4" />
@@ -525,17 +525,17 @@ export function MethodsPage() {
                   {t("methods.card3_body")}
                 </p>
                 <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-3 space-y-2 text-xs font-mono">
-                  <div className="flex justify-between items-center text-slate-300 border-b border-slate-800 pb-1">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-slate-300 border-b border-slate-800 pb-1">
                     <span>B2 Baseline MAE:</span>
                     <span className="font-bold text-slate-200">4,462.6</span>
                   </div>
-                  <div className="flex justify-between items-center text-slate-300 border-b border-slate-800 pb-1">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-slate-300 border-b border-slate-800 pb-1">
                     <span>HTS Candidate MAE:</span>
-                    <span className="font-bold text-amber-400">4,172.7 (-6.5%)</span>
+                    <span className="min-w-0 text-right font-bold text-amber-400">4,172.7 (-6.5%)</span>
                   </div>
-                  <div className="flex justify-between items-center text-slate-300">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-slate-300">
                     <span>STAN Operational MAE:</span>
-                    <span className="font-bold text-emerald-400">3,899.5 (-12.6%)</span>
+                    <span className="min-w-0 text-right font-bold text-emerald-400">3,899.5 (-12.6%)</span>
                   </div>
                 </div>
               </div>
