@@ -720,9 +720,14 @@ def iter_raw_rows(aoi: str, raw_dir: Path | None = None, limit: int | None = Non
     if use_duckdb == "1" or (use_duckdb != "0" and raw_dir == _DEFAULT_RAW_DIR):
         try:
             from app.firms import parquet_cache as _pq
-            yield from _pq.iter_duckdb_rows(
-                aoi, raw_dir=raw_dir, limit=limit, year=year, ym=ym, dedup=dedup)
-            return
+            n_pq = 0
+            for row in _pq.iter_duckdb_rows(
+                aoi, raw_dir=raw_dir, limit=limit, year=year, ym=ym, dedup=dedup
+            ):
+                n_pq += 1
+                yield row
+            if n_pq > 0:
+                return
         except Exception:
             pass
     if not raw_dir.exists():

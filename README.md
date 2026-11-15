@@ -192,7 +192,34 @@ To reproduce all benchmarks, train STAN/HTS from scratch, or extend the pipeline
    cd backend && ../.venv/bin/python -m scripts.firms.check_release
    ```
 
-> **Note on adding a new AOI:** Register the region ID and bounding box in `backend/app/firms/store.py` (`AOIS`) after fetching >= 12 paired months, then run `retrain_all`. Custom live/polygon regions outside the registered AOIs automatically use `method=stat` (`b2_seasonal_ratio` / empirical `k`) to avoid unverified zero-shot extrapolation.
+### Adding a New AOI (No Code Edits Required)
+
+Researchers can add a new study region (`STAN` + `HTS` + `stat`) without modifying Python source files:
+
+1. **Register the AOI** in `backend/data/firms/aois.json` under `"custom"`:
+   ```json
+   {
+     "custom": {
+       "kalimantan": {
+         "label": "Indonesia (Kalimantan)",
+         "bbox": "110,-3,118,2"
+       }
+     }
+   }
+   ```
+2. **Fetch raw MODIS + VIIRS CSVs** (`backend/data/firms/raw/{aoi}_{source}_*.csv`). STAN training needs multi-year paired history (`<= 2022` for `12`-month training windows, `2023` validation, `2024+` evaluation):
+   ```bash
+   cd backend
+   ../.venv/bin/python -m scripts.firms.fetch_full_month \
+     --aoi kalimantan --bbox 110,-3,118,2 --start-year 2020 --end-year 2025 --workers 4
+   ```
+3. **Train, evaluate, and warm caches**:
+   ```bash
+   ../.venv/bin/python -m scripts.firms.retrain_all
+   cd .. && make prewarm AOI=kalimantan
+   ```
+
+> Custom live/polygon regions outside `aois.json` (or filtered slices with `bbox`/`geometry`/`from_date`/`to_date`) automatically use `method=stat` (`b2_seasonal_ratio` / empirical `k`) to avoid unverified zero-shot extrapolation.
 
 ---
 

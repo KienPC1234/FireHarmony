@@ -92,7 +92,7 @@ export function MapToolbar({
         {/* Cụm trái: Chế độ nền (Basemap) & Lớp dữ liệu */}
         <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:flex-nowrap sm:shrink-0">
           {/* Basemap Switcher */}
-          <div className="flex items-center rounded-lg border border-slate-800 bg-slate-900/90 p-0.5 shrink-0">
+          <div className="flex max-w-full flex-wrap items-center rounded-lg border border-slate-800 bg-slate-900/90 p-0.5">
             {(Object.keys(basemaps) as BasemapKey[]).map((key) => {
               const label =
                 key === "dark"
@@ -106,7 +106,7 @@ export function MapToolbar({
                   type="button"
                   onClick={() => setBasemap(key)}
                   className={cn(
-                    "rounded px-2 py-0.5 text-[11px] font-medium transition min-h-[24px]",
+                    "rounded px-1.5 sm:px-2 py-0.5 text-[11px] font-medium transition min-h-[24px]",
                     basemap === key
                       ? "bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30 shadow-sm"
                       : "text-slate-400 hover:text-white",

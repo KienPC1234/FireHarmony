@@ -44,12 +44,15 @@ def main() -> dict:
             anchors_by_cutoff[cut] = sf_tile.tile_anchors(tiles, ratios, cut)
         return ratios_by_cutoff[cut], anchors_by_cutoff[cut]
 
-    series: dict[str, dict] = {a: {} for a in sf_tile.AOIS}
+    aois = sf_tile.active_aois(tiles)
+    series: dict[str, dict] = {a: {} for a in aois}
     years = sorted({t["year"] for t in tiles})
     for y in years:
         cut = 2024 if y >= 2024 else y
         ratios, anchors = for_cutoff(cut)
-        for aoi in sf_tile.AOIS:
+        for aoi in aois:
+            if aoi not in ratios:
+                continue
             raw_ratio = ratios[aoi]
             for m in range(1, 13):
                 ts = by_month.get((aoi, y, m))
@@ -79,7 +82,7 @@ def main() -> dict:
         "tile_deg": 1.0,
         "cutoff_rule": "year for <2024; fixed 2024 for 2024-2025",
         "aois": list(sf_tile.AOIS),
-        "months": {a: len(series[a]) for a in sf_tile.AOIS},
+        "months": {a: len(series[a]) for a in aois},
         "dataset_sha256": hashlib.sha256(
             (BENCH / "tile_pairs_raw.csv").read_bytes()).hexdigest(),
         "series": series,

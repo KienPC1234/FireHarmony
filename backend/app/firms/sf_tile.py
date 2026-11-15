@@ -73,11 +73,20 @@ def load_aoi_pairs() -> list[dict]:
     return list(_pairs_cached(str(p), st.st_mtime_ns, st.st_size))
 
 
+def active_aois(rows: list[dict] | None = None) -> tuple[str, ...]:
+    """Return distinct AOIs present in tile rows, falling back to preset AOIS."""
+    if rows:
+        seen = tuple(dict.fromkeys(str(r["aoi"]) for r in rows if r.get("aoi")))
+        if seen:
+            return seen
+    return AOIS
+
+
 def b2_by_aoi(pairs: list[dict], cutoff: int) -> dict:
     from app.firms.ml_core import ratios_from_train
     return {a: ratios_from_train([p for p in pairs
                                   if p["aoi"] == a and p["year"] < cutoff])
-            for a in AOIS}
+            for a in active_aois(pairs)}
 
 
 def tile_anchors(tiles: list[dict], ratios: dict, cutoff: int,

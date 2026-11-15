@@ -83,9 +83,9 @@ def main() -> dict:
     mae_hts = float(np.mean(np.abs(h - y)))
     headline_idx = [i for i, s in enumerate(samples)
                     if s["aoi"] in ("vietnam", "amazon")]
-    headline = _metrics(y[headline_idx], h[headline_idx])
+    headline = _metrics(y[headline_idx], h[headline_idx]) if headline_idx else None
     per_aoi = {}
-    for aoi in sf_tile.AOIS:
+    for aoi in sf_tile.active_aois(samples):
         idx = [i for i, s in enumerate(samples) if s["aoi"] == aoi]
         if not idx:
             continue

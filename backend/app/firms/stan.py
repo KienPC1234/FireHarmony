@@ -374,13 +374,14 @@ def build_series() -> dict:
             val_cov = round(float(np.mean([x <= band_log_halfwidth + 1e-12
                                            for x in abslog])), 4) if abslog else None
 
-    series: dict[str, dict] = {a: {} for a in AOIS}
     hts_path = MODEL_DIR / "hts_series_raw.json"
-    if hts_path.exists():
-        hts = json.loads(hts_path.read_text(encoding="utf-8")).get("series", {})
-        for a in AOIS:
-            for ym, v in (hts.get(a) or {}).items():
-                series[a][ym] = {"target": float(v["hts"]), "source": "hts"}
+    hts = (json.loads(hts_path.read_text(encoding="utf-8")).get("series", {})
+           if hts_path.exists() else {})
+    aois = tuple(dict.fromkeys(list(AOIS) + list(hts.keys()) + [a for a, _, _ in centres]))
+    series: dict[str, dict] = {a: {} for a in aois}
+    for a in aois:
+        for ym, v in (hts.get(a) or {}).items():
+            series[a][ym] = {"target": float(v["hts"]), "source": "hts"}
     hits: list[float] = []
     for (aoi, y, m), centre in centres.items():
         ym = f"{y}-{m:02d}"
@@ -410,7 +411,7 @@ def build_series() -> dict:
                      "validation_coverage80": val_cov,
                      "empirical_coverage80": round(float(np.mean(hits)), 4) if hits else None,
                      "n_scored": len(hits)},
-        "months": {a: len(series[a]) for a in AOIS},
+        "months": {a: len(series[a]) for a in aois if series.get(a)},
         "dataset_sha256": hashlib.sha256(
             (BENCH / "tile_pairs_raw.csv").read_bytes()).hexdigest(),
         "series": series,
@@ -527,7 +528,7 @@ def _official_eval(test: list[dict], pred: np.ndarray,
         out["headline"] = None
         out["hts_headline"] = None
         out["b2_headline"] = None
-    for aoi in AOIS:
+    for aoi in tuple(dict.fromkeys([s["aoi"] for s in samples] + list(AOIS))):
         idx = [i for i, s in enumerate(samples) if s["aoi"] == aoi]
         if idx:
             out["per_aoi"][aoi] = {
@@ -543,7 +544,7 @@ def run_loo(retrospective: bool = False, epochs: int = 160,
     rows_sel = build_windows(retrospective, 2023)
     rows_final = build_windows(retrospective, 2024)
     out = {}
-    for held in AOIS:
+    for held in tuple(dict.fromkeys([r["aoi"] for r in rows_final] + list(AOIS))):
         sel = [r for r in rows_sel if r["aoi"] != held and r["year"] < 2023]
         val = [r for r in rows_sel if r["aoi"] != held and r["year"] == 2023]
         fit_rows = [r for r in rows_final if r["aoi"] != held and r["year"] < 2024]
@@ -644,7 +645,7 @@ def run(retrospective: bool = True, epochs: int = 160,
                         "hts": _metrics(
                             np.array([s["viirs_ref"] for s in samples if s["aoi"] == a]),
                             np.array([s["hts_anchor"] for s in samples if s["aoi"] == a]))}
-                    for a in AOIS if any(s["aoi"] == a for s in samples)},
+                    for a in tuple(dict.fromkeys(s["aoi"] for s in samples)) if any(s["aoi"] == a for s in samples)},
         "comparisons": {"stan_vs_hts": _delta_ci(samples, "stan", "hts_anchor")},
         "official": _official_eval(test, pred),
         "dataset_sha256": hashlib.sha256(

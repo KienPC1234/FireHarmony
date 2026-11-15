@@ -45,12 +45,34 @@ def _inst(rec: dict) -> str | None:
     return None
 
 
+def _active_bounds() -> dict[str, tuple[float, float, float, float]]:
+    """Resolve (min_lat, max_lat, min_lon, max_lon) for all ready AOIs in aois.json."""
+    out: dict[str, tuple[float, float, float, float]] = {}
+    for aoi, entry in store.aoi_registry().items():
+        if not store.raw_ready(aoi):
+            continue
+        bbox_str = str(entry.get("bbox") or "").strip()
+        parts = [p.strip() for p in bbox_str.split(",") if p.strip()]
+        if len(parts) == 4:
+            try:
+                lon0, lat0, lon1, lat1 = (float(x) for x in parts)
+                out[aoi] = (lat0, lat1, lon0, lon1)
+                continue
+            except ValueError:
+                pass
+        if aoi in BOUNDS:
+            out[aoi] = BOUNDS[aoi]
+    return out or dict(BOUNDS)
+
+
 def build() -> dict:
+    bounds = _active_bounds()
+    aois = list(bounds.keys())
     acc: dict[tuple, list[int]] = {}
     dates_m: dict[tuple, set[str]] = {}
     dates_v: dict[tuple, set[str]] = {}
-    for aoi in AOIS:
-        lat0, lat1, lon0, lon1 = BOUNDS[aoi]
+    for aoi in aois:
+        lat0, lat1, lon0, lon1 = bounds[aoi]
         for rec in store.iter_raw_rows(aoi, limit=None):
             inst = _inst(rec)
             if inst is None:
@@ -123,7 +145,7 @@ def build() -> dict:
     tiles = {r["tile_id"] for r in rows}
     meta = {
         "rows": len(rows), "strong_rows": len(strong), "tiles": len(tiles),
-        "aois": list(AOIS), "tile_deg": TILE_DEG,
+        "aois": aois, "tile_deg": TILE_DEG,
         "sha256": hashlib.sha256(OUT.read_bytes()).hexdigest(),
     }
     (OUT.parent / "tile_pairs_raw.json").write_text(

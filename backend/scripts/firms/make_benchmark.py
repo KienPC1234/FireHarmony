@@ -47,12 +47,19 @@ def _write_csv(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
         w.writerows(rows)
 
 
+def _active_aois() -> tuple[str, ...]:
+    """Return all AOIs from aois.json that have raw data ready, falling back to AOIS."""
+    ready = tuple(a for a in store.aoi_registry() if store.raw_ready(a))
+    return ready or AOIS
+
+
 def build() -> int:
     BENCH_DIR.mkdir(parents=True, exist_ok=True)
+    aois = _active_aois()
     manifest_entries = json.loads(store.MANIFEST.read_text()) if store.MANIFEST.exists() else []
     meta: dict = {"aois": {}, "sources": sorted({e.get("source", "?") for e in manifest_entries})}
     all_pairs: list[dict] = []
-    for aoi in AOIS:
+    for aoi in aois:
         # Fixture: bounded round-robin prefix (mixed MODIS/VIIRS).
         sample = store.load_raw_merged(aoi, N_PER_AOI)
         if not sample:
@@ -86,7 +93,7 @@ def build() -> int:
     meta["training_pairs"] = {}
     for data in DATASETS:
         rows = []
-        for aoi in AOIS:
+        for aoi in aois:
             if data == "raw":
                 pb = ml_cal.PairBuilder()
                 for r in store.iter_raw_rows(aoi, limit=None):
@@ -170,7 +177,7 @@ def check() -> int:
                 exp_rows[(r["aoi"], int(r["year"]), int(r["month"]))] = (
                     int(r["modis"]), int(r["viirs"]))
         recomputed = []
-        for aoi in AOIS:
+        for aoi in _active_aois():
             p = BENCH_DIR / f"real_mini_{aoi}.csv"
             if not p.exists():
                 continue

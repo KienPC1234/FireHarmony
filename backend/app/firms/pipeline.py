@@ -235,7 +235,7 @@ def _raw_agg(aoi: str, bbox=None, qa_min: str = "all",
     b = _parse_bbox(bbox) if isinstance(bbox, str) else bbox
     if geom is None and daynight == "all" and min_frp <= 0.0:
         fast = _try_aggregate_duckdb(aoi, b, qa_min, platform_set, source_type, year, ym)
-        if fast is not None:
+        if fast is not None and fast[0]:
             return fast
 
     def rows():
@@ -331,7 +331,7 @@ def _harmonize_stream(aoi: str, data: str, bbox, method: str = "stat",
     keep = None
     fast = (_try_aggregate_duckdb(aoi, b, qa_min, platform_set, source_type, simulate_year, focus_ym)
             if (geom is None and daynight == "all" and min_frp <= 0.0) else None)
-    if fast is not None:
+    if fast is not None and fast[0]:
         agg, stats = fast
     else:
         def rows():

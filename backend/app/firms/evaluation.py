@@ -54,7 +54,7 @@ def split_years(pairs: list[dict], test_years: int) -> tuple[set[int], set[int]]
     return set(years[:-test_years]), set(years[-test_years:])
 
 
-def evaluate(data: str = "raw", aois: tuple[str, ...] = store.AOIS,
+def evaluate(data: str = "raw", aois: tuple[str, ...] | None = None,
              test_years: int = 2, epochs: int | None = None,
              model_dir: Path | None = None) -> dict:
     """Build the frozen sample set and score B0/B1/B2 on it.
@@ -64,6 +64,11 @@ def evaluate(data: str = "raw", aois: tuple[str, ...] = store.AOIS,
     the baselines. `epochs` is accepted for CLI compatibility and ignored.
     """
     model_dir = Path(model_dir or MODEL_DIR)
+    if aois is None:
+        if data == "raw":
+            aois = tuple(a for a in store.aoi_registry() if store.raw_ready(a)) or store.AOIS
+        else:
+            aois = store.AOIS
     pairs_by_aoi: dict[str, list[dict]] = {}
     for aoi in aois:
         if data == "raw":
