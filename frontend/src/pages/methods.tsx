@@ -281,7 +281,33 @@ export function MethodsPage() {
       {/* 3. Section Switcher: one accessible, horizontally scrollable row on small screens. */}
       <nav data-tour="methods-nav" aria-label={t("methods.nav_label")}
         className="sticky top-0 z-20 rounded-xl border border-slate-800 bg-[#0B1220]/95 px-2 py-2 shadow-lg backdrop-blur-md">
-      <div className="flex snap-x items-center gap-2 overflow-x-auto pb-0.5" role="group">
+      <details data-testid="methods-mobile-section-nav" className="sm:hidden">
+        <summary className="min-h-[40px] cursor-pointer rounded-lg border border-slate-700 bg-[#111C2E] px-3 py-2 text-xs font-semibold text-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">
+          {t("methods.nav_label")} · {sections.find((section) => section.id === activeSection)?.title}
+        </summary>
+        <div className="mt-2 grid min-w-0 gap-1.5" role="group">
+          {sections.map((section) => (
+            <button
+              key={section.id}
+              type="button"
+              onClick={(event) => {
+                setActiveSection(section.id);
+                event.currentTarget.closest("details")?.removeAttribute("open");
+              }}
+              aria-pressed={activeSection === section.id}
+              className={cn(
+                "min-h-[40px] min-w-0 w-full rounded-lg border px-3 py-2 text-left text-xs font-semibold break-words focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400",
+                activeSection === section.id
+                  ? "border-cyan-500/40 bg-cyan-500/20 text-cyan-300"
+                  : "border-slate-800 bg-[#111C2E] text-slate-200"
+              )}
+            >
+              {section.title}
+            </button>
+          ))}
+        </div>
+      </details>
+      <div className="hidden snap-x items-center gap-2 overflow-x-auto pb-0.5 sm:flex" role="group">
         {sections.map((s) => (
           <button
             key={s.id}
